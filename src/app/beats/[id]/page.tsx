@@ -29,7 +29,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
   const relatedBeats = getRelatedBeats(beat);
 
   return (
-    <main className="min-h-screen bg-[#050607] px-4 py-6 text-white md:px-8">
+    <main className="min-h-screen bg-[#050607] px-4 py-6 pb-32 text-white md:px-8">
       <div className="mx-auto max-w-7xl space-y-8">
         <Link
           href="/"
@@ -78,7 +78,9 @@ export default async function BeatPage({ params }: BeatPageProps) {
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              <PlayButton>Play Preview 15s</PlayButton>
+              <PlayButton beat={beat} mode="preview" showPauseState>
+                Play Preview 15s
+              </PlayButton>
               <button className="rounded-md border border-cyan-300/30 px-5 py-3 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
                 Solicitar acceso
               </button>

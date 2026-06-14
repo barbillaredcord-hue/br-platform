@@ -1,10 +1,18 @@
-import { Play } from "lucide-react";
+"use client";
+
+import { Pause, Play } from "lucide-react";
+import type { Beat } from "@/data/beats";
+import type { PlayerMode } from "@/context/PlayerContext";
+import { usePlayer } from "@/context/PlayerContext";
 
 type PlayButtonProps = {
   children?: React.ReactNode;
   variant?: "primary" | "light" | "circle";
   className?: string;
   ariaLabel?: string;
+  beat?: Beat;
+  mode?: PlayerMode;
+  showPauseState?: boolean;
 };
 
 const variants = {
@@ -18,13 +26,41 @@ export function PlayButton({
   variant = "primary",
   className = "",
   ariaLabel,
+  beat,
+  mode = "preview",
+  showPauseState = false,
 }: PlayButtonProps) {
+  const { currentBeat, isPlaying, playBeat, togglePlayback } = usePlayer();
+  const isActive = Boolean(beat && currentBeat?.id === beat.id);
+  const isPausedIcon = showPauseState && isActive && isPlaying;
+
   return (
     <button
+      type="button"
       className={`flex items-center justify-center transition ${variants[variant]} ${className}`}
       aria-label={ariaLabel}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!beat) {
+          togglePlayback();
+          return;
+        }
+
+        if (isActive) {
+          togglePlayback();
+          return;
+        }
+
+        playBeat(beat, mode);
+      }}
     >
-      <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+      {isPausedIcon ? (
+        <Pause className="h-4 w-4 fill-current" aria-hidden="true" />
+      ) : (
+        <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+      )}
       {children}
     </button>
   );

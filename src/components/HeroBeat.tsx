@@ -15,7 +15,9 @@ export function HeroBeat({ beat }: HeroBeatProps) {
           Preview público de 15 segundos. Acceso privado para escuchar la versión completa y administrar beats premium.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
-          <PlayButton>Reproducir preview</PlayButton>
+          <PlayButton beat={beat} mode="preview" showPauseState>
+            Reproducir preview
+          </PlayButton>
           <span className="rounded-md border border-white/10 px-4 py-3 text-sm text-zinc-300">
             {beat.genre} / {beat.bpm} BPM / Preview 15s
           </span>

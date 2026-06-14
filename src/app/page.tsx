@@ -2,7 +2,6 @@ import { AdminPreview } from "@/components/AdminPreview";
 import { BeatRow } from "@/components/BeatRow";
 import { Header } from "@/components/Header";
 import { HeroBeat } from "@/components/HeroBeat";
-import { PlayerBar } from "@/components/PlayerBar";
 import { Sidebar } from "@/components/Sidebar";
 import { beatRows, featuredBeat } from "@/data/beats";
 
@@ -26,8 +25,6 @@ export default function Home() {
           </div>
         </section>
       </div>
-
-      <PlayerBar beat={featuredBeat} />
     </main>
   );
 }
