@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { AccessStatusBadge } from "@/components/AccessStatusBadge";
 import type { Beat } from "@/data/beats";
+import { canAccessBeat } from "@/lib/access";
 import { AccessBadge } from "./AccessBadge";
 import { PlayButton } from "./PlayButton";
 
@@ -16,6 +18,8 @@ const coverGradients = [
 ];
 
 export function BeatCard({ beat, gradientIndex }: BeatCardProps) {
+  const hasAccess = canAccessBeat("demo-user", beat.id);
+
   return (
     <article className="w-56 shrink-0 snap-start rounded-lg bg-[#15181c] p-3 transition hover:bg-[#1c2127]">
       <Link href={`/beats/${beat.id}`} className="block">
@@ -31,8 +35,11 @@ export function BeatCard({ beat, gradientIndex }: BeatCardProps) {
           </div>
           {beat.locked ? <AccessBadge /> : null}
         </div>
+        <div className="mt-3">
+          <AccessStatusBadge hasAccess={hasAccess} />
+        </div>
       </Link>
-      <PlayButton variant="light" className="mt-4" beat={beat} mode="preview" showPauseState>
+      <PlayButton variant="light" className="mt-4" beat={beat} mode={hasAccess ? "full" : "preview"} showPauseState>
         Play
       </PlayButton>
     </article>

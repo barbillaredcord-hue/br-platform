@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, KeyRound, Lock, ShieldCheck, Unlock } from "lucide-react";
 import { AccessBadge } from "@/components/AccessBadge";
+import { AccessStatusBadge } from "@/components/AccessStatusBadge";
 import { BeatCard } from "@/components/BeatCard";
 import { PlayButton } from "@/components/PlayButton";
 import { getBeatById, getRelatedBeats } from "@/data/beats";
+import { canAccessBeat } from "@/lib/access";
 
 type BeatPageProps = {
   params: Promise<{
@@ -27,6 +29,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
   }
 
   const relatedBeats = getRelatedBeats(beat);
+  const hasAccess = canAccessBeat("demo-user", beat.id);
 
   return (
     <main className="min-h-screen bg-[#050607] px-4 py-6 pb-32 text-white md:px-8">
@@ -52,7 +55,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
                   DESBLOQUEADO
                 </span>
               )}
-              <span className="rounded-md bg-white/5 px-2 py-1 text-xs text-zinc-400">Preview 15s</span>
+              <AccessStatusBadge hasAccess={hasAccess} />
             </div>
 
             <h1 className="text-4xl font-black leading-tight md:text-6xl">{beat.name}</h1>
@@ -78,14 +81,27 @@ export default async function BeatPage({ params }: BeatPageProps) {
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              <PlayButton beat={beat} mode="preview" showPauseState>
-                Play Preview 15s
+              <PlayButton beat={beat} mode={hasAccess ? "full" : "preview"} showPauseState>
+                {hasAccess ? "Escuchar Beat Completo" : "Escuchar Preview 15s"}
               </PlayButton>
-              <button className="rounded-md border border-cyan-300/30 px-5 py-3 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
-                Solicitar acceso
-              </button>
+              {!hasAccess ? (
+                <button className="rounded-md border border-cyan-300/30 px-5 py-3 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
+                  Solicitar acceso
+                </button>
+              ) : null}
             </div>
           </div>
+        </section>
+
+        <section className="rounded-lg border border-cyan-300/20 bg-[#101317] p-5">
+          <h2 className="text-xl font-bold">
+            {hasAccess ? "Acceso completo autorizado" : "Acceso restringido"}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
+            {hasAccess
+              ? "Demo User tiene permiso para escuchar este beat en modo completo dentro de la simulación."
+              : "Demo User solo puede escuchar el preview público de 15 segundos para este beat."}
+          </p>
         </section>
 
         <section className="rounded-lg border border-white/10 bg-[#101317] p-5">

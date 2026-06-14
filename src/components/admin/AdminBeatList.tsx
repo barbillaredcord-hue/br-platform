@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SlidersHorizontal } from "lucide-react";
 import type { Beat } from "@/data/beats";
+import { getUsersWithBeatAccess } from "@/lib/access";
 import { AdminBeatStatus } from "./AdminBeatStatus";
 
 export function AdminBeatList({ beats }: { beats: Beat[] }) {
@@ -15,32 +16,40 @@ export function AdminBeatList({ beats }: { beats: Beat[] }) {
               <th className="px-4 py-3">Género</th>
               <th className="px-4 py-3">BPM</th>
               <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Usuarios con acceso</th>
               <th className="px-4 py-3 text-right">Acción</th>
             </tr>
           </thead>
           <tbody>
-            {beats.map((beat) => (
-              <tr key={beat.id} className="border-t border-white/10">
-                <td className="px-4 py-3">
-                  <div className="grid h-12 w-12 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">B.R</div>
-                </td>
-                <td className="px-4 py-3 font-semibold">{beat.name}</td>
-                <td className="px-4 py-3 text-zinc-400">{beat.genre}</td>
-                <td className="px-4 py-3 text-zinc-400">{beat.bpm}</td>
-                <td className="px-4 py-3">
-                  <AdminBeatStatus status={beat.status} />
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/admin/beats/${beat.id}/preview-editor`}
-                    className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200"
-                  >
-                    <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
-                    Editar Preview
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {beats.map((beat) => {
+              const usersWithAccess = getUsersWithBeatAccess(beat.id);
+
+              return (
+                <tr key={beat.id} className="border-t border-white/10">
+                  <td className="px-4 py-3">
+                    <div className="grid h-12 w-12 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">B.R</div>
+                  </td>
+                  <td className="px-4 py-3 font-semibold">{beat.name}</td>
+                  <td className="px-4 py-3 text-zinc-400">{beat.genre}</td>
+                  <td className="px-4 py-3 text-zinc-400">{beat.bpm}</td>
+                  <td className="px-4 py-3">
+                    <AdminBeatStatus status={beat.status} />
+                  </td>
+                  <td className="px-4 py-3 text-zinc-400">
+                    {usersWithAccess.length > 0 ? usersWithAccess.map((user) => user.name).join(", ") : "Sin usuarios"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/admin/beats/${beat.id}/preview-editor`}
+                      className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200"
+                    >
+                      <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
+                      Editar Preview
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -58,6 +67,10 @@ export function AdminBeatList({ beats }: { beats: Beat[] }) {
                 <div className="mt-3">
                   <AdminBeatStatus status={beat.status} />
                 </div>
+                <p className="mt-2 text-xs text-zinc-500">
+                  Usuarios con acceso:{" "}
+                  {getUsersWithBeatAccess(beat.id).map((user) => user.name).join(", ") || "Sin usuarios"}
+                </p>
               </div>
             </div>
             <Link

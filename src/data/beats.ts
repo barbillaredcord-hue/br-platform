@@ -28,7 +28,7 @@ export const beatRows: BeatRow[] = [
   {
     title: "Drill",
     beats: [
-      { id: "black-zone", name: "Black Zone", genre: "Drill", bpm: 144, locked: true, key: "G minor", status: "Privado" },
+      { id: "midnight-drill", name: "Midnight Drill", genre: "Drill", bpm: 144, locked: true, key: "G minor", status: "Privado" },
       { id: "street-code", name: "Street Code", genre: "Drill", bpm: 142, locked: false, key: "E minor", status: "Público Preview" },
       { id: "night-shift", name: "Night Shift", genre: "Drill", bpm: 148, locked: true, key: "B minor", status: "Privado" },
       { id: "south-echo", name: "South Echo", genre: "Drill", bpm: 140, locked: false, key: "F# minor", status: "Público Preview" },
