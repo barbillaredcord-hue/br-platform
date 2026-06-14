@@ -1,6 +1,7 @@
+import Link from "next/link";
 import type { Beat } from "@/data/beats";
 import { AccessBadge } from "./AccessBadge";
-import { PlayButton } from "./PlayButton";
+import { Play } from "lucide-react";
 
 type BeatCardProps = {
   beat: Beat;
@@ -16,7 +17,10 @@ const coverGradients = [
 
 export function BeatCard({ beat, gradientIndex }: BeatCardProps) {
   return (
-    <article className="w-56 shrink-0 snap-start rounded-lg bg-[#15181c] p-3 transition hover:bg-[#1c2127]">
+    <Link
+      href={`/beats/${beat.id}`}
+      className="block w-56 shrink-0 snap-start rounded-lg bg-[#15181c] p-3 transition hover:bg-[#1c2127]"
+    >
       <div className={`mb-4 grid aspect-square place-items-center rounded-lg ${coverGradients[gradientIndex % coverGradients.length]}`}>
         <span className="text-4xl font-black text-white/85">B.R</span>
       </div>
@@ -29,9 +33,10 @@ export function BeatCard({ beat, gradientIndex }: BeatCardProps) {
         </div>
         {beat.locked ? <AccessBadge /> : null}
       </div>
-      <PlayButton variant="light" className="mt-4">
+      <span className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white text-sm font-bold text-black transition hover:bg-cyan-200">
+        <Play className="h-4 w-4 fill-current" aria-hidden="true" />
         Play
-      </PlayButton>
-    </article>
+      </span>
+    </Link>
   );
 }
