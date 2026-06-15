@@ -2,6 +2,7 @@ export type BeatStatus = "Público Preview" | "Privado" | "Exclusivo";
 
 export type Beat = {
   id: string;
+  dbId?: string;
   name: string;
   genre: string;
   bpm: number;

@@ -5,8 +5,8 @@ import { AccessBadge } from "@/components/AccessBadge";
 import { BeatCard } from "@/components/BeatCard";
 import { BeatAccessActions } from "@/components/BeatAccessActions";
 import { BeatAccessSummary } from "@/components/BeatAccessSummary";
-import { getBeatById, getRelatedBeats } from "@/data/beats";
-import { getUsersWithAccessToBeat } from "@/lib/access";
+import { getRelatedBeats } from "@/data/beats";
+import { getBeatBySlug, getBeats, getUsersWithAccessToBeat } from "@/lib/supabase/queries";
 
 type BeatPageProps = {
   params: Promise<{
@@ -22,15 +22,16 @@ const licenses = [
 
 export default async function BeatPage({ params }: BeatPageProps) {
   const { id } = await params;
-  const beat = getBeatById(id);
+  const beat = await getBeatBySlug(id);
 
   if (!beat) {
     notFound();
   }
 
-  const relatedBeats = getRelatedBeats(beat);
+  const { beats } = await getBeats();
+  const relatedBeats = beats.length > 0 ? beats.filter((item) => item.genre === beat.genre && item.id !== beat.id).slice(0, 4) : getRelatedBeats(beat);
   const detailQueue = [beat, ...relatedBeats];
-  const usersWithAccess = getUsersWithAccessToBeat(beat.id);
+  const usersWithAccess = await getUsersWithAccessToBeat(beat.dbId ?? beat.id);
 
   return (
     <main className="min-h-screen bg-[#050607] px-4 py-6 pb-32 text-white md:px-8">

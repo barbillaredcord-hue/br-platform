@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { adminUser, demoUsers, type User } from "@/data/users";
+import { demoUsers, type User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
+import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser } from "@/lib/supabase/queries";
 
 type AuthResult = {
   ok: boolean;
@@ -13,6 +14,9 @@ type AuthResult = {
 type UserContextValue = {
   currentUser: User | null;
   users: User[];
+  authEmail: string;
+  profileRole: string;
+  brceoEnvEmail: string;
   setCurrentUser: (user: User | null) => void;
   loginAsUser: (email: string, password: string) => Promise<AuthResult>;
   registerUser: (input: { name: string; username: string; email: string; password: string }) => Promise<AuthResult>;
@@ -26,57 +30,95 @@ type UserContextValue = {
 const UserContext = createContext<UserContextValue | null>(null);
 const supabase = createSupabaseBrowserClient();
 
-function getUserFromEmail(email?: string | null): User | null {
-  if (!email) {
-    return null;
+function normalizeEmail(email?: string | null) {
+  return (email ?? "").trim().toLowerCase();
+}
+
+function getBrceoEnvEmail() {
+  return normalizeEmail(process.env.NEXT_PUBLIC_BRCEO_EMAIL);
+}
+
+async function getUserFromAuthUser(authUser?: { id: string; email?: string | null } | null, input?: { name?: string; username?: string }): Promise<{ user: User | null; profileRole: string }> {
+  if (!authUser?.email) {
+    return { user: null, profileRole: "" };
   }
 
-  const normalizedEmail = email.toLowerCase();
-  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "admin@br.local").toLowerCase();
+  const profile = await ensureProfile(authUser as Parameters<typeof ensureProfile>[0], input);
+  const authEmail = normalizeEmail(authUser.email);
+  const isBrceoEmail = authEmail === getBrceoEnvEmail();
 
-  if (normalizedEmail === brceoEmail) {
-    return { ...adminUser, email };
+  if (profile) {
+    const profileRole = profile.role;
+    const user = mapProfileToUser(
+      {
+        ...profile,
+        email: normalizeEmail(profile.email),
+        role: profileRole === "admin" || isBrceoEmail ? "admin" : "user",
+      },
+      await getUserBeatAccess(profile.id),
+    );
+
+    return { user, profileRole };
   }
 
-  const demoUser = demoUsers.find((user) => user.email.toLowerCase() === normalizedEmail);
-
-  if (demoUser) {
-    return demoUser;
+  if (isBrceoEmail) {
+    return {
+      profileRole: "sin profile",
+      user: {
+        id: authUser.id,
+        name: input?.name || "B.RCEO",
+        username: input?.username || "brceo",
+        email: authEmail,
+        role: "admin",
+        accessibleBeatIds: [],
+      },
+    };
   }
 
-  return {
-    id: normalizedEmail,
-    name: email.split("@")[0] || "Usuario B.R",
-    username: email.split("@")[0] || "usuario",
-    email,
-    role: "user",
-    accessibleBeatIds: [],
-  };
+  return { user: null, profileRole: "sin profile" };
 }
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>(demoUsers);
+  const [authEmail, setAuthEmail] = useState("");
+  const [profileRole, setProfileRole] = useState("");
   const [isLoadingSession, setIsLoadingSession] = useState(Boolean(supabase));
+
+  const refreshUsers = useCallback(async () => {
+    const realUsers = await getProfiles();
+    setUsers(realUsers.length ? realUsers : demoUsers);
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setCurrentUser(getUserFromEmail(data.session?.user.email));
+    supabase.auth.getSession().then(async ({ data }) => {
+      const sessionUser = data.session?.user;
+      const resolvedUser = await getUserFromAuthUser(sessionUser);
+      setAuthEmail(normalizeEmail(sessionUser?.email));
+      setProfileRole(resolvedUser.profileRole);
+      setCurrentUser(resolvedUser.user);
+      await refreshUsers();
       setIsLoadingSession(false);
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(getUserFromEmail(session?.user.email));
+      void getUserFromAuthUser(session?.user).then(async (resolvedUser) => {
+        setAuthEmail(normalizeEmail(session?.user.email));
+        setProfileRole(resolvedUser.profileRole);
+        setCurrentUser(resolvedUser.user);
+        await refreshUsers();
+      });
       setIsLoadingSession(false);
     });
 
     return () => {
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [refreshUsers]);
 
   const loginAsUser = useCallback(async (email: string, password: string) => {
     if (!supabase) {
@@ -92,16 +134,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: error.message };
     }
 
-    setCurrentUser(getUserFromEmail(data.user.email));
+    const resolvedUser = await getUserFromAuthUser(data.user);
+    setAuthEmail(normalizeEmail(data.user.email));
+    setProfileRole(resolvedUser.profileRole);
+    setCurrentUser(resolvedUser.user);
+    await refreshUsers();
     return { ok: true };
-  }, []);
+  }, [refreshUsers]);
 
   const registerUser = useCallback(async (input: { name: string; username: string; email: string; password: string }) => {
     if (!supabase) {
       return { ok: false, message: SUPABASE_NOT_CONFIGURED_MESSAGE };
     }
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: input.email.trim(),
       password: input.password,
       options: {
@@ -116,8 +162,16 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: error.message };
     }
 
+    if (data.user) {
+      const resolvedUser = await getUserFromAuthUser(data.user, input);
+      setAuthEmail(normalizeEmail(data.user.email));
+      setProfileRole(resolvedUser.profileRole);
+      setCurrentUser(resolvedUser.user);
+      await refreshUsers();
+    }
+
     return { ok: true, message: "Cuenta creada. Revisa tu email si Supabase requiere confirmación." };
-  }, []);
+  }, [refreshUsers]);
 
   const logout = useCallback(async () => {
     if (supabase) {
@@ -125,22 +179,30 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
 
     setCurrentUser(null);
+    setAuthEmail("");
+    setProfileRole("");
   }, []);
+
+  const brceoEnvEmail = getBrceoEnvEmail();
+  const isAdmin = currentUser?.role === "admin" || (Boolean(authEmail) && authEmail === brceoEnvEmail);
 
   const value = useMemo(
     () => ({
       currentUser,
-      users: demoUsers,
+      users,
+      authEmail,
+      profileRole,
+      brceoEnvEmail,
       setCurrentUser,
       loginAsUser,
       registerUser,
       logout,
       isAuthenticated: Boolean(currentUser),
-      isAdmin: currentUser?.role === "admin",
+      isAdmin,
       isLoadingSession,
       authEnabled: Boolean(supabase),
     }),
-    [currentUser, isLoadingSession, loginAsUser, logout, registerUser],
+    [authEmail, brceoEnvEmail, currentUser, isAdmin, isLoadingSession, loginAsUser, logout, profileRole, registerUser, users],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
-import { canAccessBeat } from "@/lib/access";
+import { userCanAccessBeat } from "@/lib/access";
 
 export type PlayerMode = "preview" | "full";
 
@@ -93,12 +93,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resolveMode = useCallback((beat: Beat, requestedMode: PlayerMode) => {
-    if (requestedMode === "full" && !canAccessBeat(currentUser?.id, beat.id)) {
+    if (requestedMode === "full" && !userCanAccessBeat(currentUser, beat)) {
       return "preview";
     }
 
     return requestedMode;
-  }, [currentUser?.id]);
+  }, [currentUser]);
 
   const playBeat = useCallback(
     (beat: Beat, nextMode: PlayerMode = "preview", nextQueue?: Beat[]) => {

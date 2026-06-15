@@ -114,7 +114,7 @@ alter table public.beat_access enable row level security;
 alter table public.access_requests enable row level security;
 
 grant select on public.beats to anon, authenticated;
-grant select on public.profiles to authenticated;
+grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.beat_access to authenticated;
 grant select, insert, update, delete on public.access_requests to authenticated;
 
@@ -124,6 +124,27 @@ on public.profiles
 for select
 to authenticated
 using (
+  id = (select auth.uid())
+  or private.is_br_admin()
+);
+
+drop policy if exists "profiles_insert_own" on public.profiles;
+create policy "profiles_insert_own"
+on public.profiles
+for insert
+to authenticated
+with check (id = (select auth.uid()));
+
+drop policy if exists "profiles_update_own_or_admin" on public.profiles;
+create policy "profiles_update_own_or_admin"
+on public.profiles
+for update
+to authenticated
+using (
+  id = (select auth.uid())
+  or private.is_br_admin()
+)
+with check (
   id = (select auth.uid())
   or private.is_br_admin()
 );

@@ -1,20 +1,40 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
-import { grantBeatAccess, revokeBeatAccess } from "@/lib/access";
+import { getBeats, getProfiles, grantBeatAccess, revokeBeatAccess } from "@/lib/supabase/queries";
 
-export function AccessManager({ beats, users }: { beats: Beat[]; users: User[] }) {
-  const [localUsers, setLocalUsers] = useState(users);
-  const [selectedBeatId, setSelectedBeatId] = useState(beats[0]?.id ?? "");
-  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
+export function AccessManager() {
+  const [beats, setBeats] = useState<Beat[]>([]);
+  const [localUsers, setLocalUsers] = useState<User[]>([]);
+  const [selectedBeatId, setSelectedBeatId] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function refresh() {
+    const [beatsResult, realUsers] = await Promise.all([getBeats(), getProfiles()]);
+    setBeats(beatsResult.beats);
+    setLocalUsers(realUsers);
+    setSelectedBeatId((current) => current || beatsResult.beats[0]?.id || "");
+    setSelectedUserId((current) => current || realUsers[0]?.id || "");
+  }
+
+  useEffect(() => {
+    const loadId = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(loadId);
+    };
+  }, []);
 
   const accessRows = useMemo(
     () =>
       beats.map((beat) => ({
         beat,
-        users: localUsers.filter((user) => user.accessibleBeatIds.includes(beat.id)),
+        users: localUsers.filter((user) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId))),
       })),
     [beats, localUsers],
   );
@@ -42,13 +62,30 @@ export function AccessManager({ beats, users }: { beats: Beat[]; users: User[] }
             ))}
           </select>
         </label>
-        <button type="button" onClick={() => setLocalUsers((current) => grantBeatAccess(current, selectedUserId, selectedBeatId))} className="h-11 rounded-md bg-cyan-300 px-4 text-sm font-bold text-black hover:bg-cyan-200">
+        <button
+          type="button"
+          onClick={async () => {
+            const result = await grantBeatAccess(selectedUserId, selectedBeatId);
+            setMessage(result.ok ? "Acceso otorgado." : result.message ?? "No se pudo otorgar acceso.");
+            await refresh();
+          }}
+          className="h-11 rounded-md bg-cyan-300 px-4 text-sm font-bold text-black hover:bg-cyan-200"
+        >
           Dar acceso
         </button>
-        <button type="button" onClick={() => setLocalUsers((current) => revokeBeatAccess(current, selectedUserId, selectedBeatId))} className="h-11 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
+        <button
+          type="button"
+          onClick={async () => {
+            const result = await revokeBeatAccess(selectedUserId, selectedBeatId);
+            setMessage(result.ok ? "Acceso retirado." : result.message ?? "No se pudo retirar acceso.");
+            await refresh();
+          }}
+          className="h-11 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200"
+        >
           Quitar acceso
         </button>
       </section>
+      {message ? <p className="rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
 
       <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
         <h2 className="text-xl font-bold">Accesos actuales por beat</h2>

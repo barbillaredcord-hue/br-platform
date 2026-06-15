@@ -4,13 +4,13 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
-import { canAccessBeat } from "@/lib/access";
+import { userCanAccessBeat } from "@/lib/access";
 import { PlayButton } from "./PlayButton";
 import { RequestAccessButton } from "./RequestAccessButton";
 
 export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }) {
   const { currentUser, isAuthenticated } = useUser();
-  const hasAccess = canAccessBeat(currentUser?.id, beat.id);
+  const hasAccess = userCanAccessBeat(currentUser, beat);
 
   return (
     <div className="space-y-4">
@@ -46,7 +46,7 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
             <PlayButton beat={beat} mode="preview" queue={queue} showPauseState>
               Escuchar Preview 15s
             </PlayButton>
-            <RequestAccessButton />
+            <RequestAccessButton beatId={beat.dbId ?? beat.id} />
           </>
         )}
       </div>

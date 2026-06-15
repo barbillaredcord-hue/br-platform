@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import type { AccessRequest, AccessRequestStatus } from "@/data/accessRequests";
+import { useEffect, useState } from "react";
+import type { AccessRequestStatus } from "@/data/accessRequests";
+import { approveAccessRequest, getAccessRequests, rejectAccessRequest, type AccessRequestRow } from "@/lib/supabase/queries";
 
 const statusLabels: Record<AccessRequestStatus, string> = {
   pending: "Pendiente",
@@ -15,15 +16,47 @@ const statusStyles: Record<AccessRequestStatus, string> = {
   rejected: "border-red-300/30 text-red-200",
 };
 
-export function AccessRequestsTable({ requests }: { requests: AccessRequest[] }) {
-  const [items, setItems] = useState(requests);
+function getRequestUser(request: AccessRequestRow) {
+  const profile = Array.isArray(request.profiles) ? request.profiles[0] : request.profiles;
+  return profile?.display_name || profile?.username || profile?.email || request.user_id;
+}
 
-  function updateStatus(id: string, status: AccessRequestStatus) {
-    setItems((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, status } : item)));
+function getRequestBeat(request: AccessRequestRow) {
+  const beat = Array.isArray(request.beats) ? request.beats[0] : request.beats;
+  return beat?.title || beat?.slug || request.beat_id;
+}
+
+function getRequestDate(request: AccessRequestRow) {
+  return request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha";
+}
+
+export function AccessRequestsTable() {
+  const [items, setItems] = useState<AccessRequestRow[]>([]);
+  const [message, setMessage] = useState("");
+
+  async function refresh() {
+    setItems(await getAccessRequests());
   }
+
+  async function updateStatus(id: string, status: AccessRequestStatus) {
+    const result = status === "approved" ? await approveAccessRequest(id) : await rejectAccessRequest(id);
+    setMessage(result.ok ? "Solicitud actualizada." : result.message ?? "No se pudo actualizar.");
+    await refresh();
+  }
+
+  useEffect(() => {
+    const loadId = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(loadId);
+    };
+  }, []);
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
+      {message ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
       <div className="hidden overflow-hidden rounded-lg border border-white/10 md:block">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase text-zinc-500">
@@ -38,9 +71,9 @@ export function AccessRequestsTable({ requests }: { requests: AccessRequest[] })
           <tbody>
             {items.map((request) => (
               <tr key={request.id} className="border-t border-white/10">
-                <td className="px-4 py-3 font-semibold">{request.user}</td>
-                <td className="px-4 py-3 text-zinc-400">{request.beat}</td>
-                <td className="px-4 py-3 text-zinc-400">{request.date}</td>
+                <td className="px-4 py-3 font-semibold">{getRequestUser(request)}</td>
+                <td className="px-4 py-3 text-zinc-400">{getRequestBeat(request)}</td>
+                <td className="px-4 py-3 text-zinc-400">{getRequestDate(request)}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>
                     {statusLabels[request.status]}
@@ -48,10 +81,10 @@ export function AccessRequestsTable({ requests }: { requests: AccessRequest[] })
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
+                    <button type="button" onClick={() => void updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
                       Aprobar
                     </button>
-                    <button type="button" onClick={() => updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
+                    <button type="button" onClick={() => void updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
                       Rechazar
                     </button>
                   </div>
@@ -67,19 +100,19 @@ export function AccessRequestsTable({ requests }: { requests: AccessRequest[] })
           <article key={request.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-semibold">{request.user}</p>
-                <p className="mt-1 text-sm text-zinc-400">{request.beat}</p>
-                <p className="mt-1 text-xs text-zinc-500">{request.date}</p>
+                <p className="font-semibold">{getRequestUser(request)}</p>
+                <p className="mt-1 text-sm text-zinc-400">{getRequestBeat(request)}</p>
+                <p className="mt-1 text-xs text-zinc-500">{getRequestDate(request)}</p>
               </div>
               <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>
                 {statusLabels[request.status]}
               </span>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
+              <button type="button" onClick={() => void updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
                 Aprobar
               </button>
-              <button type="button" onClick={() => updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
+              <button type="button" onClick={() => void updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
                 Rechazar
               </button>
             </div>

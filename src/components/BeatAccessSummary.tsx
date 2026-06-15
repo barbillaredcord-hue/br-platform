@@ -2,12 +2,12 @@
 
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
-import { canAccessBeat } from "@/lib/access";
+import { userCanAccessBeat } from "@/lib/access";
 import { AccessStatusBadge } from "./AccessStatusBadge";
 
 export function BeatAccessSummary({ beat }: { beat: Beat }) {
   const { currentUser } = useUser();
-  const hasAccess = canAccessBeat(currentUser?.id, beat.id);
+  const hasAccess = userCanAccessBeat(currentUser, beat);
 
   return (
     <section className="rounded-lg border border-cyan-300/20 bg-[#101317] p-5">

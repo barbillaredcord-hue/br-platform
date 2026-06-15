@@ -1,4 +1,5 @@
 import { demoUsers, type User } from "@/data/users";
+import type { Beat } from "@/data/beats";
 
 export function canAccessBeat(userId: string | null | undefined, beatId: string) {
   if (!userId) {
@@ -8,6 +9,14 @@ export function canAccessBeat(userId: string | null | undefined, beatId: string)
   const user = demoUsers.find((item) => item.id === userId);
 
   return Boolean(user?.accessibleBeatIds.includes(beatId));
+}
+
+export function userCanAccessBeat(user: User | null | undefined, beat: Pick<Beat, "id" | "dbId">) {
+  if (!user) {
+    return false;
+  }
+
+  return user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId));
 }
 
 export function getUsersWithAccessToBeat(beatId: string, users: User[] = demoUsers) {
