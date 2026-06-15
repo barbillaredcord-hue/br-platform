@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useUser } from "@/context/UserContext";
 import { allBeats } from "@/data/beats";
 
 const adminItems = [
@@ -8,6 +11,12 @@ const adminItems = [
 ];
 
 export function AdminPreview() {
+  const { isAdmin } = useUser();
+
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
       <h2 className="mb-4 text-xl font-bold">Admin preview</h2>

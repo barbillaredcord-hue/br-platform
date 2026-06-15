@@ -1,5 +1,5 @@
+import { AuthControls } from "./AuthControls";
 import { LogoMark } from "./LogoMark";
-import { UserSelector } from "./UserSelector";
 
 export function Header() {
   return (
@@ -11,12 +11,9 @@ export function Header() {
             <span className="font-semibold">Beat Room</span>
           </div>
           <div className="hidden text-2xl font-black lg:block">B.R</div>
-          <button className="rounded-md bg-cyan-300 px-4 py-2 text-sm font-bold text-black transition hover:bg-cyan-200 md:hidden">
-            Acceder
-          </button>
         </div>
 
-        <div className="flex flex-1 flex-col gap-3 md:max-w-3xl md:flex-row md:items-end">
+        <div className="flex flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-end">
           <label className="sr-only" htmlFor="search">
             Buscar beats
           </label>
@@ -26,10 +23,7 @@ export function Header() {
             placeholder="Buscar beats, género o BPM"
             className="h-11 w-full rounded-md border border-white/10 bg-white/10 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-cyan-300"
           />
-          <UserSelector />
-          <button className="hidden rounded-md bg-cyan-300 px-5 py-3 text-sm font-bold text-black transition hover:bg-cyan-200 md:block">
-            Acceder
-          </button>
+          <AuthControls />
         </div>
       </div>
     </header>

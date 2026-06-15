@@ -16,6 +16,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Username</th>
                 <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Rol</th>
                 <th className="px-4 py-3">Cantidad</th>
                 <th className="px-4 py-3">Beats autorizados</th>
               </tr>
@@ -28,6 +29,7 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 font-semibold">{user.name}</td>
                     <td className="px-4 py-3 text-cyan-200">@{user.username}</td>
                     <td className="px-4 py-3 text-zinc-400">{user.email}</td>
+                    <td className="px-4 py-3 text-zinc-400">{user.role === "admin" ? "Admin" : "Usuario"}</td>
                     <td className="px-4 py-3 text-zinc-400">{authorizedBeats.length}</td>
                     <td className="px-4 py-3 text-zinc-400">
                       {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}
@@ -46,6 +48,7 @@ export default function AdminUsersPage() {
                 <p className="font-semibold">{user.name}</p>
                 <p className="mt-1 text-sm text-cyan-200">@{user.username}</p>
                 <p className="mt-1 text-sm text-zinc-400">{user.email}</p>
+                <p className="mt-1 text-sm text-zinc-400">Rol: {user.role === "admin" ? "Admin" : "Usuario"}</p>
                 <p className="mt-3 text-sm text-zinc-300">Beats: {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</p>
               </article>
             );

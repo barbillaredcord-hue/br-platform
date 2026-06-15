@@ -1,12 +1,16 @@
-import { demoUsers, type DemoUser } from "@/data/users";
+import { demoUsers, type User } from "@/data/users";
 
-export function canAccessBeat(userId: string, beatId: string) {
+export function canAccessBeat(userId: string | null | undefined, beatId: string) {
+  if (!userId) {
+    return false;
+  }
+
   const user = demoUsers.find((item) => item.id === userId);
 
   return Boolean(user?.accessibleBeatIds.includes(beatId));
 }
 
-export function getUsersWithAccessToBeat(beatId: string, users: DemoUser[] = demoUsers) {
+export function getUsersWithAccessToBeat(beatId: string, users: User[] = demoUsers) {
   return users.filter((user) => user.accessibleBeatIds.includes(beatId));
 }
 
@@ -14,7 +18,7 @@ export function getUsersWithBeatAccess(beatId: string) {
   return getUsersWithAccessToBeat(beatId);
 }
 
-export function grantBeatAccess(users: DemoUser[], userId: string, beatId: string) {
+export function grantBeatAccess(users: User[], userId: string, beatId: string) {
   return users.map((user) => {
     if (user.id !== userId || user.accessibleBeatIds.includes(beatId)) {
       return user;
@@ -24,7 +28,7 @@ export function grantBeatAccess(users: DemoUser[], userId: string, beatId: strin
   });
 }
 
-export function revokeBeatAccess(users: DemoUser[], userId: string, beatId: string) {
+export function revokeBeatAccess(users: User[], userId: string, beatId: string) {
   return users.map((user) => {
     if (user.id !== userId) {
       return user;
@@ -34,7 +38,7 @@ export function revokeBeatAccess(users: DemoUser[], userId: string, beatId: stri
   });
 }
 
-export function getPublicAccessLabel(beatId: string, users: DemoUser[] = demoUsers) {
+export function getPublicAccessLabel(beatId: string, users: User[] = demoUsers) {
   const usersWithAccess = getUsersWithAccessToBeat(beatId, users);
 
   if (usersWithAccess.length === 0) {

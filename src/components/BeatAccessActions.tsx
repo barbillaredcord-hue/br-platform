@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Download } from "lucide-react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
@@ -8,8 +9,8 @@ import { PlayButton } from "./PlayButton";
 import { RequestAccessButton } from "./RequestAccessButton";
 
 export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }) {
-  const { currentUser } = useUser();
-  const hasAccess = canAccessBeat(currentUser.id, beat.id);
+  const { currentUser, isAuthenticated } = useUser();
+  const hasAccess = canAccessBeat(currentUser?.id, beat.id);
 
   return (
     <div className="space-y-4">
@@ -27,6 +28,18 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
               <Download className="h-4 w-4" aria-hidden="true" />
               Descargar MP3
             </a>
+          </>
+        ) : !isAuthenticated ? (
+          <>
+            <PlayButton beat={beat} mode="preview" queue={queue} showPauseState>
+              Escuchar Preview 15s
+            </PlayButton>
+            <Link href="/login" className="inline-flex h-11 items-center rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
+              Iniciar sesión
+            </Link>
+            <Link href="/register" className="inline-flex h-11 items-center rounded-md border border-white/10 px-5 text-sm font-bold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200">
+              Registrarse
+            </Link>
           </>
         ) : (
           <>

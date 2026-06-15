@@ -93,12 +93,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resolveMode = useCallback((beat: Beat, requestedMode: PlayerMode) => {
-    if (requestedMode === "full" && !canAccessBeat(currentUser.id, beat.id)) {
+    if (requestedMode === "full" && !canAccessBeat(currentUser?.id, beat.id)) {
       return "preview";
     }
 
     return requestedMode;
-  }, [currentUser.id]);
+  }, [currentUser?.id]);
 
   const playBeat = useCallback(
     (beat: Beat, nextMode: PlayerMode = "preview", nextQueue?: Beat[]) => {

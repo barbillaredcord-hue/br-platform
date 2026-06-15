@@ -7,7 +7,7 @@ import { AccessStatusBadge } from "./AccessStatusBadge";
 
 export function BeatAccessSummary({ beat }: { beat: Beat }) {
   const { currentUser } = useUser();
-  const hasAccess = canAccessBeat(currentUser.id, beat.id);
+  const hasAccess = canAccessBeat(currentUser?.id, beat.id);
 
   return (
     <section className="rounded-lg border border-cyan-300/20 bg-[#101317] p-5">
@@ -18,9 +18,11 @@ export function BeatAccessSummary({ beat }: { beat: Beat }) {
         <AccessStatusBadge hasAccess={hasAccess} />
       </div>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-        {hasAccess
-          ? `${currentUser.name} tiene permiso para escuchar y descargar este beat en MP3.`
-          : `${currentUser.name} solo puede escuchar el preview público de 15 segundos para este beat.`}
+        {!currentUser
+          ? "Inicia sesión para solicitar acceso o descargar después de comprar."
+          : hasAccess
+            ? `${currentUser.name} tiene permiso para escuchar y descargar este beat en MP3.`
+            : `${currentUser.name} solo puede escuchar el preview público de 15 segundos para este beat.`}
       </p>
     </section>
   );

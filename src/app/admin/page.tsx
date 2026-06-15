@@ -4,6 +4,7 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminStatCard } from "@/components/admin/AdminStatCard";
 import { accessRequests } from "@/data/accessRequests";
 import { allBeats } from "@/data/beats";
+import { demoUsers } from "@/data/users";
 
 const exclusiveBeats = allBeats.filter((beat) => beat.status === "Exclusivo");
 const mostPlayedBeat = allBeats[0];
@@ -18,7 +19,7 @@ export default function AdminPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <AdminStatCard label="Total de beats" value={String(allBeats.length)} detail="Catálogo demo activo" />
         <AdminStatCard label="Beats exclusivos" value={String(exclusiveBeats.length)} detail="Bloqueados por acceso" />
-        <AdminStatCard label="Usuarios con acceso" value="128" detail="Demo visual" />
+        <AdminStatCard label="Usuarios con acceso" value={String(demoUsers.length)} detail="Demo visual" />
         <AdminStatCard label="Solicitudes pendientes" value={String(pendingRequests.length)} detail="Por revisar" />
         <AdminStatCard label="Beat más escuchado" value={mostPlayedBeat.name} detail={`${mostPlayedBeat.genre} · ${mostPlayedBeat.bpm} BPM`} />
       </section>

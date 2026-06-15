@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
-import type { DemoUser } from "@/data/users";
+import type { User } from "@/data/users";
 import { grantBeatAccess, revokeBeatAccess } from "@/lib/access";
 
-export function AccessManager({ beats, users }: { beats: Beat[]; users: DemoUser[] }) {
+export function AccessManager({ beats, users }: { beats: Beat[]; users: User[] }) {
   const [localUsers, setLocalUsers] = useState(users);
   const [selectedBeatId, setSelectedBeatId] = useState(beats[0]?.id ?? "");
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");

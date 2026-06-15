@@ -23,7 +23,7 @@ const coverGradients = [
 
 export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   const { currentUser } = useUser();
-  const hasAccess = canAccessBeat(currentUser.id, beat.id);
+  const hasAccess = canAccessBeat(currentUser?.id, beat.id);
 
   return (
     <article className="w-56 shrink-0 snap-start rounded-lg bg-[#15181c] p-3 transition hover:bg-[#1c2127]">
