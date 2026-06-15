@@ -1,12 +1,34 @@
+"use client";
+
 import Link from "next/link";
 import { SlidersHorizontal } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { getUsersWithBeatAccess } from "@/lib/access";
 import { AdminBeatStatus } from "./AdminBeatStatus";
 
 export function AdminBeatList({ beats }: { beats: Beat[] }) {
+  const [search, setSearch] = useState("");
+  const filteredBeats = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) {
+      return beats;
+    }
+
+    return beats.filter((beat) => [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) => value.toLowerCase().includes(term)));
+  }, [beats, search]);
+
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar nombre, slug, género o BPM"
+          className="h-11 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300 md:max-w-lg"
+        />
+        <span className="text-sm font-semibold text-cyan-200">{filteredBeats.length} / {beats.length} beats</span>
+      </div>
       <div className="hidden overflow-hidden rounded-lg border border-white/10 md:block">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase text-zinc-500">
@@ -21,7 +43,7 @@ export function AdminBeatList({ beats }: { beats: Beat[] }) {
             </tr>
           </thead>
           <tbody>
-            {beats.map((beat) => {
+            {filteredBeats.map((beat) => {
               const usersWithAccess = getUsersWithBeatAccess(beat.id);
 
               return (
@@ -55,7 +77,7 @@ export function AdminBeatList({ beats }: { beats: Beat[] }) {
       </div>
 
       <div className="grid gap-3 md:hidden">
-        {beats.map((beat) => (
+        {filteredBeats.map((beat) => (
           <article key={beat.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
             <div className="flex items-start gap-3">
               <div className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">B.R</div>

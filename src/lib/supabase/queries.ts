@@ -334,6 +334,26 @@ export async function getAccessRequests() {
   return data as AccessRequestRow[];
 }
 
+export async function getAccessRequestsForUser(userId: string) {
+  const supabase = getSupabaseClient();
+
+  if (!supabase || !userId) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("access_requests")
+    .select("id,user_id,beat_id,status,message,created_at,updated_at,beats(slug,title)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data as AccessRequestRow[];
+}
+
 export async function approveAccessRequest(requestId: string) {
   const supabase = getSupabaseClient();
 
@@ -478,4 +498,27 @@ export async function getProfilesResult(supabaseOverride?: SupabaseClient | null
   const users = await Promise.all(profiles.map(async (profile) => mapProfileToUser(profile, await getUserBeatAccess(profile.id, supabase))));
 
   return { users, error: "", emptyReason: "" };
+}
+
+export async function updateProfile(userId: string, input: { username: string; displayName: string }) {
+  const supabase = getSupabaseClient();
+  const username = input.username.trim().replace(/^@+/, "").toLowerCase();
+
+  if (!supabase) {
+    return { ok: false, message: "Supabase no está configurado." };
+  }
+
+  if (!username || username.includes(" ")) {
+    return { ok: false, message: "Username inválido: no debe estar vacío ni contener espacios." };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      username,
+      display_name: input.displayName.trim() || username,
+    })
+    .eq("id", userId);
+
+  return error ? { ok: false, message: error.message } : { ok: true, message: "Perfil actualizado." };
 }

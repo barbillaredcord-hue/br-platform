@@ -29,6 +29,9 @@ export function AuthControls() {
       <span className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-cyan-200">
         @{currentUser.username}
       </span>
+      <Link href="/account" className="inline-flex h-10 items-center rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
+        Mi cuenta
+      </Link>
       {isAdmin ? (
         <>
           <Link href="/admin" className="inline-flex h-10 items-center rounded-md bg-cyan-300 px-4 text-sm font-bold text-black transition hover:bg-cyan-200">

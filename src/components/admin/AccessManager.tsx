@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
-import { getBeats, getProfiles, grantBeatAccess, revokeBeatAccess } from "@/lib/supabase/queries";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getBeats, getProfilesResult, grantBeatAccess, revokeBeatAccess } from "@/lib/supabase/queries";
 
 export function AccessManager() {
   const [beats, setBeats] = useState<Beat[]>([]);
@@ -11,11 +12,19 @@ export function AccessManager() {
   const [selectedBeatId, setSelectedBeatId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [message, setMessage] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [beatSearch, setBeatSearch] = useState("");
+  const [accessFilter, setAccessFilter] = useState<"all" | "with" | "without">("all");
 
   async function refresh() {
-    const [beatsResult, realUsers] = await Promise.all([getBeats(), getProfiles()]);
+    const supabase = createSupabaseBrowserClient();
+    const [beatsResult, profilesResult] = await Promise.all([getBeats(), getProfilesResult(supabase)]);
+    const realUsers = profilesResult.users;
     setBeats(beatsResult.beats);
     setLocalUsers(realUsers);
+    if (profilesResult.error) {
+      setMessage(profilesResult.error);
+    }
     setSelectedBeatId((current) => current || beatsResult.beats[0]?.id || "");
     setSelectedUserId((current) => current || realUsers[0]?.id || "");
   }
@@ -38,6 +47,34 @@ export function AccessManager() {
       })),
     [beats, localUsers],
   );
+  const filteredUsers = useMemo(() => {
+    const term = userSearch.trim().toLowerCase();
+    return localUsers.filter((user) => {
+      if (!term) {
+        return true;
+      }
+
+      return [user.name, user.username, user.email].some((value) => value.toLowerCase().includes(term));
+    });
+  }, [localUsers, userSearch]);
+  const filteredBeats = useMemo(() => {
+    const term = beatSearch.trim().toLowerCase();
+    return beats.filter((beat) => {
+      if (!term) {
+        return true;
+      }
+
+      return [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) => value.toLowerCase().includes(term));
+    });
+  }, [beatSearch, beats]);
+  const filteredAccessRows = useMemo(() => {
+    return accessRows.filter((row) => {
+      const term = beatSearch.trim().toLowerCase();
+      const matchesBeat = !term || [row.beat.name, row.beat.id, row.beat.genre, String(row.beat.bpm)].some((value) => value.toLowerCase().includes(term));
+      const matchesAccess = accessFilter === "all" || (accessFilter === "with" ? row.users.length > 0 : row.users.length === 0);
+      return matchesBeat && matchesAccess;
+    });
+  }, [accessFilter, accessRows, beatSearch]);
 
   return (
     <div className="space-y-6">
@@ -45,7 +82,7 @@ export function AccessManager() {
         <label className="grid gap-2">
           <span className="text-sm font-semibold text-zinc-300">Beat</span>
           <select value={selectedBeatId} onChange={(event) => setSelectedBeatId(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-cyan-300">
-            {beats.map((beat) => (
+            {filteredBeats.map((beat) => (
               <option key={beat.id} value={beat.id} className="bg-[#101317]">
                 {beat.name}
               </option>
@@ -55,9 +92,9 @@ export function AccessManager() {
         <label className="grid gap-2">
           <span className="text-sm font-semibold text-zinc-300">Usuario</span>
           <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-cyan-300">
-            {localUsers.map((user) => (
+            {filteredUsers.map((user) => (
               <option key={user.id} value={user.id} className="bg-[#101317]">
-                {user.name}
+                {user.name} (@{user.username})
               </option>
             ))}
           </select>
@@ -85,12 +122,21 @@ export function AccessManager() {
           Quitar acceso
         </button>
       </section>
+      <section className="grid gap-3 rounded-lg border border-white/10 bg-[#101317] p-4 md:grid-cols-3">
+        <input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Buscar usuario, username o email" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+        <input value={beatSearch} onChange={(event) => setBeatSearch(event.target.value)} placeholder="Buscar beat, slug, género o BPM" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+        <select value={accessFilter} onChange={(event) => setAccessFilter(event.target.value as "all" | "with" | "without")} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-cyan-300">
+          <option value="all" className="bg-[#101317]">Todos</option>
+          <option value="with" className="bg-[#101317]">Con acceso</option>
+          <option value="without" className="bg-[#101317]">Sin acceso</option>
+        </select>
+      </section>
       {message ? <p className="rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
 
       <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
         <h2 className="text-xl font-bold">Accesos actuales por beat</h2>
         <div className="mt-4 grid gap-3">
-          {accessRows.map((row) => (
+          {filteredAccessRows.map((row) => (
             <article key={row.beat.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>

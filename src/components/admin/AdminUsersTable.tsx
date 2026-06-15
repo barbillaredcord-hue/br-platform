@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
@@ -16,6 +17,7 @@ export function AdminUsersTable() {
   const [error, setError] = useState("");
   const [emptyReason, setEmptyReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -56,6 +58,14 @@ export function AdminUsersTable() {
 
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-[#101317]">
+      <div className="border-b border-white/10 p-4">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar por email, username o display name"
+          className="h-11 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300"
+        />
+      </div>
       {isLoading ? <p className="p-4 text-sm font-semibold text-cyan-200">Cargando profiles...</p> : null}
       {error ? (
         <div className="m-4 rounded-md border border-red-300/20 bg-red-300/10 p-4 text-sm text-red-100">
@@ -83,7 +93,7 @@ export function AdminUsersTable() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => {
+            {users.filter((user) => [user.email, user.username, user.name].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
               const authorizedBeats = getAuthorizedBeats(user, beats);
               return (
                 <tr key={user.id} className="border-t border-white/10">
@@ -93,7 +103,10 @@ export function AdminUsersTable() {
                   <td className="px-4 py-3 text-zinc-400">{user.role === "admin" ? "Admin" : "Usuario"}</td>
                   <td className="px-4 py-3 text-zinc-400">{authorizedBeats.length}</td>
                   <td className="px-4 py-3 text-zinc-400">
-                    {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}
+                    <div className="grid gap-2">
+                      <span>{authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</span>
+                      <Link href="/admin/access" className="text-xs font-bold text-cyan-200 hover:text-cyan-100">Gestionar acceso</Link>
+                    </div>
                   </td>
                 </tr>
               );
@@ -102,7 +115,7 @@ export function AdminUsersTable() {
         </table>
       </div>
       <div className="grid gap-3 p-4 md:hidden">
-        {users.map((user) => {
+        {users.filter((user) => [user.email, user.username, user.name].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
           const authorizedBeats = getAuthorizedBeats(user, beats);
           return (
             <article key={user.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
@@ -111,6 +124,7 @@ export function AdminUsersTable() {
               <p className="mt-1 text-sm text-zinc-400">{user.email}</p>
               <p className="mt-1 text-sm text-zinc-400">Rol: {user.role === "admin" ? "Admin" : "Usuario"}</p>
               <p className="mt-3 text-sm text-zinc-300">Beats: {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</p>
+              <Link href="/admin/access" className="mt-3 inline-flex text-sm font-bold text-cyan-200">Gestionar acceso</Link>
             </article>
           );
         })}
