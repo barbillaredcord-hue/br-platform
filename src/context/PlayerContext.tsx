@@ -22,6 +22,7 @@ type PlayerContextValue = {
   playPrevious: () => void;
   togglePlayback: () => void;
   pause: () => void;
+  closePlayer: () => void;
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -160,6 +161,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setIsPlaying(false);
   }, []);
 
+  const closePlayer = useCallback(() => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setCurrentBeat(null);
+    setIsPlaying(false);
+    setAudioUrl(null);
+    setCurrentTime(0);
+    setDuration(0);
+    setCurrentIndex(-1);
+  }, []);
+
   const value = useMemo<PlayerContextValue>(
     () => ({
       currentBeat,
@@ -176,8 +188,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       playPrevious,
       togglePlayback,
       pause,
+      closePlayer,
     }),
-    [audioUrl, currentBeat, currentIndex, currentTime, duration, isPlaying, mode, pause, playBeat, playNext, playPrevious, queue, togglePlayback],
+    [audioUrl, closePlayer, currentBeat, currentIndex, currentTime, duration, isPlaying, mode, pause, playBeat, playNext, playPrevious, queue, togglePlayback],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

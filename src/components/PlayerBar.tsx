@@ -1,6 +1,6 @@
 "use client";
 
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 
 function formatTime(seconds: number) {
@@ -15,11 +15,15 @@ function formatTime(seconds: number) {
 }
 
 export function PlayerBar() {
-  const { currentBeat, isPlaying, mode, duration, currentTime, queue, currentIndex, playNext, playPrevious, togglePlayback } = usePlayer();
+  const { audioUrl, closePlayer, currentBeat, isPlaying, mode, duration, currentTime, queue, currentIndex, playNext, playPrevious, togglePlayback } = usePlayer();
   const status = mode === "full" ? "Acceso completo" : "Preview 15s";
   const progress = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < queue.length - 1;
+
+  if (!currentBeat || !audioUrl) {
+    return null;
+  }
 
   return (
     <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#090b0d] px-4 py-3 md:px-8">
@@ -70,6 +74,9 @@ export function PlayerBar() {
           </div>
           <span className="text-xs text-zinc-500">{formatTime(duration)}</span>
         </div>
+        <button type="button" onClick={closePlayer} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-300 transition hover:border-cyan-300 hover:text-cyan-200" aria-label="Ocultar player">
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
     </footer>
   );

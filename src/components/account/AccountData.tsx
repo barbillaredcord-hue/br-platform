@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { PlayButton } from "@/components/PlayButton";
-import { getBeats, getAccessRequestsForUser, updateProfile, type AccessRequestRow } from "@/lib/supabase/queries";
+import { deleteOwnAccount, getBeats, getAccessRequestsForUser, updateProfile, type AccessRequestRow } from "@/lib/supabase/queries";
 import { userCanAccessBeat } from "@/lib/access";
 
 function requestBeatName(request: AccessRequestRow) {
@@ -159,6 +159,7 @@ export function AccountSettings() {
   const [displayName, setDisplayName] = useState(currentUser?.name ?? "");
   const [phone, setPhone] = useState(currentUser?.phone ?? "");
   const [message, setMessage] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   useEffect(() => {
     const syncId = window.setTimeout(() => {
@@ -194,6 +195,25 @@ export function AccountSettings() {
     setMessage(result.message || "No se pudieron guardar los cambios");
   }
 
+  async function deleteAccount() {
+    if (deleteConfirmation !== "ELIMINAR") {
+      setMessage("Escribe ELIMINAR para confirmar.");
+      return;
+    }
+
+    setMessage("Eliminando cuenta...");
+    const result = await deleteOwnAccount();
+
+    if (!result.ok) {
+      setMessage(result.message || "No se pudo eliminar la cuenta.");
+      return;
+    }
+
+    await refreshCurrentUser();
+    router.push("/");
+    router.refresh();
+  }
+
   return (
     <div className="grid gap-3">
       <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
@@ -220,6 +240,14 @@ export function AccountSettings() {
           </label>
           <button type="button" onClick={() => void saveSettings()} className="h-11 w-fit rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200">Guardar cambios</button>
           {message ? <p className="text-sm font-semibold text-cyan-200">{message}</p> : null}
+        </div>
+      </section>
+      <section className="rounded-lg border border-red-300/20 bg-[#101317] p-5">
+        <h2 className="text-xl font-bold text-red-100">Eliminar mi cuenta</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">Esta acción eliminará tu cuenta y accesos. No se puede deshacer.</p>
+        <div className="mt-4 grid gap-3 md:max-w-md">
+          <input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} placeholder="Escribe ELIMINAR" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-red-300" />
+          <button type="button" onClick={() => void deleteAccount()} className="h-11 w-fit rounded-md border border-red-300/30 px-5 text-sm font-bold text-red-100 hover:bg-red-300/10">Eliminar mi cuenta</button>
         </div>
       </section>
     </div>

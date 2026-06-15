@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
+import { useEffect } from "react";
 import { useUser } from "@/context/UserContext";
 
 const navItems = [
@@ -15,7 +16,19 @@ const navItems = [
 
 export function AccountShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   const pathname = usePathname();
-  const { currentUser, isLoadingSession } = useUser();
+  const { currentUser, isLoadingSession, refreshCurrentUser } = useUser();
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    const refreshId = window.setTimeout(() => {
+      void refreshCurrentUser();
+    }, 0);
+
+    return () => window.clearTimeout(refreshId);
+  }, [currentUser?.id, pathname, refreshCurrentUser]);
 
   if (isLoadingSession) {
     return <main className="min-h-screen bg-[#050607] p-6 text-white">Cargando cuenta...</main>;

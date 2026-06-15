@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
+import { useUser } from "@/context/UserContext";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getBeats, getProfilesResult } from "@/lib/supabase/queries";
+import { deleteUserAsAdmin, getBeats, getProfilesResult } from "@/lib/supabase/queries";
 
 function getAuthorizedBeats(user: User, beats: Beat[]) {
   return beats.filter((beat) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
@@ -14,12 +15,14 @@ function getAuthorizedBeats(user: User, beats: Beat[]) {
 
 export function AdminUsersTable() {
   const pathname = usePathname();
+  const { currentUser } = useUser();
   const [users, setUsers] = useState<User[]>([]);
   const [beats, setBeats] = useState<Beat[]>([]);
   const [error, setError] = useState("");
   const [emptyReason, setEmptyReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     async function loadData() {
@@ -58,6 +61,22 @@ export function AdminUsersTable() {
     };
   }, [pathname]);
 
+  async function deleteUser(user: User) {
+    const confirmed = window.confirm(`Eliminar usuario ${user.email}? Esta acción eliminará su cuenta y accesos.`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setMessage("Eliminando usuario...");
+    const result = await deleteUserAsAdmin(user.id);
+    setMessage(result.ok ? "Usuario eliminado." : result.message ?? "No se pudo eliminar el usuario.");
+
+    if (result.ok) {
+      setUsers((current) => current.filter((item) => item.id !== user.id));
+    }
+  }
+
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-[#101317]">
       <div className="border-b border-white/10 p-4">
@@ -69,6 +88,7 @@ export function AdminUsersTable() {
         />
       </div>
       {isLoading ? <p className="p-4 text-sm font-semibold text-cyan-200">Cargando profiles...</p> : null}
+      {message ? <p className="m-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
       {error ? (
         <div className="m-4 rounded-md border border-red-300/20 bg-red-300/10 p-4 text-sm text-red-100">
           <p className="font-bold">Error real de Supabase</p>
@@ -93,6 +113,7 @@ export function AdminUsersTable() {
               <th className="px-4 py-3">Rol</th>
               <th className="px-4 py-3">Cantidad</th>
               <th className="px-4 py-3">Beats autorizados</th>
+              <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -112,6 +133,11 @@ export function AdminUsersTable() {
                       <Link href="/admin/access" className="text-xs font-bold text-cyan-200 hover:text-cyan-100">Gestionar acceso</Link>
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <button type="button" disabled={user.id === currentUser?.id} onClick={() => void deleteUser(user)} className="rounded-md border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-40">
+                      Eliminar usuario
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -129,7 +155,10 @@ export function AdminUsersTable() {
               <p className="mt-1 text-sm text-zinc-400">{user.phone || "Sin teléfono"}</p>
               <p className="mt-1 text-sm text-zinc-400">Rol: {user.role === "admin" ? "Admin" : "Usuario"}</p>
               <p className="mt-3 text-sm text-zinc-300">Beats: {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</p>
-              <Link href="/admin/access" className="mt-3 inline-flex text-sm font-bold text-cyan-200">Gestionar acceso</Link>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Link href="/admin/access" className="inline-flex text-sm font-bold text-cyan-200">Gestionar acceso</Link>
+                <button type="button" disabled={user.id === currentUser?.id} onClick={() => void deleteUser(user)} className="text-sm font-bold text-red-100 disabled:cursor-not-allowed disabled:opacity-40">Eliminar usuario</button>
+              </div>
             </article>
           );
         })}

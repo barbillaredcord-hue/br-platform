@@ -725,6 +725,67 @@ export async function updateProfilePhone(userId: string, phoneInput: string) {
   return { ok: true, message: "Teléfono guardado." };
 }
 
+export async function deleteOwnAccount() {
+  const authClient = await getAuthenticatedBrowserClient();
+
+  if (!authClient.supabase) {
+    return { ok: false, message: authClient.message };
+  }
+
+  const { data: sessionData } = await authClient.supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    return { ok: false, message: "Sesión no válida." };
+  }
+
+  const response = await fetch("/api/account/delete", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo eliminar la cuenta." }));
+
+  if (!response.ok || !result.ok) {
+    return { ok: false, message: result.message ?? "No se pudo eliminar la cuenta." };
+  }
+
+  await authClient.supabase.auth.signOut();
+  return { ok: true, message: "Cuenta eliminada." };
+}
+
+export async function deleteUserAsAdmin(userId: string) {
+  const authClient = await getAuthenticatedBrowserClient();
+
+  if (!authClient.supabase) {
+    return { ok: false, message: authClient.message };
+  }
+
+  const { data: sessionData } = await authClient.supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    return { ok: false, message: "Sesión no válida." };
+  }
+
+  const response = await fetch("/api/admin/delete-user", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo eliminar el usuario." }));
+
+  if (!response.ok || !result.ok) {
+    return { ok: false, message: result.message ?? "No se pudo eliminar el usuario." };
+  }
+
+  return { ok: true, message: "Usuario eliminado." };
+}
+
 function slugify(value: string) {
   return value
     .trim()
