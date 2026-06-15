@@ -1,0 +1,261 @@
+{
+  "schema": {
+    "name": "BR.autocar App State Schema",
+    "version": "v3",
+    "purpose": "Estandarizar la forma en que B.R describe su identidad, avance, objetivos, riesgos, continuidad e historial para que BR.autocar pueda entenderla y administrarla."
+  },
+  "app": "br-platform",
+  "owner": {
+    "owner_type": "single_owner",
+    "owner_name": "Fabian",
+    "visibility": "private",
+    "admin_access": "limited_system_admin"
+  },
+  "identity": {
+    "product_name": "B.R",
+    "product_type": "Marketplace musical / plataforma privada de beats",
+    "created_reason": "Crear una plataforma musical privada para administrar beats, previews, solicitudes, accesos y futuras licencias.",
+    "vision": "Convertir B.R en un marketplace musical para productores, musicos, beatmakers, DJs, artistas e ingenieros.",
+    "positioning": "Plataforma musical premium, privada y escalable con enfoque en acceso controlado, licencias y colaboracion.",
+    "primary_product_focus": "Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
+    "primary_product_rule": "El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.",
+    "autocar_role_inside_product": "Objetivo secundario e infraestructura de continuidad"
+  },
+  "product": {
+    "offer": [
+      "Catalogo de beats",
+      "Preview de beats",
+      "Solicitud de acceso",
+      "Acceso manual administrado por B.RCEO",
+      "Subida de MP3 reales",
+      "Panel admin",
+      "Perfiles de usuario con telefono",
+      "Eliminacion de usuarios",
+      "Base futura para licencias, pagos y marketplace"
+    ],
+    "target_users": [
+      "B.RCEO",
+      "Artistas",
+      "Productores",
+      "Beatmakers",
+      "Musicos",
+      "DJs",
+      "Ingenieros de audio",
+      "Clientes que buscan beats/licencias"
+    ],
+    "limits": [
+      "Preview real de 15 segundos pendiente",
+      "Pagos automaticos pendientes",
+      "Licencias descargables pendientes",
+      "Marketplace multiusuario pendiente",
+      "Chat interno pendiente"
+    ]
+  },
+  "objectives": {
+    "main": "Consolidar primero el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia antes de expandir a marketplace multiusuario.",
+    "secondary": [
+      {
+        "name": "Preview real",
+        "goal": "Generar y administrar previews reales de 15 segundos.",
+        "progress_percent": 0,
+        "status": "planned"
+      },
+      {
+        "name": "Pagos y acceso automatico",
+        "goal": "Implementar flujo pago -> acceso automatico.",
+        "progress_percent": 0,
+        "status": "planned"
+      },
+      {
+        "name": "Licencias",
+        "goal": "Crear licencias MP3, WAV, trackouts y exclusivas.",
+        "progress_percent": 0,
+        "status": "planned"
+      },
+      {
+        "name": "Marketplace musical",
+        "goal": "Expandir B.R a marketplace para productores, musicos, beatmakers, DJs y servicios musicales.",
+        "progress_percent": 0,
+        "status": "future"
+      }
+    ],
+    "future": [
+      "Guardar beat / favoritos",
+      "Perfiles publicos de productores y artistas",
+      "Servicios musicales",
+      "Escrow o pago protegido",
+      "Chat interno",
+      "Rooms de colaboracion musical"
+    ]
+  },
+  "status": {
+    "current_phase": "fase_11d",
+    "current_phase_label": "Fase 11D completada / produccion inicial",
+    "current_phase_status": "implemented",
+    "progress_percent": 70,
+    "current_level": "App Next.js publicada en Vercel con Supabase Auth, Storage, acceso manual y admin B.RCEO",
+    "next_phase": "fase_12_consolidacion_comercial",
+    "next_phase_label": "Consolidacion comercial",
+    "next_phase_goal": "Consolidar flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia."
+  },
+  "phases": {
+    "completed": [
+      {
+        "phase": "fase_1",
+        "label": "Base inicial",
+        "result": "Proyecto Next.js creado y estructura inicial preparada."
+      },
+      {
+        "phase": "fase_2",
+        "label": "Diseno visual inicial",
+        "result": "Home y experiencia visual tipo Spotify/Netflix con identidad B.R."
+      },
+      {
+        "phase": "fase_3",
+        "label": "Beats y player",
+        "result": "Catalogo de beats, pagina dinamica y player funcional."
+      },
+      {
+        "phase": "fase_4",
+        "label": "Admin inicial",
+        "result": "Panel admin, gestion de beats y solicitudes iniciales."
+      },
+      {
+        "phase": "fase_11",
+        "label": "Supabase y Storage",
+        "result": "Supabase Auth, Storage, bucket beats, upload MP3 y flujos funcionales conectados."
+      },
+      {
+        "phase": "fase_11d",
+        "label": "Produccion inicial",
+        "result": "Deploy en Vercel, acceso manual, B.RCEO admin, eliminacion de usuarios y app lista para consolidacion comercial."
+      }
+    ],
+    "current": {
+      "phase": "fase_11d",
+      "label": "Fase 11D completada / produccion inicial",
+      "status": "implemented"
+    },
+    "next": {
+      "phase": "fase_12_consolidacion_comercial",
+      "label": "Consolidacion comercial",
+      "goal": "Consolidar Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia."
+    }
+  },
+  "execution": {
+    "completed": [
+      "Proyecto Next.js creado",
+      "Diseno inicial tipo Spotify/Netflix",
+      "Supabase Auth conectado",
+      "Supabase Storage conectado",
+      "Bucket beats funcional",
+      "Upload MP3 funcional",
+      "Home con beats reales",
+      "Player funcional",
+      "Solicitudes de acceso funcionales",
+      "Dar y quitar acceso funcional",
+      "Panel admin funcional",
+      "Usuarios visibles para admin",
+      "Telefono en perfil",
+      "Cambio de username",
+      "Ocultar Supabase conectado a usuarios normales",
+      "Eliminar usuarios implementado",
+      "Deploy en Vercel funcionando",
+      "GitHub conectado",
+      "APP_STATE.json creado para BR.autocarmation",
+      "B.R registrada en Core v3 registry"
+    ],
+    "pending": [
+      "Preview real de 15 segundos",
+      "Guardar beat / favoritos",
+      "Pagos",
+      "Licencias descargables",
+      "Descargas controladas por tipo de licencia",
+      "Marketplace multiusuario",
+      "Perfiles publicos de productores/artistas",
+      "Servicios musicales",
+      "Escrow o pago protegido"
+    ],
+    "blocked": []
+  },
+  "completed": [
+    "Proyecto Next.js creado",
+    "Diseno inicial tipo Spotify/Netflix",
+    "Supabase Auth conectado",
+    "Supabase Storage conectado",
+    "Bucket beats funcional",
+    "Upload MP3 funcional",
+    "Home con beats reales",
+    "Player funcional",
+    "Solicitudes de acceso funcionales",
+    "Dar y quitar acceso funcional",
+    "Panel admin funcional",
+    "Usuarios visibles para admin",
+    "Telefono en perfil",
+    "Cambio de username",
+    "Ocultar Supabase conectado a usuarios normales",
+    "Eliminar usuarios implementado",
+    "Deploy en Vercel funcionando",
+    "GitHub conectado"
+  ],
+  "pending": [
+    "Preview real de 15 segundos",
+    "Guardar beat / favoritos",
+    "Pagos",
+    "Licencias descargables",
+    "Descargas controladas por tipo de licencia",
+    "Marketplace multiusuario",
+    "Perfiles publicos de productores/artistas",
+    "Servicios musicales",
+    "Escrow o pago protegido"
+  ],
+  "blocked": [],
+  "risks": [
+    "No exponer SUPABASE_SERVICE_ROLE_KEY",
+    "Mantener B.RCEO como unico admin real",
+    "No permitir acciones protegidas con fallback admin",
+    "No mezclar BR.autocarmation con la logica principal de B.R",
+    "Evitar expandir a marketplace antes de consolidar el flujo comercial base"
+  ],
+  "pros": [
+    "Base funcional ya publicada",
+    "Supabase Auth y Storage operativos",
+    "Flujo de acceso manual ya probado",
+    "Arquitectura lista para pagos y licencias",
+    "Marca B.R puede evolucionar a marketplace musical"
+  ],
+  "cons": [
+    "Aun falta preview real",
+    "Aun falta pagos automaticos",
+    "Aun falta sistema formal de licencias",
+    "El marketplace multiusuario requiere roles, permisos y moderacion adicionales"
+  ],
+  "architecture": {
+    "stack": "Next.js, TypeScript, Tailwind, Supabase, Vercel",
+    "data_layer": "Supabase Postgres",
+    "backend": true,
+    "database": true,
+    "auth": true,
+    "payments": false,
+    "storage": true
+  },
+  "documentation": {
+    "files": [
+      "APP_STATE.json",
+      "docs/supabase/schema.sql",
+      ".env.local.example"
+    ]
+  },
+  "br_autocar": {
+    "managed": true,
+    "template_role": "Managed product app",
+    "template_version": "app-state-schema-v3",
+    "future_sync_target": "BR.autocar Admin Web",
+    "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
+  },
+  "continuity": {
+    "priority": "Consolidar flujo comercial base antes de marketplace.",
+    "next_action": "Registrar B.R en BR.autocarmation y luego iniciar consolidacion Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
+    "context": "B.R ya esta publicada en Vercel y lista para seguimiento por BR.autocarmation."
+  }
+}
