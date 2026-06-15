@@ -7,12 +7,12 @@ import { AdminGuard } from "./AdminGuard";
 const navItems = [
   { href: "/", label: "Home", icon: ArrowLeft },
   { href: "/admin", label: "Admin", icon: LayoutDashboard },
+  { href: "/admin/setup", label: "Estado Supabase", icon: Settings },
   { href: "/admin/beats", label: "Beats", icon: ListMusic },
   { href: "/admin/beats/new", label: "Subir Beat", icon: Plus },
   { href: "/admin/users", label: "Usuarios", icon: Users },
   { href: "/admin/access", label: "Accesos", icon: KeyRound },
   { href: "/admin/access-requests", label: "Solicitudes", icon: Inbox },
-  { href: "/admin/setup", label: "Setup B.R", icon: Settings },
   { href: `/admin/beats/${allBeats[0]?.id ?? "aqua-nights"}/preview-editor`, label: "Preview Editor", icon: SlidersHorizontal },
 ];
 

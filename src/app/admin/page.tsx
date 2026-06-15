@@ -1,4 +1,4 @@
-import { Inbox, KeyRound, ListMusic, Plus, Settings, Users } from "lucide-react";
+import { Inbox, KeyRound, ListMusic, PlugZap, Plus, Users } from "lucide-react";
 import { AdminQuickLink } from "@/components/admin/AdminQuickLink";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminStatCard } from "@/components/admin/AdminStatCard";
@@ -32,7 +32,7 @@ export default function AdminPage() {
           <AdminQuickLink href="/admin/users" label="Usuarios" detail="Ver usuarios demo y sus beats autorizados." icon={Users} />
           <AdminQuickLink href="/admin/access" label="Gestionar accesos" detail="Dar o quitar acceso completo manualmente." icon={KeyRound} />
           <AdminQuickLink href="/admin/access-requests" label="Solicitudes" detail="Aprobar o rechazar accesos pendientes." icon={Inbox} />
-          <AdminQuickLink href="/admin/setup" label="Setup B.R" detail="Guardar referencia local de variables Supabase y Vercel." icon={Settings} />
+          <AdminQuickLink href="/admin/setup" label="Estado Supabase" detail="Verificar URL, anon key, email B.RCEO y conexión Auth." icon={PlugZap} />
         </div>
       </section>
     </AdminShell>

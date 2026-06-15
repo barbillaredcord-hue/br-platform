@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, EyeOff, Lock, Save, ShieldAlert } from "lucide-react";
-import { useState } from "react";
+import { CircleAlert, CircleCheck, Eye, EyeOff, Lock, PlugZap, Save, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { LogoMark } from "@/components/LogoMark";
 import { useUser } from "@/context/UserContext";
+import { getSupabasePublicConfigStatus, SUPABASE_CONNECTION_STATUS_EVENT, SUPABASE_CONNECTION_STATUS_KEY, type SupabaseConnectionStatus } from "@/lib/supabase/config";
 
 const storageKey = "br-setup-config";
 
@@ -13,6 +14,8 @@ type SetupConfig = {
   supabaseAnonKey: string;
   brceoEmail: string;
 };
+
+type ConnectionStatus = SupabaseConnectionStatus | "checking";
 
 const emptyConfig: SetupConfig = {
   supabaseUrl: "",
@@ -47,11 +50,96 @@ const steps = [
   "Paso 6: Copiar también a Vercel env vars",
 ];
 
+const failureCauses = ["URL incorrecta", "Anon Key incorrecta", "Proyecto Supabase detenido", "Variables no cargadas", "Reiniciar npm run dev"];
+
+function StatusRow({ label, ready }: { label: string; ready: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm">
+      <span className="font-semibold text-zinc-300">{label}</span>
+      <span className={ready ? "font-bold text-emerald-200" : "font-bold text-amber-200"}>{ready ? "Sí" : "No"}</span>
+    </div>
+  );
+}
+
+function getConnectionStatusLabel(status: ConnectionStatus) {
+  if (status === "connected") {
+    return "conectado";
+  }
+
+  if (status === "checking") {
+    return "pendiente";
+  }
+
+  return status;
+}
+
+function saveConnectionStatus(status: SupabaseConnectionStatus) {
+  window.localStorage.setItem(SUPABASE_CONNECTION_STATUS_KEY, status);
+  window.dispatchEvent(new Event(SUPABASE_CONNECTION_STATUS_EVENT));
+}
+
 export default function AdminSetupPage() {
   const { authEnabled, isAdmin, isLoadingSession } = useUser();
   const [config, setConfig] = useState<SetupConfig>(getInitialConfig);
   const [showAnonKey, setShowAnonKey] = useState(false);
   const [message, setMessage] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("pending");
+  const [connectionMessage, setConnectionMessage] = useState("");
+  const [lastVerification, setLastVerification] = useState("");
+  const publicConfigStatus = getSupabasePublicConfigStatus();
+  const supabaseUrl = publicConfigStatus.supabaseUrl;
+  const supabaseAnonKey = publicConfigStatus.supabaseAnonKey;
+
+  const verifySupabaseConnection = useCallback(async () => {
+    const verifiedAt = new Date().toLocaleTimeString("es-MX", { hour12: false });
+    setLastVerification(verifiedAt);
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setConnectionStatus("error");
+      setConnectionMessage("Faltan variables públicas de Supabase cargadas por Next.");
+      saveConnectionStatus("error");
+      return;
+    }
+
+    setConnectionStatus("checking");
+    setConnectionMessage("");
+
+    try {
+      const authSettingsUrl = `${supabaseUrl.replace(/\/+$/, "")}/auth/v1/settings`;
+      const response = await fetch(authSettingsUrl, {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Auth respondió ${response.status}`);
+      }
+
+      setConnectionStatus("connected");
+      setConnectionMessage("Conexión exitosa");
+      saveConnectionStatus("connected");
+    } catch (error) {
+      setConnectionStatus("error");
+      setConnectionMessage(error instanceof Error ? error.message : "Error de conexión");
+      saveConnectionStatus("error");
+    }
+  }, [supabaseAnonKey, supabaseUrl]);
+
+  useEffect(() => {
+    const initialCheckId = window.setTimeout(() => {
+      void verifySupabaseConnection();
+    }, 0);
+    const intervalId = window.setInterval(() => {
+      void verifySupabaseConnection();
+    }, 10000);
+
+    return () => {
+      window.clearTimeout(initialCheckId);
+      window.clearInterval(intervalId);
+    };
+  }, [verifySupabaseConnection]);
 
   if (isLoadingSession) {
     return (
@@ -100,6 +188,69 @@ export default function AdminSetupPage() {
             Captura aquí los datos públicos necesarios para preparar B.R. Esta pantalla guarda una referencia local; no cambia variables de Next en runtime.
           </p>
         </header>
+
+        <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-bold uppercase text-cyan-200">Estado de Supabase</p>
+              <h2 className="mt-1 text-2xl font-black">Verificación visual</h2>
+            </div>
+            <button
+              type="button"
+              onClick={verifySupabaseConnection}
+              disabled={connectionStatus === "checking"}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <PlugZap className="h-4 w-4" aria-hidden="true" />
+              {connectionStatus === "checking" ? "Verificando..." : "Verificar conexión"}
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm">
+              <span className="text-zinc-400">Estado de conexión: </span>
+              <span className={connectionStatus === "connected" ? "font-bold text-emerald-200" : connectionStatus === "error" ? "font-bold text-red-200" : "font-bold text-amber-200"}>
+                {getConnectionStatusLabel(connectionStatus)}
+              </span>
+            </div>
+            <div className="rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm">
+              <span className="text-zinc-400">Última verificación: </span>
+              <span className="font-bold text-zinc-200">{lastVerification || "pendiente"}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <StatusRow label="URL configurada" ready={publicConfigStatus.hasSupabaseUrl} />
+            <StatusRow label="Anon Key configurada" ready={publicConfigStatus.hasSupabaseAnonKey} />
+            <StatusRow label="Email B.RCEO configurado" ready={publicConfigStatus.hasBrceoEmail} />
+          </div>
+
+          {connectionStatus === "connected" ? (
+            <div className="mt-5 flex gap-3 rounded-md border border-emerald-300/20 bg-emerald-300/10 p-4 text-sm text-emerald-100">
+              <CircleCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <p className="font-bold">Conexión exitosa</p>
+            </div>
+          ) : null}
+
+          {connectionStatus === "error" ? (
+            <div className="mt-5 rounded-md border border-amber-300/20 bg-amber-300/10 p-4">
+              <div className="flex gap-3 text-sm text-amber-100">
+                <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-bold">Error de conexión</p>
+                  {connectionMessage ? <p className="mt-1 text-zinc-300">{connectionMessage}</p> : null}
+                </div>
+              </div>
+              <ul className="mt-4 grid gap-2 text-sm text-zinc-300 md:grid-cols-2">
+                {failureCauses.map((cause) => (
+                  <li key={cause} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
+                    {cause}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
