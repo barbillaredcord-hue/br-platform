@@ -26,7 +26,7 @@ export function AccessManager() {
     if (profilesResult.error) {
       setMessage(profilesResult.error);
     }
-    setSelectedBeatId((current) => current || beatsResult.beats[0]?.id || "");
+    setSelectedBeatId((current) => current || beatsResult.beats[0]?.dbId || beatsResult.beats[0]?.id || "");
     setSelectedUserId((current) => current || realUsers[0]?.id || "");
   }
 
@@ -84,7 +84,7 @@ export function AccessManager() {
           <span className="text-sm font-semibold text-zinc-300">Beat</span>
           <select value={selectedBeatId} onChange={(event) => setSelectedBeatId(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-cyan-300">
             {filteredBeats.map((beat) => (
-              <option key={beat.id} value={beat.id} className="bg-[#101317]">
+              <option key={beat.id} value={beat.dbId ?? beat.id} className="bg-[#101317]">
                 {beat.name}
               </option>
             ))}

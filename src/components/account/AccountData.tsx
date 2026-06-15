@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, Download, Heart, Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
@@ -65,6 +66,7 @@ export function AccountOverview() {
       </section>
 
       <section>
+        <Link href="/" className="mb-4 inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver al inicio</Link>
         <h2 className="mb-3 text-xl font-bold">Accesos rápidos</h2>
         <div className="grid gap-3 md:grid-cols-4">
           <Link href="/account/beats" className="rounded-lg border border-cyan-300/20 bg-[#101317] p-4 font-bold text-cyan-200">Mis beats</Link>
@@ -137,10 +139,12 @@ export function AccountSaved() {
 }
 
 export function AccountSettings() {
+  const router = useRouter();
   const { currentUser, refreshCurrentUser } = useUser();
   const [username, setUsername] = useState(currentUser?.username ?? "");
   const [displayName, setDisplayName] = useState(currentUser?.name ?? "");
   const [message, setMessage] = useState("");
+  const [diagnostics, setDiagnostics] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     const syncId = window.setTimeout(() => {
@@ -165,8 +169,10 @@ export function AccountSettings() {
 
     setMessage("Guardando...");
     const result = await updateProfile(currentUser.id, { username: normalizedUsername, displayName });
+    setDiagnostics(result.diagnostics ?? null);
     if (result.ok) {
       await refreshCurrentUser();
+      router.refresh();
       setMessage("Cambios guardados");
       return;
     }
@@ -196,6 +202,14 @@ export function AccountSettings() {
           </label>
           <button type="button" onClick={() => void saveSettings()} className="h-11 w-fit rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200">Guardar cambios</button>
           {message ? <p className="text-sm font-semibold text-cyan-200">{message}</p> : null}
+          {diagnostics ? (
+            <section className="rounded-md border border-white/10 bg-black/30 p-4">
+              <p className="text-sm font-bold text-cyan-200">Diagnóstico update profile</p>
+              <pre className="mt-3 max-h-80 overflow-auto text-xs leading-5 text-zinc-300">
+                {JSON.stringify(diagnostics, null, 2)}
+              </pre>
+            </section>
+          ) : null}
         </div>
       </section>
     </div>

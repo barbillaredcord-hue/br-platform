@@ -2,6 +2,7 @@ import { createClient, type User as SupabaseAuthUser } from "@supabase/supabase-
 import type { AccessRequestStatus } from "@/data/accessRequests";
 import { allBeats, beatRows, type Beat, type BeatRow } from "@/data/beats";
 import type { User } from "@/data/users";
+import { createSupabaseBrowserClient } from "./client";
 import { getSupabasePublicConfigStatus } from "./config";
 
 type SupabaseClient = ReturnType<typeof createClient>;
@@ -27,6 +28,8 @@ type BeatRowDb = {
   full_audio_url: string;
   is_active: boolean | null;
 };
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type BeatAccessRow = {
   user_id: string;
@@ -67,6 +70,45 @@ function getSupabaseClient() {
   });
 
   return supabaseClient;
+}
+
+function getSupabaseBrowserSessionClient() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return createSupabaseBrowserClient() as SupabaseClient | null;
+}
+
+async function getAuthenticatedBrowserClient() {
+  const supabase = getSupabaseBrowserSessionClient();
+  const sessionInfo = {
+    hasSession: false,
+    hasAccessToken: false,
+    userId: null as string | null,
+    userEmail: null as string | null,
+  };
+
+  if (!supabase) {
+    return { supabase: null as SupabaseClient | null, sessionInfo, message: "Supabase no está configurado." };
+  }
+
+  const { data: sessionData, error } = await supabase.auth.getSession();
+  const session = sessionData.session;
+  sessionInfo.hasSession = Boolean(session);
+  sessionInfo.hasAccessToken = Boolean(session?.access_token);
+  sessionInfo.userId = session?.user.id ?? null;
+  sessionInfo.userEmail = session?.user.email ?? null;
+
+  if (error || !session?.access_token) {
+    return {
+      supabase: null as SupabaseClient | null,
+      sessionInfo,
+      message: "No hay sesión autenticada real. Vuelve a iniciar sesión.",
+    };
+  }
+
+  return { supabase, sessionInfo, message: "" };
 }
 
 function first<T>(value: T | T[] | null | undefined): T | null {
@@ -126,7 +168,7 @@ export function mapProfileToUser(profile: ProfileRow, accessibleBeatIds: string[
 }
 
 export async function getCurrentProfile() {
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase) {
     return null;
@@ -142,7 +184,7 @@ export async function getCurrentProfile() {
 }
 
 export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?: string; username?: string }) {
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase || !authUser.email) {
     return null;
@@ -235,13 +277,21 @@ async function resolveBeatId(beatId: string) {
     return beatId;
   }
 
-  const { data } = await supabase.from("beats").select("id").eq("slug", beatId).maybeSingle<{ id: string }>();
+  if (uuidPattern.test(beatId)) {
+    return beatId;
+  }
 
-  return data?.id ?? beatId;
+  const { data, error } = await supabase.from("beats").select("id").eq("slug", beatId).maybeSingle<{ id: string }>();
+
+  if (error || !data?.id) {
+    return "";
+  }
+
+  return data.id;
 }
 
 export async function getUserBeatAccess(userId: string, supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseClient();
+  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase || !userId) {
     return [];
@@ -271,7 +321,7 @@ export async function getUsersWithAccessToBeat(beatId: string) {
   const supabase = getSupabaseClient();
   const resolvedBeatId = await resolveBeatId(beatId);
 
-  if (!supabase) {
+  if (!supabase || !resolvedBeatId) {
     return [];
   }
 
@@ -291,11 +341,16 @@ export async function getUsersWithAccessToBeat(beatId: string) {
 }
 
 export async function createAccessRequest(userId: string, beatId: string, message?: string) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
   const resolvedBeatId = await resolveBeatId(beatId);
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message };
+  }
+
+  if (!resolvedBeatId) {
+    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
   }
 
   const { error } = await supabase.from("access_requests").insert({
@@ -326,7 +381,7 @@ export async function createAccessRequestWithPhone(userId: string, beatId: strin
 }
 
 export async function getAccessRequests() {
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase) {
     return [];
@@ -345,7 +400,7 @@ export async function getAccessRequests() {
 }
 
 export async function getAccessRequestsForUser(userId: string) {
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase || !userId) {
     return [];
@@ -365,10 +420,11 @@ export async function getAccessRequestsForUser(userId: string) {
 }
 
 export async function approveAccessRequest(requestId: string) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message };
   }
 
   const { data: request, error: requestError } = await supabase
@@ -381,12 +437,11 @@ export async function approveAccessRequest(requestId: string) {
     return { ok: false, message: requestError?.message ?? "Solicitud no encontrada." };
   }
 
-  const { data: authData } = await supabase.auth.getUser();
   const { error: accessError } = await supabase.from("beat_access").upsert(
     {
       user_id: request.user_id,
       beat_id: request.beat_id,
-      granted_by: authData.user?.id ?? null,
+      granted_by: authClient.sessionInfo.userId,
     },
     { onConflict: "user_id,beat_id" },
   );
@@ -401,10 +456,11 @@ export async function approveAccessRequest(requestId: string) {
 }
 
 export async function rejectAccessRequest(requestId: string) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message };
   }
 
   const { error } = await supabase.from("access_requests").update({ status: "rejected" }).eq("id", requestId);
@@ -413,10 +469,11 @@ export async function rejectAccessRequest(requestId: string) {
 }
 
 export async function markAccessRequestContacted(requestId: string, currentMessage?: string | null) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message };
   }
 
   const marker = "[contactado]";
@@ -427,19 +484,23 @@ export async function markAccessRequestContacted(requestId: string, currentMessa
 }
 
 export async function grantBeatAccess(userId: string, beatId: string) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
   const resolvedBeatId = await resolveBeatId(beatId);
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message };
   }
 
-  const { data: authData } = await supabase.auth.getUser();
+  if (!resolvedBeatId) {
+    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
+  }
+
   const { error } = await supabase.from("beat_access").upsert(
     {
       user_id: userId,
       beat_id: resolvedBeatId,
-      granted_by: authData.user?.id ?? null,
+      granted_by: authClient.sessionInfo.userId,
     },
     { onConflict: "user_id,beat_id" },
   );
@@ -448,11 +509,16 @@ export async function grantBeatAccess(userId: string, beatId: string) {
 }
 
 export async function revokeBeatAccess(userId: string, beatId: string) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
   const resolvedBeatId = await resolveBeatId(beatId);
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message };
+  }
+
+  if (!resolvedBeatId) {
+    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
   }
 
   const { error } = await supabase.from("beat_access").delete().eq("user_id", userId).eq("beat_id", resolvedBeatId);
@@ -467,7 +533,7 @@ export async function getProfiles() {
 }
 
 export async function getProfilesResult(supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseClient();
+  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase) {
     return {
@@ -525,26 +591,53 @@ export async function getProfilesResult(supabaseOverride?: SupabaseClient | null
 }
 
 export async function updateProfile(userId: string, input: { username: string; displayName: string }) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
   const username = input.username.trim().replace(/^@+/, "").toLowerCase();
+  const diagnostics = {
+    profileId: userId,
+    authUserId: undefined as string | undefined,
+    payload: null as Record<string, unknown> | null,
+    error: null as { message?: string; code?: string; details?: string; hint?: string } | null,
+  };
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message, diagnostics };
   }
 
   if (username.length < 3 || username.includes(" ")) {
-    return { ok: false, message: "Username inválido: mínimo 3 caracteres y sin espacios." };
+    return { ok: false, message: "Username inválido: mínimo 3 caracteres y sin espacios.", diagnostics };
   }
+
+  diagnostics.authUserId = authClient.sessionInfo.userId ?? undefined;
+
+  if (authClient.sessionInfo.userId !== userId) {
+    return { ok: false, message: "No hay profile real autenticado para esta acción.", diagnostics };
+  }
+
+  const payload = {
+    username,
+    display_name: input.displayName.trim() || username,
+  };
+  diagnostics.payload = payload;
 
   const { error } = await supabase
     .from("profiles")
-    .update({
-      username,
-      display_name: input.displayName.trim() || username,
-    })
+    .update(payload)
     .eq("id", userId);
 
-  return error ? { ok: false, message: error.message } : { ok: true, message: "Perfil actualizado." };
+  if (error) {
+    diagnostics.error = {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    };
+    console.error("B.R update profile error", diagnostics);
+    return { ok: false, message: error.message, diagnostics };
+  }
+
+  return { ok: true, message: "Perfil actualizado.", diagnostics };
 }
 
 function slugify(value: string) {
@@ -556,31 +649,50 @@ function slugify(value: string) {
 }
 
 export async function createBeatWithUpload(input: { file: File; title: string; slug: string; genre: string; bpm: string; musicalKey: string }) {
-  const supabase = getSupabaseClient();
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
   const slug = slugify(input.slug || input.title);
+  const diagnostics = {
+    authUser: null as { id?: string; email?: string } | null,
+    payload: null as Record<string, unknown> | null,
+    error: null as { message?: string; code?: string; details?: string; hint?: string } | null,
+  };
+
+  console.log("B.R upload session", authClient.sessionInfo);
 
   if (!supabase) {
-    return { ok: false, message: "Supabase no está configurado." };
+    return { ok: false, message: authClient.message, diagnostics };
   }
 
   if (!input.file || !input.title.trim() || !slug) {
-    return { ok: false, message: "MP3, título y slug son obligatorios." };
+    return { ok: false, message: "MP3, título y slug son obligatorios.", diagnostics };
   }
+
+  diagnostics.authUser = {
+    id: authClient.sessionInfo.userId ?? undefined,
+    email: authClient.sessionInfo.userEmail ?? undefined,
+  };
 
   const safeFilename = input.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const path = `full/${slug}/${Date.now()}-${safeFilename}`;
   const { error: uploadError } = await supabase.storage.from("beats").upload(path, input.file, {
-    contentType: input.file.type || "audio/mpeg",
+    cacheControl: "3600",
     upsert: false,
+    contentType: input.file.type || "audio/mpeg",
   });
 
   if (uploadError) {
-    return { ok: false, message: uploadError.message };
+    diagnostics.error = {
+      message: uploadError.message,
+      code: "code" in uploadError ? String(uploadError.code) : undefined,
+    };
+    console.error("B.R upload beat storage error", diagnostics);
+    return { ok: false, message: uploadError.message.includes("Bucket") ? "Bucket beats no existe o no está accesible." : uploadError.message, diagnostics };
   }
 
   const { data: publicData } = supabase.storage.from("beats").getPublicUrl(path);
   const publicUrl = publicData.publicUrl;
-  const { error: insertError } = await supabase.from("beats").insert({
+  const payload = {
     slug,
     title: input.title.trim(),
     genre: input.genre.trim() || null,
@@ -589,11 +701,20 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     full_audio_url: publicUrl,
     preview_url: publicUrl,
     is_active: true,
-  });
+  };
+  diagnostics.payload = payload;
+  const { error: insertError } = await supabase.from("beats").insert(payload);
 
   if (insertError) {
-    return { ok: false, message: insertError.message };
+    diagnostics.error = {
+      message: insertError.message,
+      code: insertError.code,
+      details: insertError.details,
+      hint: insertError.hint,
+    };
+    console.error("B.R create beat insert error", diagnostics);
+    return { ok: false, message: insertError.message, diagnostics };
   }
 
-  return { ok: true, message: "Beat creado correctamente.", slug };
+  return { ok: true, message: "Beat creado correctamente.", slug, diagnostics };
 }
