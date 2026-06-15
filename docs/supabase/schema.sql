@@ -85,6 +85,51 @@ create trigger access_requests_set_updated_at
 before update on public.access_requests
 for each row execute function public.set_updated_at();
 
+-- Automatically create a public profile when a Supabase Auth user is created.
+-- This avoids client-side profile insert failures when RLS is active.
+create or replace function public.handle_new_auth_user_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  brceo_email text := lower(nullif(current_setting('app.brceo_email', true), ''));
+  new_email text := lower(coalesce(new.email, ''));
+begin
+  insert into public.profiles (
+    id,
+    email,
+    username,
+    display_name,
+    role
+  )
+  values (
+    new.id,
+    new.email,
+    coalesce(nullif(new.raw_user_meta_data->>'username', ''), split_part(new.email, '@', 1)),
+    coalesce(nullif(new.raw_user_meta_data->>'display_name', ''), nullif(new.raw_user_meta_data->>'name', ''), split_part(new.email, '@', 1)),
+    case
+      when brceo_email is not null and brceo_email <> '' and new_email = brceo_email then 'admin'
+      else 'user'
+    end
+  )
+  on conflict (id) do update
+  set
+    email = excluded.email,
+    username = coalesce(public.profiles.username, excluded.username),
+    display_name = coalesce(public.profiles.display_name, excluded.display_name),
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_create_profile on auth.users;
+create trigger on_auth_user_created_create_profile
+after insert on auth.users
+for each row execute function public.handle_new_auth_user_profile();
+
 -- Admin helper:
 -- Después de crear el perfil del B.RCEO, asignar role = 'admin'.
 -- Ejemplo:
@@ -133,7 +178,21 @@ create policy "profiles_insert_own"
 on public.profiles
 for insert
 to authenticated
-with check (id = (select auth.uid()));
+with check (
+  id = (select auth.uid())
+  and role = 'user'
+);
+
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_update_own"
+on public.profiles
+for update
+to authenticated
+using (id = (select auth.uid()))
+with check (
+  id = (select auth.uid())
+  and role = public.profiles.role
+);
 
 drop policy if exists "profiles_update_own_or_admin" on public.profiles;
 create policy "profiles_update_own_or_admin"

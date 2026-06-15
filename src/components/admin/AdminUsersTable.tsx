@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
-import { getBeats, getProfiles } from "@/lib/supabase/queries";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getBeats, getProfilesResult } from "@/lib/supabase/queries";
 
 function getAuthorizedBeats(user: User, beats: Beat[]) {
   return beats.filter((beat) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
@@ -12,19 +13,63 @@ function getAuthorizedBeats(user: User, beats: Beat[]) {
 export function AdminUsersTable() {
   const [users, setUsers] = useState<User[]>([]);
   const [beats, setBeats] = useState<Beat[]>([]);
+  const [error, setError] = useState("");
+  const [emptyReason, setEmptyReason] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
-      const [realUsers, beatsResult] = await Promise.all([getProfiles(), getBeats()]);
-      setUsers(realUsers);
+      const supabase = createSupabaseBrowserClient();
+
+      if (!supabase) {
+        setError("Supabase no está configurado.");
+        setEmptyReason("Revisa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !sessionData.session) {
+        setError("Sesión no cargada. Vuelve a iniciar sesión.");
+        setEmptyReason(sessionError?.message ?? "No hay sesión Supabase activa en el navegador.");
+        setIsLoading(false);
+        return;
+      }
+
+      const [profilesResult, beatsResult] = await Promise.all([getProfilesResult(supabase), getBeats()]);
+      setUsers(profilesResult.users);
       setBeats(beatsResult.beats);
+      setError(profilesResult.error);
+      setEmptyReason(profilesResult.emptyReason);
+      setIsLoading(false);
     }
 
-    void loadData();
+    const loadId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(loadId);
+    };
   }, []);
 
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-[#101317]">
+      {isLoading ? <p className="p-4 text-sm font-semibold text-cyan-200">Cargando profiles...</p> : null}
+      {error ? (
+        <div className="m-4 rounded-md border border-red-300/20 bg-red-300/10 p-4 text-sm text-red-100">
+          <p className="font-bold">Error real de Supabase</p>
+          <p className="mt-2 text-zinc-200">{error}</p>
+          {emptyReason ? <p className="mt-2 text-zinc-300">{emptyReason}</p> : null}
+        </div>
+      ) : null}
+      {!isLoading && !error && users.length === 0 ? (
+        <div className="m-4 rounded-md border border-amber-300/20 bg-amber-300/10 p-4 text-sm text-amber-100">
+          <p className="font-bold">No hay profiles visibles</p>
+          <p className="mt-2 text-zinc-300">{emptyReason || "Causa probable: public.profiles está vacío o RLS no permite leer filas con esta sesión."}</p>
+        </div>
+      ) : null}
       <div className="hidden md:block">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase text-zinc-500">

@@ -148,6 +148,9 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
     return null;
   }
 
+  const authEmail = authUser.email.trim().toLowerCase();
+  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "").trim().toLowerCase();
+  const isBrceoEmail = Boolean(brceoEmail) && authEmail === brceoEmail;
   const { data: profile } = await supabase
     .from("profiles")
     .select("id,email,username,display_name,role,created_at,updated_at")
@@ -158,28 +161,29 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
     return profile;
   }
 
-  const emailName = authUser.email.split("@")[0] || "usuario";
-  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "").toLowerCase();
-  const nextProfile = {
-    id: authUser.id,
-    email: authUser.email,
-    username: input?.username || emailName,
-    display_name: input?.name || emailName,
-    role: authUser.email.toLowerCase() === brceoEmail ? "admin" : "user",
-  };
+  const emailName = authEmail.split("@")[0] || "usuario";
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert(nextProfile)
-    .select("id,email,username,display_name,role,created_at,updated_at")
-    .single<ProfileRow>();
+  if (isBrceoEmail) {
+    console.warn("B.RCEO debe existir en Supabase public.profiles con role='admin'. Usando profile admin fallback en memoria.");
 
-  if (error) {
-    console.error("No se pudo crear profile", error.message);
-    return null;
+    return {
+      id: authUser.id,
+      email: authEmail,
+      username: input?.username || "brceo",
+      display_name: input?.name || "B.RCEO",
+      role: "admin",
+    } satisfies ProfileRow;
   }
 
-  return data;
+  console.warn("Profile aún no existe. Intenta cerrar sesión e iniciar de nuevo.");
+
+  return {
+    id: authUser.id,
+    email: authEmail,
+    username: input?.username || emailName,
+    display_name: input?.name || emailName,
+    role: "user",
+  } satisfies ProfileRow;
 }
 
 export async function getBeats() {
@@ -236,8 +240,8 @@ async function resolveBeatId(beatId: string) {
   return data?.id ?? beatId;
 }
 
-export async function getUserBeatAccess(userId: string) {
-  const supabase = getSupabaseClient();
+export async function getUserBeatAccess(userId: string, supabaseOverride?: SupabaseClient | null) {
+  const supabase = supabaseOverride ?? getSupabaseClient();
 
   if (!supabase || !userId) {
     return [];
@@ -413,20 +417,65 @@ export async function revokeBeatAccess(userId: string, beatId: string) {
 }
 
 export async function getProfiles() {
-  const supabase = getSupabaseClient();
+  const result = await getProfilesResult();
+
+  return result.users;
+}
+
+export async function getProfilesResult(supabaseOverride?: SupabaseClient | null) {
+  const supabase = supabaseOverride ?? getSupabaseClient();
 
   if (!supabase) {
-    return [];
+    return {
+      users: [],
+      error: "Supabase no está configurado.",
+      emptyReason: "Revisa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    };
   }
 
-  const { data, error } = await supabase.from("profiles").select("id,email,username,display_name,role,created_at,updated_at").order("created_at", { ascending: false });
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const session = sessionData.session;
+
+  if (sessionError || !session) {
+    return {
+      users: [],
+      error: "Sesión no cargada. Vuelve a iniciar sesión.",
+      emptyReason: sessionError?.message ?? "No hay sesión Supabase activa en el navegador.",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,email,username,display_name,role,created_at,updated_at")
+    .order("created_at", { ascending: false });
+
+  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "").trim().toLowerCase();
+  const authEmail = (session.user.email ?? "").trim().toLowerCase();
+  const isBrceoEmail = Boolean(brceoEmail) && authEmail === brceoEmail;
 
   if (error || !data) {
-    return [];
+    return {
+      users: [],
+      error: error?.message ?? "Supabase no devolvió datos.",
+      emptyReason: isBrceoEmail
+        ? "Causa probable: el profile B.RCEO existe pero role no es admin, la política RLS no fue aplicada o faltan GRANTs sobre public.profiles."
+        : "Causa probable: esta sesión no tiene permisos para leer profiles.",
+    };
   }
 
   const profiles = data as ProfileRow[];
-  const users = await Promise.all(profiles.map(async (profile) => mapProfileToUser(profile, await getUserBeatAccess(profile.id))));
 
-  return users;
+  if (profiles.length === 0) {
+    return {
+      users: [],
+      error: "",
+      emptyReason: isBrceoEmail
+        ? "La consulta fue exitosa pero no devolvió filas. Causa probable: public.profiles está vacío o RLS no reconoce a B.RCEO como admin."
+        : "La consulta fue exitosa pero no devolvió filas visibles para este usuario.",
+    };
+  }
+
+  const users = await Promise.all(profiles.map(async (profile) => mapProfileToUser(profile, await getUserBeatAccess(profile.id, supabase))));
+
+  return { users, error: "", emptyReason: "" };
 }
