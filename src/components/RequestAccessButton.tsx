@@ -14,7 +14,7 @@ export function RequestAccessButton() {
       >
         Solicitar acceso
       </button>
-      {message ? <p className="text-sm font-semibold text-cyan-200">{message}</p> : null}
+      {message ? <p className="text-sm font-semibold text-cyan-200">{message}. El pago se coordina directamente con B.R.</p> : null}
     </div>
   );
 }

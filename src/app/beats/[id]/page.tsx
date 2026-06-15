@@ -2,12 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, KeyRound, Lock, ShieldCheck, Unlock } from "lucide-react";
 import { AccessBadge } from "@/components/AccessBadge";
-import { AccessStatusBadge } from "@/components/AccessStatusBadge";
 import { BeatCard } from "@/components/BeatCard";
-import { PlayButton } from "@/components/PlayButton";
-import { RequestAccessButton } from "@/components/RequestAccessButton";
+import { BeatAccessActions } from "@/components/BeatAccessActions";
+import { BeatAccessSummary } from "@/components/BeatAccessSummary";
 import { getBeatById, getRelatedBeats } from "@/data/beats";
-import { canAccessBeat } from "@/lib/access";
+import { getUsersWithAccessToBeat } from "@/lib/access";
 
 type BeatPageProps = {
   params: Promise<{
@@ -31,7 +30,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
 
   const relatedBeats = getRelatedBeats(beat);
   const detailQueue = [beat, ...relatedBeats];
-  const hasAccess = canAccessBeat("demo-user", beat.id);
+  const usersWithAccess = getUsersWithAccessToBeat(beat.id);
 
   return (
     <main className="min-h-screen bg-[#050607] px-4 py-6 pb-32 text-white md:px-8">
@@ -57,7 +56,6 @@ export default async function BeatPage({ params }: BeatPageProps) {
                   DESBLOQUEADO
                 </span>
               )}
-              <AccessStatusBadge hasAccess={hasAccess} />
             </div>
 
             <h1 className="text-4xl font-black leading-tight md:text-6xl">{beat.name}</h1>
@@ -83,25 +81,26 @@ export default async function BeatPage({ params }: BeatPageProps) {
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              <PlayButton beat={beat} mode={hasAccess ? "full" : "preview"} queue={detailQueue} showPauseState>
-                {hasAccess ? "Escuchar Beat Completo" : "Escuchar Preview 15s"}
-              </PlayButton>
-              {!hasAccess ? (
-                <RequestAccessButton />
-              ) : null}
+              <BeatAccessActions beat={beat} queue={detailQueue} />
             </div>
           </div>
         </section>
 
-        <section className="rounded-lg border border-cyan-300/20 bg-[#101317] p-5">
-          <h2 className="text-xl font-bold">
-            {hasAccess ? "Acceso completo autorizado" : "Acceso restringido"}
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            {hasAccess
-              ? "Demo User tiene permiso para escuchar este beat en modo completo dentro de la simulación."
-              : "Demo User solo puede escuchar el preview público de 15 segundos para este beat."}
-          </p>
+        <BeatAccessSummary beat={beat} />
+
+        <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
+          <h2 className="text-xl font-bold">Acceso adquirido por</h2>
+          {usersWithAccess.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {usersWithAccess.map((user) => (
+                <span key={user.id} className="rounded-md border border-cyan-300/30 px-3 py-2 text-sm font-semibold text-cyan-200">
+                  @{user.username}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm font-semibold text-cyan-200">Disponible</p>
+          )}
         </section>
 
         <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
@@ -119,6 +118,13 @@ export default async function BeatPage({ params }: BeatPageProps) {
           </div>
         </section>
 
+        <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
+          <h2 className="text-xl font-bold">Próximamente: WAV, stems y trackouts</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">
+            Por ahora la descarga habilitada es únicamente MP3 para usuarios autorizados.
+          </p>
+        </section>
+
         <section className="rounded-lg border border-cyan-300/20 bg-[#101317] p-5">
           <div className="flex items-start gap-3">
             {beat.locked ? (
@@ -129,7 +135,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
             <div>
               <h2 className="text-xl font-bold">Acceso privado</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-                El audio completo no está disponible en esta demo pública. B.R libera el beat completo solo a usuarios autorizados,
+                Pagos coordinados directamente con B.R. El acceso completo se habilita manualmente después de confirmar la compra,
                 manteniendo previews cortos de 15 segundos para exploración inicial.
               </p>
             </div>

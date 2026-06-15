@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Inbox, LayoutDashboard, ListMusic, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Inbox, KeyRound, LayoutDashboard, ListMusic, Plus, SlidersHorizontal, Users } from "lucide-react";
 import { LogoMark } from "@/components/LogoMark";
 import { allBeats } from "@/data/beats";
 
@@ -8,6 +8,8 @@ const navItems = [
   { href: "/admin", label: "Admin", icon: LayoutDashboard },
   { href: "/admin/beats", label: "Beats", icon: ListMusic },
   { href: "/admin/beats/new", label: "Subir Beat", icon: Plus },
+  { href: "/admin/users", label: "Usuarios", icon: Users },
+  { href: "/admin/access", label: "Accesos", icon: KeyRound },
   { href: "/admin/access-requests", label: "Solicitudes", icon: Inbox },
   { href: `/admin/beats/${allBeats[0]?.id ?? "aqua-nights"}/preview-editor`, label: "Preview Editor", icon: SlidersHorizontal },
 ];

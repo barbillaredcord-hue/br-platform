@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PlayerBar } from "@/components/PlayerBar";
 import { PlayerProvider } from "@/context/PlayerContext";
+import { UserProvider } from "@/context/UserContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,10 +31,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <PlayerProvider>
-          {children}
-          <PlayerBar />
-        </PlayerProvider>
+        <UserProvider>
+          <PlayerProvider>
+            {children}
+            <PlayerBar />
+          </PlayerProvider>
+        </UserProvider>
       </body>
     </html>
   );
