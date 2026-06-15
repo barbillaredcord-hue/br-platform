@@ -12,6 +12,7 @@ export function AccessManager() {
   const [selectedBeatId, setSelectedBeatId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [message, setMessage] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [beatSearch, setBeatSearch] = useState("");
   const [accessFilter, setAccessFilter] = useState<"all" | "with" | "without">("all");
@@ -102,21 +103,29 @@ export function AccessManager() {
         <button
           type="button"
           onClick={async () => {
+            setIsProcessing(true);
+            setMessage("Procesando...");
             const result = await grantBeatAccess(selectedUserId, selectedBeatId);
-            setMessage(result.ok ? "Acceso otorgado." : result.message ?? "No se pudo otorgar acceso.");
+            setMessage(result.ok ? "Acceso concedido" : `Error real: ${result.message ?? "No se pudo otorgar acceso."}`);
             await refresh();
+            setIsProcessing(false);
           }}
+          disabled={isProcessing}
           className="h-11 rounded-md bg-cyan-300 px-4 text-sm font-bold text-black hover:bg-cyan-200"
         >
-          Dar acceso
+          {isProcessing ? "Procesando..." : "Dar acceso"}
         </button>
         <button
           type="button"
           onClick={async () => {
+            setIsProcessing(true);
+            setMessage("Procesando...");
             const result = await revokeBeatAccess(selectedUserId, selectedBeatId);
-            setMessage(result.ok ? "Acceso retirado." : result.message ?? "No se pudo retirar acceso.");
+            setMessage(result.ok ? "Acceso removido" : `Error real: ${result.message ?? "No se pudo retirar acceso."}`);
             await refresh();
+            setIsProcessing(false);
           }}
+          disabled={isProcessing}
           className="h-11 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200"
         >
           Quitar acceso

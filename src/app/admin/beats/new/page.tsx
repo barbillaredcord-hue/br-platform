@@ -5,7 +5,7 @@ export default function NewBeatPage() {
   return (
     <AdminShell
       title="Subir Beat"
-      subtitle="Formulario visual para preparar un beat nuevo. En esta fase no guarda archivos ni datos."
+      subtitle="Sube un MP3 al bucket beats y crea el registro real en public.beats."
     >
       <NewBeatForm />
     </AdminShell>

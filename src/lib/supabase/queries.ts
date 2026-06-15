@@ -315,6 +315,16 @@ export async function createAccessRequest(userId: string, beatId: string, messag
   return { ok: false, message: error.message };
 }
 
+export async function createAccessRequestWithPhone(userId: string, beatId: string, input: { phone: string; message?: string }) {
+  const phone = input.phone.trim();
+
+  if (!phone) {
+    return { ok: false, message: "El teléfono es obligatorio." };
+  }
+
+  return createAccessRequest(userId, beatId, `Teléfono: ${phone}\nMensaje: ${input.message?.trim() || "Sin mensaje"}`);
+}
+
 export async function getAccessRequests() {
   const supabase = getSupabaseClient();
 
@@ -400,6 +410,20 @@ export async function rejectAccessRequest(requestId: string) {
   const { error } = await supabase.from("access_requests").update({ status: "rejected" }).eq("id", requestId);
 
   return error ? { ok: false, message: error.message } : { ok: true };
+}
+
+export async function markAccessRequestContacted(requestId: string, currentMessage?: string | null) {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    return { ok: false, message: "Supabase no está configurado." };
+  }
+
+  const marker = "[contactado]";
+  const message = currentMessage?.includes(marker) ? currentMessage : `${currentMessage || ""}\n${marker}`.trim();
+  const { error } = await supabase.from("access_requests").update({ message }).eq("id", requestId);
+
+  return error ? { ok: false, message: error.message } : { ok: true, message: "Solicitud marcada como contactada." };
 }
 
 export async function grantBeatAccess(userId: string, beatId: string) {
@@ -508,8 +532,8 @@ export async function updateProfile(userId: string, input: { username: string; d
     return { ok: false, message: "Supabase no está configurado." };
   }
 
-  if (!username || username.includes(" ")) {
-    return { ok: false, message: "Username inválido: no debe estar vacío ni contener espacios." };
+  if (username.length < 3 || username.includes(" ")) {
+    return { ok: false, message: "Username inválido: mínimo 3 caracteres y sin espacios." };
   }
 
   const { error } = await supabase
@@ -521,4 +545,55 @@ export async function updateProfile(userId: string, input: { username: string; d
     .eq("id", userId);
 
   return error ? { ok: false, message: error.message } : { ok: true, message: "Perfil actualizado." };
+}
+
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export async function createBeatWithUpload(input: { file: File; title: string; slug: string; genre: string; bpm: string; musicalKey: string }) {
+  const supabase = getSupabaseClient();
+  const slug = slugify(input.slug || input.title);
+
+  if (!supabase) {
+    return { ok: false, message: "Supabase no está configurado." };
+  }
+
+  if (!input.file || !input.title.trim() || !slug) {
+    return { ok: false, message: "MP3, título y slug son obligatorios." };
+  }
+
+  const safeFilename = input.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const path = `full/${slug}/${Date.now()}-${safeFilename}`;
+  const { error: uploadError } = await supabase.storage.from("beats").upload(path, input.file, {
+    contentType: input.file.type || "audio/mpeg",
+    upsert: false,
+  });
+
+  if (uploadError) {
+    return { ok: false, message: uploadError.message };
+  }
+
+  const { data: publicData } = supabase.storage.from("beats").getPublicUrl(path);
+  const publicUrl = publicData.publicUrl;
+  const { error: insertError } = await supabase.from("beats").insert({
+    slug,
+    title: input.title.trim(),
+    genre: input.genre.trim() || null,
+    bpm: input.bpm ? Number(input.bpm) : null,
+    musical_key: input.musicalKey.trim() || null,
+    full_audio_url: publicUrl,
+    preview_url: publicUrl,
+    is_active: true,
+  });
+
+  if (insertError) {
+    return { ok: false, message: insertError.message };
+  }
+
+  return { ok: true, message: "Beat creado correctamente.", slug };
 }

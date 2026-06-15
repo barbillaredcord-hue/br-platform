@@ -54,6 +54,9 @@ export default async function PreviewEditorPage({ params }: PreviewEditorPagePro
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               <p className="text-sm font-bold uppercase">Configuración demo</p>
             </div>
+            <p className="mb-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm leading-6 text-cyan-100">
+              Preview real se implementará en Fase 12. Actualmente preview_url utiliza temporalmente el mismo MP3.
+            </p>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-md bg-white/5 p-4">
                 <p className="text-xs text-zinc-500">Marcador inicio</p>

@@ -17,7 +17,7 @@ export default async function AdminPage() {
     >
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <AdminStatCard label="Total de beats" value={String(beats.length)} detail="Catálogo activo" href="/admin/beats" />
-        <AdminStatCard label="Beats exclusivos" value={String(exclusiveBeats.length)} detail="Bloqueados por acceso" />
+        <AdminStatCard label="Accesos" value={String(exclusiveBeats.length)} detail="Gestionar accesos" href="/admin/access" />
         <AdminStatCard label="Usuarios" value={String(users.length)} detail="Profiles reales" href="/admin/users" />
         <AdminStatCard label="Solicitudes pendientes" value={String(pendingRequests.length)} detail="Por revisar" href="/admin/access-requests" />
         <AdminStatCard label="Beat destacado" value={mostPlayedBeat?.name ?? "Sin beats"} detail={mostPlayedBeat ? `${mostPlayedBeat.genre} · ${mostPlayedBeat.bpm} BPM` : "Pendiente"} href={mostPlayedBeat ? `/beats/${mostPlayedBeat.id}` : undefined} />

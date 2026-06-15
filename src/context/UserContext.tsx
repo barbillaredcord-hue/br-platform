@@ -21,6 +21,7 @@ type UserContextValue = {
   loginAsUser: (email: string, password: string) => Promise<AuthResult>;
   registerUser: (input: { name: string; username: string; email: string; password: string }) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  refreshCurrentUser: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isLoadingSession: boolean;
@@ -183,6 +184,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setProfileRole("");
   }, []);
 
+  const refreshCurrentUser = useCallback(async () => {
+    if (!supabase) {
+      return;
+    }
+
+    const { data } = await supabase.auth.getSession();
+    const resolvedUser = await getUserFromAuthUser(data.session?.user);
+    setAuthEmail(normalizeEmail(data.session?.user.email));
+    setProfileRole(resolvedUser.profileRole);
+    setCurrentUser(resolvedUser.user);
+    await refreshUsers();
+  }, [refreshUsers]);
+
   const brceoEnvEmail = getBrceoEnvEmail();
   const isAdmin = currentUser?.role === "admin" || (Boolean(authEmail) && authEmail === brceoEnvEmail);
 
@@ -197,12 +211,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       loginAsUser,
       registerUser,
       logout,
+      refreshCurrentUser,
       isAuthenticated: Boolean(currentUser),
       isAdmin,
       isLoadingSession,
       authEnabled: Boolean(supabase),
     }),
-    [authEmail, brceoEnvEmail, currentUser, isAdmin, isLoadingSession, loginAsUser, logout, profileRole, registerUser, users],
+    [authEmail, brceoEnvEmail, currentUser, isAdmin, isLoadingSession, loginAsUser, logout, profileRole, refreshCurrentUser, registerUser, users],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

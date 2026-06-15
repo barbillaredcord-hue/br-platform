@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Download, Heart, Settings } from "lucide-react";
+import { ArrowLeft, Download, Heart, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
@@ -82,6 +82,7 @@ export function AccountBeats() {
 
   return (
     <section className="grid gap-3">
+      <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
       {accessibleBeats.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">Aún no tienes beats con acceso completo.</p> : null}
       {accessibleBeats.map((beat) => (
         <article key={beat.id} className="rounded-lg border border-white/10 bg-[#101317] p-4">
@@ -109,6 +110,7 @@ export function AccountRequests() {
 
   return (
     <section className="grid gap-3">
+      <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
       {requests.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">No hay solicitudes todavía.</p> : null}
       {requests.map((request) => (
         <article key={request.id} className="rounded-lg border border-white/10 bg-[#101317] p-4">
@@ -123,16 +125,19 @@ export function AccountRequests() {
 
 export function AccountSaved() {
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
-      <Heart className="h-5 w-5 text-cyan-200" aria-hidden="true" />
-      <h2 className="mt-3 text-xl font-bold">Guardados</h2>
-      <p className="mt-2 text-sm leading-6 text-zinc-400">UI demo para favoritos. La persistencia se conectará después de Storage/upload real.</p>
-    </section>
+    <div className="grid gap-3">
+      <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
+      <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
+        <Heart className="h-5 w-5 text-cyan-200" aria-hidden="true" />
+        <h2 className="mt-3 text-xl font-bold">Guardados</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">UI demo para favoritos. La persistencia se conectará después de Storage/upload real.</p>
+      </section>
+    </div>
   );
 }
 
 export function AccountSettings() {
-  const { currentUser } = useUser();
+  const { currentUser, refreshCurrentUser } = useUser();
   const [username, setUsername] = useState(currentUser?.username ?? "");
   const [displayName, setDisplayName] = useState(currentUser?.name ?? "");
   const [message, setMessage] = useState("");
@@ -153,36 +158,46 @@ export function AccountSettings() {
 
     const normalizedUsername = username.trim().replace(/^@+/, "");
 
-    if (!normalizedUsername || normalizedUsername.includes(" ")) {
-      setMessage("Username inválido: no uses espacios ni @ duplicado.");
+    if (normalizedUsername.length < 3 || normalizedUsername.includes(" ")) {
+      setMessage("Username inválido: mínimo 3 caracteres, sin espacios ni @ duplicado.");
       return;
     }
 
+    setMessage("Guardando...");
     const result = await updateProfile(currentUser.id, { username: normalizedUsername, displayName });
-    setMessage(result.message);
+    if (result.ok) {
+      await refreshCurrentUser();
+      setMessage("Cambios guardados");
+      return;
+    }
+
+    setMessage(`Error real de Supabase: ${result.message}`);
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
-      <div className="mb-5 flex items-center gap-2">
-        <Settings className="h-5 w-5 text-cyan-200" aria-hidden="true" />
-        <h2 className="text-xl font-bold">Perfil</h2>
-      </div>
-      <div className="grid gap-4">
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-zinc-300">Username</span>
-          <div className="flex h-11 overflow-hidden rounded-md border border-white/10 bg-white/5 focus-within:border-cyan-300">
-            <span className="grid w-10 place-items-center text-cyan-200">@</span>
-            <input value={username} onChange={(event) => setUsername(event.target.value.replace(/^@+/, ""))} className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" />
-          </div>
-        </label>
-        <label className="grid gap-2">
-          <span className="text-sm font-semibold text-zinc-300">Display name</span>
-          <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
-        </label>
-        <button type="button" onClick={() => void saveSettings()} className="h-11 w-fit rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200">Guardar cambios</button>
-        {message ? <p className="text-sm font-semibold text-cyan-200">{message}</p> : null}
-      </div>
-    </section>
+    <div className="grid gap-3">
+      <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
+      <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
+        <div className="mb-5 flex items-center gap-2">
+          <Settings className="h-5 w-5 text-cyan-200" aria-hidden="true" />
+          <h2 className="text-xl font-bold">Perfil</h2>
+        </div>
+        <div className="grid gap-4">
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold text-zinc-300">Username</span>
+            <div className="flex h-11 overflow-hidden rounded-md border border-white/10 bg-white/5 focus-within:border-cyan-300">
+              <span className="grid w-10 place-items-center text-cyan-200">@</span>
+              <input value={username} onChange={(event) => setUsername(event.target.value.replace(/^@+/, ""))} className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none" />
+            </div>
+          </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold text-zinc-300">Display name</span>
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+          </label>
+          <button type="button" onClick={() => void saveSettings()} className="h-11 w-fit rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200">Guardar cambios</button>
+          {message ? <p className="text-sm font-semibold text-cyan-200">{message}</p> : null}
+        </div>
+      </section>
+    </div>
   );
 }

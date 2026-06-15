@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AccessRequestStatus } from "@/data/accessRequests";
-import { approveAccessRequest, getAccessRequests, rejectAccessRequest, type AccessRequestRow } from "@/lib/supabase/queries";
+import { approveAccessRequest, getAccessRequests, markAccessRequestContacted, rejectAccessRequest, type AccessRequestRow } from "@/lib/supabase/queries";
 
 const statusLabels: Record<AccessRequestStatus, string> = {
   pending: "Pendiente",
@@ -19,6 +19,19 @@ const statusStyles: Record<AccessRequestStatus, string> = {
 function getRequestUser(request: AccessRequestRow) {
   const profile = Array.isArray(request.profiles) ? request.profiles[0] : request.profiles;
   return profile?.display_name || profile?.username || profile?.email || request.user_id;
+}
+
+function getRequestProfile(request: AccessRequestRow) {
+  return Array.isArray(request.profiles) ? request.profiles[0] : request.profiles;
+}
+
+function getRequestPhone(request: AccessRequestRow) {
+  const match = request.message?.match(/Tel[eé]fono:\s*([^\n]+)/i);
+  return match?.[1]?.trim() || "Sin teléfono";
+}
+
+function isContacted(request: AccessRequestRow) {
+  return Boolean(request.message?.includes("[contactado]"));
 }
 
 function getRequestBeat(request: AccessRequestRow) {
@@ -44,6 +57,12 @@ export function AccessRequestsTable() {
     await refresh();
   }
 
+  async function markContacted(request: AccessRequestRow) {
+    const result = await markAccessRequestContacted(request.id, request.message);
+    setMessage(result.ok ? "Solicitud marcada como contactada." : result.message ?? "No se pudo marcar.");
+    await refresh();
+  }
+
   useEffect(() => {
     const loadId = window.setTimeout(() => {
       void refresh();
@@ -62,6 +81,8 @@ export function AccessRequestsTable() {
           <thead className="bg-white/5 text-xs uppercase text-zinc-500">
             <tr>
               <th className="px-4 py-3">Usuario</th>
+              <th className="px-4 py-3">Email / Username</th>
+              <th className="px-4 py-3">Teléfono</th>
               <th className="px-4 py-3">Beat solicitado</th>
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Estado</th>
@@ -69,9 +90,13 @@ export function AccessRequestsTable() {
             </tr>
           </thead>
           <tbody>
-            {items.map((request) => (
+            {items.map((request) => {
+              const profile = getRequestProfile(request);
+              return (
               <tr key={request.id} className="border-t border-white/10">
-                <td className="px-4 py-3 font-semibold">{getRequestUser(request)}</td>
+                <td className="px-4 py-3 font-semibold">{getRequestUser(request)} {isContacted(request) ? <span className="ml-2 text-xs text-emerald-200">Contactado</span> : null}</td>
+                <td className="px-4 py-3 text-zinc-400">{profile?.email || "Sin email"}<br /><span className="text-cyan-200">@{profile?.username || "sin-username"}</span></td>
+                <td className="px-4 py-3 text-zinc-400">{getRequestPhone(request)}</td>
                 <td className="px-4 py-3 text-zinc-400">{getRequestBeat(request)}</td>
                 <td className="px-4 py-3 text-zinc-400">{getRequestDate(request)}</td>
                 <td className="px-4 py-3">
@@ -82,7 +107,10 @@ export function AccessRequestsTable() {
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
                     <button type="button" onClick={() => void updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
-                      Aprobar
+                      Aprobar y dar acceso
+                    </button>
+                    <button type="button" onClick={() => void markContacted(request)} className="rounded-md border border-emerald-300/30 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-300/10">
+                      Contactado
                     </button>
                     <button type="button" onClick={() => void updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
                       Rechazar
@@ -90,7 +118,8 @@ export function AccessRequestsTable() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -102,7 +131,9 @@ export function AccessRequestsTable() {
               <div>
                 <p className="font-semibold">{getRequestUser(request)}</p>
                 <p className="mt-1 text-sm text-zinc-400">{getRequestBeat(request)}</p>
+                <p className="mt-1 text-sm text-zinc-400">{getRequestPhone(request)}</p>
                 <p className="mt-1 text-xs text-zinc-500">{getRequestDate(request)}</p>
+                {isContacted(request) ? <p className="mt-1 text-xs font-bold text-emerald-200">Contactado</p> : null}
               </div>
               <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>
                 {statusLabels[request.status]}
@@ -111,6 +142,9 @@ export function AccessRequestsTable() {
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => void updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
                 Aprobar
+              </button>
+              <button type="button" onClick={() => void markContacted(request)} className="rounded-md border border-emerald-300/30 px-3 py-2 text-xs font-bold text-emerald-200">
+                Contactado
               </button>
               <button type="button" onClick={() => void updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
                 Rechazar

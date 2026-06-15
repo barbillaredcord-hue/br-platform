@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save, Wand2 } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
+import { createBeatWithUpload } from "@/lib/supabase/queries";
 
 const keys = [
   "C Minor",
@@ -35,14 +36,25 @@ function formatFileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export function NewBeatForm() {
   const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
   const [genre, setGenre] = useState("");
   const [bpm, setBpm] = useState("");
   const [key, setKey] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [previewStatus, setPreviewStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
+  const [createdSlug, setCreatedSlug] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const fileInfo = useMemo(() => {
     if (!file) {
@@ -57,13 +69,26 @@ export function NewBeatForm() {
   }, [file]);
 
   return (
-    <form className="grid gap-6 rounded-lg border border-white/10 bg-[#101317] p-5 md:grid-cols-2">
+    <form className="grid gap-6 rounded-lg border border-white/10 bg-[#101317] p-5 md:grid-cols-2" onSubmit={(event) => event.preventDefault()}>
       <label className="grid gap-2">
-        <span className="text-sm font-semibold text-zinc-300">Nombre</span>
+        <span className="text-sm font-semibold text-zinc-300">Título</span>
         <input
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            setName(event.target.value);
+            setSlug((current) => current || slugify(event.target.value));
+          }}
           placeholder="Ej. Metro Aqua"
+          className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
+        />
+      </label>
+
+      <label className="grid gap-2">
+        <span className="text-sm font-semibold text-zinc-300">Slug</span>
+        <input
+          value={slug}
+          onChange={(event) => setSlug(slugify(event.target.value))}
+          placeholder="metro-aqua"
           className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
         />
       </label>
@@ -102,14 +127,6 @@ export function NewBeatForm() {
       </label>
 
       <label className="grid gap-2">
-        <span className="text-sm font-semibold text-zinc-300">Portada</span>
-        <input
-          type="file"
-          className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-md file:border-0 file:bg-cyan-300 file:px-3 file:py-2 file:text-sm file:font-bold file:text-black"
-        />
-      </label>
-
-      <label className="grid gap-2">
         <span className="text-sm font-semibold text-zinc-300">Archivo Beat Completo</span>
         <input
           type="file"
@@ -123,6 +140,7 @@ export function NewBeatForm() {
             if (selectedFile) {
               const beatName = selectedFile.name.replace(/\.mp3$/i, "");
               setName(beatName);
+              setSlug(slugify(beatName));
               setBpm(String(estimateBpm(selectedFile.name)));
               setKey(estimateKey(selectedFile.name));
             }
@@ -156,26 +174,31 @@ export function NewBeatForm() {
       ) : null}
 
       <div className="rounded-lg border border-cyan-300/20 bg-white/5 p-4 md:col-span-2">
-        <p className="font-bold">Generar Preview</p>
+        <p className="font-bold">Preview temporal</p>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
-          Demo visual para crear un preview de 15 segundos a partir del beat completo.
+          Preview real se implementará en Fase 12. Actualmente preview_url utiliza temporalmente el mismo MP3.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => setPreviewStatus("Preview generado en modo demo")}
-            className="inline-flex h-11 items-center gap-2 rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200"
-          >
-            <Wand2 className="h-4 w-4" aria-hidden="true" />
-            Generar Preview 15s
-          </button>
-          <button
-            type="button"
-            onClick={() => setSaveStatus("Beat preparado. En la siguiente fase se conectará con base de datos/storage.")}
+            onClick={async () => {
+              if (!file) {
+                setSaveStatus("Selecciona un MP3 antes de guardar.");
+                return;
+              }
+
+              setIsSaving(true);
+              setSaveStatus("Subiendo MP3...");
+              const result = await createBeatWithUpload({ file, title: name, slug, genre, bpm, musicalKey: key });
+              setSaveStatus(result.message);
+              setCreatedSlug(result.slug ?? "");
+              setIsSaving(false);
+            }}
+            disabled={isSaving}
             className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 hover:border-cyan-300 hover:bg-cyan-300/10"
           >
             <Save className="h-4 w-4" aria-hidden="true" />
-            Guardar Beat
+            {isSaving ? "Guardando..." : "Guardar Beat"}
           </button>
           <Link href="/admin/beats" className="inline-flex h-11 items-center gap-2 rounded-md border border-white/10 px-5 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -184,6 +207,12 @@ export function NewBeatForm() {
         </div>
         {previewStatus ? <p className="mt-4 text-sm font-semibold text-cyan-200">{previewStatus}</p> : null}
         {saveStatus ? <p className="mt-2 text-sm font-semibold text-cyan-200">{saveStatus}</p> : null}
+        {createdSlug ? (
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/admin/beats" className="inline-flex h-10 items-center rounded-md bg-cyan-300 px-4 text-sm font-bold text-black hover:bg-cyan-200">Ir a catálogo admin</Link>
+            <Link href={`/beats/${createdSlug}`} className="inline-flex h-10 items-center rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 hover:border-cyan-300">Ver beat</Link>
+          </div>
+        ) : null}
       </div>
     </form>
   );
