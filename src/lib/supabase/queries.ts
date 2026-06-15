@@ -5,7 +5,7 @@ import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "./client";
 import { getSupabasePublicConfigStatus } from "./config";
 
-type SupabaseClient = ReturnType<typeof createClient>;
+type SupabaseClient = NonNullable<ReturnType<typeof createSupabaseBrowserClient>>;
 
 export type ProfileRow = {
   id: string;

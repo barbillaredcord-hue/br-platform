@@ -19,7 +19,7 @@ export type BeatRow = {
   beats: Beat[];
 };
 
-export const beatRows: BeatRow[] = [
+export const beatRows: BeatRow[] = ([
   {
     title: "Trap",
     beats: [
@@ -54,7 +54,7 @@ export const beatRows: BeatRow[] = [
       },
     ],
   },
-].filter((row) => row.beats.length > 0);
+] satisfies BeatRow[]).filter((row) => row.beats.length > 0);
 
 export const featuredBeat: Beat = beatRows[0].beats[0];
 
