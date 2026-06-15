@@ -5,6 +5,7 @@ import { AccessBadge } from "@/components/AccessBadge";
 import { AccessStatusBadge } from "@/components/AccessStatusBadge";
 import { BeatCard } from "@/components/BeatCard";
 import { PlayButton } from "@/components/PlayButton";
+import { RequestAccessButton } from "@/components/RequestAccessButton";
 import { getBeatById, getRelatedBeats } from "@/data/beats";
 import { canAccessBeat } from "@/lib/access";
 
@@ -86,9 +87,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
                 {hasAccess ? "Escuchar Beat Completo" : "Escuchar Preview 15s"}
               </PlayButton>
               {!hasAccess ? (
-                <button className="rounded-md border border-cyan-300/30 px-5 py-3 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
-                  Solicitar acceso
-                </button>
+                <RequestAccessButton />
               ) : null}
             </div>
           </div>

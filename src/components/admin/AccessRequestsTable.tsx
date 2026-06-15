@@ -1,0 +1,91 @@
+"use client";
+
+import { useState } from "react";
+import type { AccessRequest, AccessRequestStatus } from "@/data/accessRequests";
+
+const statusLabels: Record<AccessRequestStatus, string> = {
+  pending: "Pendiente",
+  approved: "Aprobada",
+  rejected: "Rechazada",
+};
+
+const statusStyles: Record<AccessRequestStatus, string> = {
+  pending: "border-cyan-300/30 text-cyan-200",
+  approved: "border-emerald-300/30 text-emerald-200",
+  rejected: "border-red-300/30 text-red-200",
+};
+
+export function AccessRequestsTable({ requests }: { requests: AccessRequest[] }) {
+  const [items, setItems] = useState(requests);
+
+  function updateStatus(id: string, status: AccessRequestStatus) {
+    setItems((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, status } : item)));
+  }
+
+  return (
+    <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
+      <div className="hidden overflow-hidden rounded-lg border border-white/10 md:block">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-white/5 text-xs uppercase text-zinc-500">
+            <tr>
+              <th className="px-4 py-3">Usuario</th>
+              <th className="px-4 py-3">Beat solicitado</th>
+              <th className="px-4 py-3">Fecha</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((request) => (
+              <tr key={request.id} className="border-t border-white/10">
+                <td className="px-4 py-3 font-semibold">{request.user}</td>
+                <td className="px-4 py-3 text-zinc-400">{request.beat}</td>
+                <td className="px-4 py-3 text-zinc-400">{request.date}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>
+                    {statusLabels[request.status]}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
+                      Aprobar
+                    </button>
+                    <button type="button" onClick={() => updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
+                      Rechazar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid gap-3 md:hidden">
+        {items.map((request) => (
+          <article key={request.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">{request.user}</p>
+                <p className="mt-1 text-sm text-zinc-400">{request.beat}</p>
+                <p className="mt-1 text-xs text-zinc-500">{request.date}</p>
+              </div>
+              <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>
+                {statusLabels[request.status]}
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => updateStatus(request.id, "approved")} className="rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200">
+                Aprobar
+              </button>
+              <button type="button" onClick={() => updateStatus(request.id, "rejected")} className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:border-red-300 hover:text-red-200">
+                Rechazar
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
