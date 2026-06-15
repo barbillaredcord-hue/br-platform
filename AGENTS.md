@@ -1,5 +1,47 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+<!-- BEGIN:br-autocar-generated-agent-rules -->
+# AGENTS.md - B.R
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+Generado automaticamente por BR.autocar Documentation Engine. No editar manualmente.
+
+## Regla crítica de foco
+
+- El foco principal es `B.R`.
+- BR.autocar es soporte interno, infraestructura y automatización secundaria dentro de esta app.
+- No convertir avances de BR.autocar en objetivo principal de esta app.
+- Al retomar contexto, priorizar fase, pendientes, riesgos y próxima acción del producto.
+
+## Proyecto
+
+- App: `br-platform`
+- Producto: B.R
+- Tipo: Marketplace musical / plataforma privada de beats
+- Fase actual: Fase 11D completada / produccion inicial
+- Avance: 70%
+
+## Reglas operativas
+
+- APP_STATE.json es la fuente unica de verdad.
+- Toda documentacion derivada debe regenerarse con `./scripts/br-sync-docs`.
+- No editar manualmente PROJECT_STATUS.md, CHANGELOG.md, CHATGPT_CONTEXT.md, CODEX_CONTEXT.md, AGENTS.md, CLAUDE.md ni README.md.
+- Antes de modificar codigo, listar archivos a crear o modificar.
+- No tocar `package.json`, no instalar dependencias y no mover carpetas existentes salvo instruccion expresa.
+- Mantener cambios pequenos, directos y verificables.
+- Ejecutar validaciones despues de cambios.
+- Responder en espanol y usar la menor cantidad razonable de tokens.
+
+## Validaciones minimas
+
+```bash
+python3 -m json.tool APP_STATE.json >/dev/null
+npm run lint
+npm run build
+```
+
+## Continuidad
+
+Sin contexto registrado
+
+## Proxima accion
+
+Registrar B.R en BR.autocarmation y luego iniciar consolidacion Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
+<!-- END:br-autocar-generated-agent-rules -->

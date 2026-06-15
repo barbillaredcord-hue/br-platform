@@ -1,87 +1,94 @@
 # B.R
 
-Plataforma privada de beats con previews, player real, permisos demo y Supabase Auth.
+Generado automaticamente por BR.autocar Documentation Engine. No editar manualmente.
 
-## Variables de entorno
+## Foco principal
 
-Crear `.env.local`:
+Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL="https://TU_PROYECTO.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="TU_ANON_KEY"
-NEXT_PUBLIC_BRCEO_EMAIL="admin@br.local"
-```
+El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.
 
-`NEXT_PUBLIC_BRCEO_EMAIL` define al único admin visual. Si el usuario autenticado tiene ese email, ve `/admin`.
+## Resumen
 
-## Configuración Supabase + Vercel
+Convertir B.R en un marketplace musical para productores, musicos, beatmakers, DJs, artistas e ingenieros.
 
-Variables requeridas:
+## Estado actual
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_BRCEO_EMAIL=
-```
+- App: `br-platform`
+- Tipo: Marketplace musical / plataforma privada de beats
+- Fase: Fase 11D completada / produccion inicial
+- Estado: implemented
+- Avance: 70%
+- Siguiente fase: Consolidacion comercial
 
-En local se usan desde `.env.local`. Ese archivo no debe subirse a git.
+## Oferta del producto
 
-En Vercel:
+- Catalogo de beats
+- Preview de beats
+- Solicitud de acceso
+- Acceso manual administrado por B.RCEO
+- Subida de MP3 reales
+- Panel admin
+- Perfiles de usuario con telefono
+- Eliminacion de usuarios
+- Base futura para licencias, pagos y marketplace
 
-1. Entra al proyecto.
-2. Ve a `Settings > Environment Variables`.
-3. Agrega `NEXT_PUBLIC_SUPABASE_URL`.
-4. Agrega `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-5. Agrega `NEXT_PUBLIC_BRCEO_EMAIL`.
-6. Ejecuta un redeploy.
+## Usuarios objetivo
 
-Guía completa: `docs/SETUP_SUPABASE.md`.
+- B.RCEO
+- Artistas
+- Productores
+- Beatmakers
+- Musicos
+- DJs
+- Ingenieros de audio
+- Clientes que buscan beats/licencias
 
-## Auth
+## Limites del producto
 
-- `/login` usa `supabase.auth.signInWithPassword`.
-- `/register` usa `supabase.auth.signUp`.
-- `Cerrar sesión` usa `supabase.auth.signOut`.
-- La sesión se restaura con `supabase.auth.getSession` y `onAuthStateChange`.
+- Preview real de 15 segundos pendiente
+- Pagos automaticos pendientes
+- Licencias descargables pendientes
+- Marketplace multiusuario pendiente
+- Chat interno pendiente
 
-## SQL básico para profiles
+## Arquitectura
 
-```sql
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  name text,
-  username text unique,
-  email text unique,
-  created_at timestamptz not null default now()
-);
+- Stack: Next.js, TypeScript, Tailwind, Supabase, Vercel
+- Nivel de datos: Supabase Postgres
+- Backend: True
+- Database: True
+- Auth: True
 
-alter table public.profiles enable row level security;
+## BR.autocar como soporte
 
-create policy "profiles_select_own"
-on public.profiles
-for select
-to authenticated
-using ((select auth.uid()) = id);
+- Managed: True
+- Rol dentro del producto: Objetivo secundario e infraestructura de continuidad
+- Regla de foco: BR.autocar debe actuar como soporte y no como foco principal cuando esta app no sea BR.autocar Admin Web.
+- Template version: app-state-schema-v3
+- Future sync target: BR.autocar Admin Web
 
-create policy "profiles_insert_own"
-on public.profiles
-for insert
-to authenticated
-with check ((select auth.uid()) = id);
-
-create policy "profiles_update_own"
-on public.profiles
-for update
-to authenticated
-using ((select auth.uid()) = id)
-with check ((select auth.uid()) = id);
-```
-
-Por ahora B.R mantiene beats, permisos y accesos en datos demo locales. No hay pagos, storage ni accesos persistentes todavía.
-
-## Desarrollo
+## Comandos BR
 
 ```bash
-npm run dev
-npm run lint
+# Desde BR.autocarmation:
+./scripts/br-wake /Users/fabianhonoriogonzalezandrade/br-platform
+./scripts/br-health /Users/fabianhonoriogonzalezandrade/br-platform
+./scripts/br-sync-docs /Users/fabianhonoriogonzalezandrade/br-platform
 ```
+
+## Documentacion
+
+La documentacion de este proyecto es generada automaticamente desde `APP_STATE.json`.
+
+Archivos derivados:
+
+- `PROJECT_STATUS.md`
+- `CHANGELOG.md`
+- `CHATGPT_CONTEXT.md`
+- `CODEX_CONTEXT.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+
+Ultima generacion: 2026-06-15T12:17:26
