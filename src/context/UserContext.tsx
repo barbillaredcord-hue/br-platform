@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { adminUser, demoUsers, type User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
 
 type AuthResult = {
   ok: boolean;
@@ -79,7 +80,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const loginAsUser = useCallback(async (email: string, password: string) => {
     if (!supabase) {
-      return { ok: false, message: "Faltan variables de Supabase." };
+      return { ok: false, message: SUPABASE_NOT_CONFIGURED_MESSAGE };
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -97,7 +98,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const registerUser = useCallback(async (input: { name: string; username: string; email: string; password: string }) => {
     if (!supabase) {
-      return { ok: false, message: "Faltan variables de Supabase." };
+      return { ok: false, message: SUPABASE_NOT_CONFIGURED_MESSAGE };
     }
 
     const { error } = await supabase.auth.signUp({

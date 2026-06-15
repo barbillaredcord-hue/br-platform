@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { LogoMark } from "@/components/LogoMark";
 import { useUser } from "@/context/UserContext";
+import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
 
 export default function RegisterPage() {
   const { authEnabled, registerUser } = useUser();
@@ -53,7 +54,14 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        {!authEnabled ? <p className="mt-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY para activar registro real.</p> : null}
+        {!authEnabled ? (
+          <div className="mt-4 grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
+            <p className="text-sm text-zinc-300">{SUPABASE_NOT_CONFIGURED_MESSAGE}</p>
+            <Link href="/admin/setup" className="inline-flex h-10 items-center justify-center rounded-md border border-cyan-300/30 text-sm font-bold text-cyan-200 hover:border-cyan-300 hover:bg-cyan-300/10">
+              Configurar B.R
+            </Link>
+          </div>
+        ) : null}
         {message ? <p className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">{message}</p> : null}
 
         <p className="mt-6 text-sm text-zinc-400">

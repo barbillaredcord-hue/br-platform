@@ -1,4 +1,4 @@
-import { Inbox, KeyRound, ListMusic, Plus, Users } from "lucide-react";
+import { Inbox, KeyRound, ListMusic, Plus, Settings, Users } from "lucide-react";
 import { AdminQuickLink } from "@/components/admin/AdminQuickLink";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminStatCard } from "@/components/admin/AdminStatCard";
@@ -26,12 +26,13 @@ export default function AdminPage() {
 
       <section>
         <h2 className="mb-4 text-xl font-bold">Accesos rápidos</h2>
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-6">
           <AdminQuickLink href="/admin/beats/new" label="Subir Beat" detail="Crear ficha visual y preparar archivos demo." icon={Plus} />
           <AdminQuickLink href="/admin/beats" label="Gestionar Beats" detail="Revisar catálogo, estados y edición de preview." icon={ListMusic} />
           <AdminQuickLink href="/admin/users" label="Usuarios" detail="Ver usuarios demo y sus beats autorizados." icon={Users} />
           <AdminQuickLink href="/admin/access" label="Gestionar accesos" detail="Dar o quitar acceso completo manualmente." icon={KeyRound} />
           <AdminQuickLink href="/admin/access-requests" label="Solicitudes" detail="Aprobar o rechazar accesos pendientes." icon={Inbox} />
+          <AdminQuickLink href="/admin/setup" label="Setup B.R" detail="Guardar referencia local de variables Supabase y Vercel." icon={Settings} />
         </div>
       </section>
     </AdminShell>

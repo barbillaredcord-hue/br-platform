@@ -14,6 +14,29 @@ NEXT_PUBLIC_BRCEO_EMAIL="admin@br.local"
 
 `NEXT_PUBLIC_BRCEO_EMAIL` define al único admin visual. Si el usuario autenticado tiene ese email, ve `/admin`.
 
+## Configuración Supabase + Vercel
+
+Variables requeridas:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_BRCEO_EMAIL=
+```
+
+En local se usan desde `.env.local`. Ese archivo no debe subirse a git.
+
+En Vercel:
+
+1. Entra al proyecto.
+2. Ve a `Settings > Environment Variables`.
+3. Agrega `NEXT_PUBLIC_SUPABASE_URL`.
+4. Agrega `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+5. Agrega `NEXT_PUBLIC_BRCEO_EMAIL`.
+6. Ejecuta un redeploy.
+
+Guía completa: `docs/SETUP_SUPABASE.md`.
+
 ## Auth
 
 - `/login` usa `supabase.auth.signInWithPassword`.
