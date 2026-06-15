@@ -7,7 +7,7 @@ export type DemoUser = {
 export const demoUser: DemoUser = {
   id: "demo-user",
   name: "Demo User",
-  accessibleBeatIds: ["aqua-nights", "midnight-drill"],
+  accessibleBeatIds: ["back-alley-receipt"],
 };
 
 export const demoUsers: DemoUser[] = [demoUser];

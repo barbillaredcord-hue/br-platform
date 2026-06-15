@@ -16,7 +16,7 @@ export function BeatRow({ title, beats, rowIndex }: BeatRowProps) {
       </div>
       <div className="flex snap-x gap-4 overflow-x-auto pb-3">
         {beats.map((beat, beatIndex) => (
-          <BeatCard key={beat.id} beat={beat} gradientIndex={rowIndex + beatIndex} />
+          <BeatCard key={beat.id} beat={beat} gradientIndex={rowIndex + beatIndex} queue={beats} />
         ))}
       </div>
     </section>

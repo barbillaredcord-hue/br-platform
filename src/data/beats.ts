@@ -8,6 +8,9 @@ export type Beat = {
   locked: boolean;
   key?: string;
   status: BeatStatus;
+  previewUrl: string;
+  fullAudioUrl: string;
+  isDemoAudio: false;
 };
 
 export type BeatRow = {
@@ -19,57 +22,50 @@ export const beatRows: BeatRow[] = [
   {
     title: "Trap",
     beats: [
-      { id: "midnight-flex", name: "Midnight Flex", genre: "Trap", bpm: 142, locked: false, key: "F minor", status: "Público Preview" },
-      { id: "no-sleep", name: "No Sleep", genre: "Trap", bpm: 150, locked: true, key: "C# minor", status: "Privado" },
-      { id: "diamond-rain", name: "Diamond Rain", genre: "Trap", bpm: 138, locked: false, key: "A minor", status: "Público Preview" },
-      { id: "cold-chain", name: "Cold Chain", genre: "Trap", bpm: 146, locked: true, key: "D minor", status: "Privado" },
+      {
+        id: "back-alley-receipt",
+        name: "Back Alley Receipt",
+        genre: "Trap",
+        bpm: 142,
+        locked: false,
+        key: "F minor",
+        status: "Público Preview",
+        previewUrl: "/audio/previews/back-alley-receipt-preview.mp3",
+        fullAudioUrl: "/audio/full/Back Alley Receipt-2.mp3",
+        isDemoAudio: false,
+      },
     ],
   },
   {
     title: "Drill",
     beats: [
-      { id: "midnight-drill", name: "Midnight Drill", genre: "Drill", bpm: 144, locked: true, key: "G minor", status: "Privado" },
-      { id: "street-code", name: "Street Code", genre: "Drill", bpm: 142, locked: false, key: "E minor", status: "Público Preview" },
-      { id: "night-shift", name: "Night Shift", genre: "Drill", bpm: 148, locked: true, key: "B minor", status: "Privado" },
-      { id: "south-echo", name: "South Echo", genre: "Drill", bpm: 140, locked: false, key: "F# minor", status: "Público Preview" },
+      {
+        id: "dust-on-my-name",
+        name: "Dust On My Name",
+        genre: "Drill",
+        bpm: 144,
+        locked: true,
+        key: "G minor",
+        status: "Privado",
+        previewUrl: "/audio/previews/dust-on-my-name-preview.mp3",
+        fullAudioUrl: "/audio/full/Dust On My Name (Without Lead Vocal) (Without No Lead Vocal).mp3",
+        isDemoAudio: false,
+      },
     ],
   },
-  {
-    title: "Reggaeton",
-    beats: [
-      { id: "perla-azul", name: "Perla Azul", genre: "Reggaeton", bpm: 96, locked: false, key: "A minor", status: "Público Preview" },
-      { id: "after-club", name: "After Club", genre: "Reggaeton", bpm: 92, locked: true, key: "D minor", status: "Privado" },
-      { id: "luna-vip", name: "Luna VIP", genre: "Reggaeton", bpm: 94, locked: false, key: "G minor", status: "Público Preview" },
-      { id: "malecon", name: "Malecón", genre: "Reggaeton", bpm: 98, locked: true, key: "C minor", status: "Privado" },
-    ],
-  },
-  {
-    title: "Exclusivos",
-    beats: [
-      { id: "royal-pack", name: "Royal Pack", genre: "Exclusive", bpm: 132, locked: true, key: "C# minor", status: "Exclusivo" },
-      { id: "private-vault", name: "Private Vault", genre: "Exclusive", bpm: 128, locked: true, key: "F minor", status: "Exclusivo" },
-      { id: "aqua-room", name: "Aqua Room", genre: "Exclusive", bpm: 136, locked: true, key: "A# minor", status: "Exclusivo" },
-      { id: "gold-signal", name: "Gold Signal", genre: "Exclusive", bpm: 124, locked: true, key: "E minor", status: "Exclusivo" },
-    ],
-  },
-];
+].filter((row) => row.beats.length > 0);
 
-export const featuredBeat: Beat = {
-  id: "aqua-nights",
-  name: "Aqua Nights",
-  genre: "Trap",
-  bpm: 144,
-  locked: false,
-  key: "F minor",
-  status: "Público Preview",
-};
+export const featuredBeat: Beat = beatRows[0].beats[0];
 
-export const allBeats: Beat[] = [featuredBeat, ...beatRows.flatMap((row) => row.beats)];
+export const allBeats: Beat[] = beatRows.flatMap((row) => row.beats);
 
 export function getBeatById(id: string) {
   return allBeats.find((beat) => beat.id === id);
 }
 
 export function getRelatedBeats(beat: Beat) {
-  return allBeats.filter((item) => item.genre === beat.genre && item.id !== beat.id).slice(0, 4);
+  const sameGenre = allBeats.filter((item) => item.genre === beat.genre && item.id !== beat.id);
+  const fallback = allBeats.filter((item) => item.id !== beat.id);
+
+  return (sameGenre.length > 0 ? sameGenre : fallback).slice(0, 4);
 }

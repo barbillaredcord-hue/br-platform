@@ -29,6 +29,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
   }
 
   const relatedBeats = getRelatedBeats(beat);
+  const detailQueue = [beat, ...relatedBeats];
   const hasAccess = canAccessBeat("demo-user", beat.id);
 
   return (
@@ -81,7 +82,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              <PlayButton beat={beat} mode={hasAccess ? "full" : "preview"} showPauseState>
+              <PlayButton beat={beat} mode={hasAccess ? "full" : "preview"} queue={detailQueue} showPauseState>
                 {hasAccess ? "Escuchar Beat Completo" : "Escuchar Preview 15s"}
               </PlayButton>
               {!hasAccess ? (
@@ -144,7 +145,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
             </div>
             <div className="flex snap-x gap-4 overflow-x-auto pb-3">
               {relatedBeats.map((relatedBeat, index) => (
-                <BeatCard key={relatedBeat.id} beat={relatedBeat} gradientIndex={index} />
+                <BeatCard key={relatedBeat.id} beat={relatedBeat} gradientIndex={index} queue={detailQueue} />
               ))}
             </div>
           </section>

@@ -8,6 +8,7 @@ import { PlayButton } from "./PlayButton";
 type BeatCardProps = {
   beat: Beat;
   gradientIndex: number;
+  queue?: Beat[];
 };
 
 const coverGradients = [
@@ -17,7 +18,7 @@ const coverGradients = [
   "bg-[linear-gradient(135deg,#0f172a,#0891b2)]",
 ];
 
-export function BeatCard({ beat, gradientIndex }: BeatCardProps) {
+export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   const hasAccess = canAccessBeat("demo-user", beat.id);
 
   return (
@@ -39,7 +40,7 @@ export function BeatCard({ beat, gradientIndex }: BeatCardProps) {
           <AccessStatusBadge hasAccess={hasAccess} />
         </div>
       </Link>
-      <PlayButton variant="light" className="mt-4" beat={beat} mode={hasAccess ? "full" : "preview"} showPauseState>
+      <PlayButton variant="light" className="mt-4" beat={beat} mode={hasAccess ? "full" : "preview"} queue={queue} showPauseState>
         Play
       </PlayButton>
     </article>

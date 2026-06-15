@@ -1,4 +1,5 @@
 import type { Beat } from "@/data/beats";
+import { canAccessBeat } from "@/lib/access";
 import { PlayButton } from "./PlayButton";
 
 type HeroBeatProps = {
@@ -6,6 +7,8 @@ type HeroBeatProps = {
 };
 
 export function HeroBeat({ beat }: HeroBeatProps) {
+  const hasAccess = canAccessBeat("demo-user", beat.id);
+
   return (
     <section className="relative overflow-hidden rounded-lg border border-cyan-300/20 bg-[radial-gradient(circle_at_20%_20%,rgba(103,232,249,0.28),transparent_30%),linear-gradient(135deg,#111827,#050607_70%)] p-6 md:p-10">
       <div className="max-w-2xl">
@@ -15,7 +18,7 @@ export function HeroBeat({ beat }: HeroBeatProps) {
           Preview público de 15 segundos. Acceso privado para escuchar la versión completa y administrar beats premium.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
-          <PlayButton beat={beat} mode="preview" showPauseState>
+          <PlayButton beat={beat} mode={hasAccess ? "full" : "preview"} queue={[beat]} showPauseState>
             Reproducir preview
           </PlayButton>
           <span className="rounded-md border border-white/10 px-4 py-3 text-sm text-zinc-300">

@@ -12,6 +12,7 @@ type PlayButtonProps = {
   ariaLabel?: string;
   beat?: Beat;
   mode?: PlayerMode;
+  queue?: Beat[];
   showPauseState?: boolean;
 };
 
@@ -28,10 +29,11 @@ export function PlayButton({
   ariaLabel,
   beat,
   mode = "preview",
+  queue,
   showPauseState = false,
 }: PlayButtonProps) {
-  const { currentBeat, isPlaying, playBeat, togglePlayback } = usePlayer();
-  const isActive = Boolean(beat && currentBeat?.id === beat.id);
+  const { currentBeat, isPlaying, mode: currentMode, playBeat, togglePlayback } = usePlayer();
+  const isActive = Boolean(beat && currentBeat?.id === beat.id && currentMode === mode);
   const isPausedIcon = showPauseState && isActive && isPlaying;
 
   return (
@@ -53,7 +55,7 @@ export function PlayButton({
           return;
         }
 
-        playBeat(beat, mode);
+        playBeat(beat, mode, queue);
       }}
     >
       {isPausedIcon ? (
