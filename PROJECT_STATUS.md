@@ -123,4 +123,4 @@ Consolidar primero el flujo Beat -> preview -> solicitud -> pago/acceso -> desca
 - Validated pilot: 1
 - Recomendacion: Separar trabajo futuro del ecosistema BR.autocar de riesgos operativos de cada app antes de avanzar al Admin Web.
 
-Ultima generacion: 2026-06-15T12:17:26
+Ultima generacion: 2026-06-15T12:38:03
