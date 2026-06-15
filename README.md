@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# B.R
 
-## Getting Started
+Plataforma privada de beats con previews, player real, permisos demo y Supabase Auth.
 
-First, run the development server:
+## Variables de entorno
+
+Crear `.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL="https://TU_PROYECTO.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="TU_ANON_KEY"
+NEXT_PUBLIC_BRCEO_EMAIL="admin@br.local"
+```
+
+`NEXT_PUBLIC_BRCEO_EMAIL` define al único admin visual. Si el usuario autenticado tiene ese email, ve `/admin`.
+
+## Auth
+
+- `/login` usa `supabase.auth.signInWithPassword`.
+- `/register` usa `supabase.auth.signUp`.
+- `Cerrar sesión` usa `supabase.auth.signOut`.
+- La sesión se restaura con `supabase.auth.getSession` y `onAuthStateChange`.
+
+## SQL básico para profiles
+
+```sql
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text,
+  username text unique,
+  email text unique,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+create policy "profiles_select_own"
+on public.profiles
+for select
+to authenticated
+using ((select auth.uid()) = id);
+
+create policy "profiles_insert_own"
+on public.profiles
+for insert
+to authenticated
+with check ((select auth.uid()) = id);
+
+create policy "profiles_update_own"
+on public.profiles
+for update
+to authenticated
+using ((select auth.uid()) = id)
+with check ((select auth.uid()) = id);
+```
+
+Por ahora B.R mantiene beats, permisos y accesos en datos demo locales. No hay pagos, storage ni accesos persistentes todavía.
+
+## Desarrollo
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

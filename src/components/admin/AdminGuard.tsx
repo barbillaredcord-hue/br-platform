@@ -5,7 +5,17 @@ import { Lock } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { isAdmin } = useUser();
+  const { isAdmin, isLoadingSession } = useUser();
+
+  if (isLoadingSession) {
+    return (
+      <main className="min-h-screen bg-[#050607] px-4 py-10 text-white">
+        <section className="mx-auto max-w-xl rounded-lg border border-white/10 bg-[#101317] p-6 text-center">
+          <p className="text-sm font-semibold text-cyan-200">Validando sesión...</p>
+        </section>
+      </main>
+    );
+  }
 
   if (!isAdmin) {
     return (

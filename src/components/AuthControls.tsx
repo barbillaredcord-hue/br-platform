@@ -29,7 +29,7 @@ export function AuthControls() {
           Admin
         </Link>
       ) : null}
-      <button type="button" onClick={logout} className="h-10 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200">
+      <button type="button" onClick={() => void logout()} className="h-10 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200">
         Cerrar sesión
       </button>
     </div>

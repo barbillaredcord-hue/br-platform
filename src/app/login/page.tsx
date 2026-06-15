@@ -14,19 +14,20 @@ const quickUsers = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginAsUser } = useUser();
+  const { authEnabled, loginAsUser } = useUser();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
-  const login = (nextEmail: string) => {
-    const found = loginAsUser(nextEmail);
+  const login = async (nextEmail: string) => {
+    const result = await loginAsUser(nextEmail, password);
 
-    if (!found) {
-      setMessage("Usuario demo no encontrado. En producción se creará cuenta real.");
+    if (!result.ok) {
+      setMessage(result.message ?? "No se pudo iniciar sesión.");
       return;
     }
 
-    router.push(nextEmail.trim().toLowerCase() === "admin@br.local" ? "/admin" : "/");
+    router.push(nextEmail.trim().toLowerCase() === (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "admin@br.local").toLowerCase() ? "/admin" : "/");
   };
 
   return (
@@ -53,20 +54,21 @@ export default function LoginPage() {
           </label>
           <label className="grid gap-2">
             <span className="text-sm font-semibold text-zinc-300">Password</span>
-            <input type="password" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
-          <button type="submit" className="h-11 w-full rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200">
+          <button type="submit" disabled={!authEnabled} className="h-11 w-full rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50">
             Entrar
           </button>
         </form>
 
+        {!authEnabled ? <p className="mt-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY para activar Auth.</p> : null}
         {message ? <p className="mt-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{message}</p> : null}
 
         <div className="mt-6 border-t border-white/10 pt-5">
           <p className="mb-3 text-sm font-bold text-cyan-200">Usuarios de prueba</p>
           <div className="grid gap-2">
             {quickUsers.map((user) => (
-              <button key={user.email} type="button" onClick={() => login(user.email)} className="h-10 rounded-md border border-white/10 text-sm font-semibold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
+              <button key={user.email} type="button" onClick={() => setEmail(user.email)} className="h-10 rounded-md border border-white/10 text-sm font-semibold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
                 {user.label}
               </button>
             ))}

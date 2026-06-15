@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LogoMark } from "@/components/LogoMark";
+import { useUser } from "@/context/UserContext";
 
 export default function RegisterPage() {
+  const { authEnabled, registerUser } = useUser();
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
   return (
@@ -20,32 +26,34 @@ export default function RegisterPage() {
 
         <form
           className="space-y-4"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            setMessage("Cuenta preparada. En la siguiente fase se conectará el registro real.");
+            const result = await registerUser({ name, username, email, password });
+            setMessage(result.message ?? (result.ok ? "Cuenta creada." : "No se pudo crear la cuenta."));
           }}
         >
           <label className="grid gap-2">
             <span className="text-sm font-semibold text-zinc-300">Nombre</span>
-            <input className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+            <input value={name} onChange={(event) => setName(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
           <label className="grid gap-2">
             <span className="text-sm font-semibold text-zinc-300">Username</span>
-            <input className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+            <input value={username} onChange={(event) => setUsername(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
           <label className="grid gap-2">
             <span className="text-sm font-semibold text-zinc-300">Email</span>
-            <input type="email" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
           <label className="grid gap-2">
             <span className="text-sm font-semibold text-zinc-300">Password</span>
-            <input type="password" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
-          <button type="submit" className="h-11 w-full rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200">
+          <button type="submit" disabled={!authEnabled} className="h-11 w-full rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50">
             Crear cuenta
           </button>
         </form>
 
+        {!authEnabled ? <p className="mt-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY para activar registro real.</p> : null}
         {message ? <p className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">{message}</p> : null}
 
         <p className="mt-6 text-sm text-zinc-400">

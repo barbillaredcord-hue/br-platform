@@ -11,7 +11,7 @@ export const adminUser: User = {
   id: "brceo",
   name: "B.RCEO",
   username: "brceo",
-  email: "admin@br.local",
+  email: process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "admin@br.local",
   role: "admin",
   accessibleBeatIds: ["back-alley-receipt", "dust-on-my-name"],
 };
