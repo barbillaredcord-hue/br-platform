@@ -65,9 +65,6 @@ export default function LoginPage() {
         {!authEnabled ? (
           <div className="mt-4 grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
             <p className="text-sm text-zinc-300">{SUPABASE_NOT_CONFIGURED_MESSAGE}</p>
-            <Link href="/admin/setup" className="inline-flex h-10 items-center justify-center rounded-md border border-cyan-300/30 text-sm font-bold text-cyan-200 hover:border-cyan-300 hover:bg-cyan-300/10">
-              Configurar B.R
-            </Link>
           </div>
         ) : null}
         {message ? <p className="mt-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{message}</p> : null}

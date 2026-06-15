@@ -11,6 +11,7 @@ create table if not exists public.profiles (
   email text not null,
   username text unique,
   display_name text,
+  phone text,
   role text not null default 'user',
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -102,6 +103,7 @@ begin
     email,
     username,
     display_name,
+    phone,
     role
   )
   values (
@@ -109,6 +111,7 @@ begin
     new.email,
     coalesce(nullif(new.raw_user_meta_data->>'username', ''), split_part(new.email, '@', 1)),
     coalesce(nullif(new.raw_user_meta_data->>'display_name', ''), nullif(new.raw_user_meta_data->>'name', ''), split_part(new.email, '@', 1)),
+    nullif(new.raw_user_meta_data->>'phone', ''),
     case
       when brceo_email is not null and brceo_email <> '' and new_email = brceo_email then 'admin'
       else 'user'
@@ -119,6 +122,7 @@ begin
     email = excluded.email,
     username = coalesce(public.profiles.username, excluded.username),
     display_name = coalesce(public.profiles.display_name, excluded.display_name),
+    phone = coalesce(public.profiles.phone, excluded.phone),
     updated_at = now();
 
   return new;
@@ -288,3 +292,8 @@ on public.access_requests
 for delete
 to authenticated
 using (private.is_br_admin());
+
+-- Fase 11B - SQL adicional para proyectos que ya ejecutaron el esquema antes de agregar phone.
+-- Ejecutar en Supabase SQL Editor si public.profiles aún no tiene la columna phone.
+alter table public.profiles
+add column if not exists phone text;

@@ -4,6 +4,8 @@ import { AdminBeatList } from "@/components/admin/AdminBeatList";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { getBeats } from "@/lib/supabase/queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminBeatsPage() {
   const { beats, usingFallback } = await getBeats();
 

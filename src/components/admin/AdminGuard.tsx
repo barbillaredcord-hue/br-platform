@@ -22,7 +22,7 @@ function AdminDebugPanel({ authEmail, profileRole, brceoEnvEmail, isAdmin }: { a
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const { authEmail, brceoEnvEmail, isAdmin, isLoadingSession, profileRole } = useUser();
-  const debugPanel = <AdminDebugPanel authEmail={authEmail} profileRole={profileRole} brceoEnvEmail={brceoEnvEmail} isAdmin={isAdmin} />;
+  const debugPanel = isAdmin ? <AdminDebugPanel authEmail={authEmail} profileRole={profileRole} brceoEnvEmail={brceoEnvEmail} isAdmin={isAdmin} /> : null;
 
   if (isLoadingSession) {
     return (

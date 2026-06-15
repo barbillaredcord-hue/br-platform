@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, Download, Heart, Settings } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
@@ -20,24 +20,38 @@ function statusLabel(status: string) {
 }
 
 function useAccountData() {
-  const { currentUser } = useUser();
+  const pathname = usePathname();
+  const { currentUser, refreshCurrentUser } = useUser();
   const [beats, setBeats] = useState<Beat[]>([]);
   const [requests, setRequests] = useState<AccessRequestRow[]>([]);
 
   useEffect(() => {
-    if (!currentUser) {
-      return;
+    if (!currentUser?.id) {
+      const clearId = window.setTimeout(() => {
+        setBeats([]);
+        setRequests([]);
+      }, 0);
+
+      return () => window.clearTimeout(clearId);
     }
 
+    let cancelled = false;
     const loadId = window.setTimeout(() => {
-      void Promise.all([getBeats(), getAccessRequestsForUser(currentUser.id)]).then(([beatsResult, userRequests]) => {
+      void Promise.all([refreshCurrentUser(), getBeats(), getAccessRequestsForUser(currentUser.id)]).then(([, beatsResult, userRequests]) => {
+        if (cancelled) {
+          return;
+        }
+
         setBeats(beatsResult.beats);
         setRequests(userRequests);
       });
     }, 0);
 
-    return () => window.clearTimeout(loadId);
-  }, [currentUser]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(loadId);
+    };
+  }, [currentUser?.id, pathname, refreshCurrentUser]);
 
   const accessibleBeats = useMemo(() => beats.filter((beat) => userCanAccessBeat(currentUser, beat)), [beats, currentUser]);
 
@@ -143,13 +157,14 @@ export function AccountSettings() {
   const { currentUser, refreshCurrentUser } = useUser();
   const [username, setUsername] = useState(currentUser?.username ?? "");
   const [displayName, setDisplayName] = useState(currentUser?.name ?? "");
+  const [phone, setPhone] = useState(currentUser?.phone ?? "");
   const [message, setMessage] = useState("");
-  const [diagnostics, setDiagnostics] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     const syncId = window.setTimeout(() => {
       setUsername(currentUser?.username ?? "");
       setDisplayName(currentUser?.name ?? "");
+      setPhone(currentUser?.phone ?? "");
     }, 0);
 
     return () => window.clearTimeout(syncId);
@@ -168,8 +183,7 @@ export function AccountSettings() {
     }
 
     setMessage("Guardando...");
-    const result = await updateProfile(currentUser.id, { username: normalizedUsername, displayName });
-    setDiagnostics(result.diagnostics ?? null);
+    const result = await updateProfile(currentUser.id, { username: normalizedUsername, displayName, phone });
     if (result.ok) {
       await refreshCurrentUser();
       router.refresh();
@@ -177,7 +191,7 @@ export function AccountSettings() {
       return;
     }
 
-    setMessage(`Error real de Supabase: ${result.message}`);
+    setMessage(result.message || "No se pudieron guardar los cambios");
   }
 
   return (
@@ -200,16 +214,12 @@ export function AccountSettings() {
             <span className="text-sm font-semibold text-zinc-300">Display name</span>
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
+          <label className="grid gap-2">
+            <span className="text-sm font-semibold text-zinc-300">Teléfono</span>
+            <input value={phone} onChange={(event) => setPhone(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+          </label>
           <button type="button" onClick={() => void saveSettings()} className="h-11 w-fit rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200">Guardar cambios</button>
           {message ? <p className="text-sm font-semibold text-cyan-200">{message}</p> : null}
-          {diagnostics ? (
-            <section className="rounded-md border border-white/10 bg-black/30 p-4">
-              <p className="text-sm font-bold text-cyan-200">Diagnóstico update profile</p>
-              <pre className="mt-3 max-h-80 overflow-auto text-xs leading-5 text-zinc-300">
-                {JSON.stringify(diagnostics, null, 2)}
-              </pre>
-            </section>
-          ) : null}
         </div>
       </section>
     </div>

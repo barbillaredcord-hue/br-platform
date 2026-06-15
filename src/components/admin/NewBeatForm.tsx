@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
 import { createBeatWithUpload } from "@/lib/supabase/queries";
 
@@ -45,6 +46,7 @@ function slugify(value: string) {
 }
 
 export function NewBeatForm() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [genre, setGenre] = useState("");
@@ -55,7 +57,6 @@ export function NewBeatForm() {
   const [saveStatus, setSaveStatus] = useState("");
   const [createdSlug, setCreatedSlug] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<Record<string, unknown> | null>(null);
 
   const fileInfo = useMemo(() => {
     if (!file) {
@@ -191,9 +192,9 @@ export function NewBeatForm() {
               setIsSaving(true);
               setSaveStatus("Subiendo MP3...");
               const result = await createBeatWithUpload({ file, title: name, slug, genre, bpm, musicalKey: key });
-              setSaveStatus(result.message);
+              setSaveStatus(result.ok ? "Beat guardado correctamente" : result.message || "No se pudo guardar el beat");
               setCreatedSlug(result.slug ?? "");
-              setDiagnostics(result.diagnostics ?? null);
+              router.refresh();
               setIsSaving(false);
             }}
             disabled={isSaving}
@@ -209,14 +210,6 @@ export function NewBeatForm() {
         </div>
         {previewStatus ? <p className="mt-4 text-sm font-semibold text-cyan-200">{previewStatus}</p> : null}
         {saveStatus ? <p className="mt-2 text-sm font-semibold text-cyan-200">{saveStatus}</p> : null}
-        {diagnostics ? (
-          <section className="mt-4 rounded-md border border-white/10 bg-black/30 p-4">
-            <p className="text-sm font-bold text-cyan-200">Diagnóstico upload beats</p>
-            <pre className="mt-3 max-h-80 overflow-auto text-xs leading-5 text-zinc-300">
-              {JSON.stringify(diagnostics, null, 2)}
-            </pre>
-          </section>
-        ) : null}
         {createdSlug ? (
           <div className="mt-4 flex flex-wrap gap-3">
             <Link href="/admin/beats" className="inline-flex h-10 items-center rounded-md bg-cyan-300 px-4 text-sm font-bold text-black hover:bg-cyan-200">Ir a catálogo admin</Link>

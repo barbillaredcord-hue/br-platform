@@ -79,7 +79,7 @@ function saveConnectionStatus(status: SupabaseConnectionStatus) {
 }
 
 export default function AdminSetupPage() {
-  const { authEnabled, isAdmin, isLoadingSession } = useUser();
+  const { isAdmin, isLoadingSession } = useUser();
   const [config, setConfig] = useState<SetupConfig>(getInitialConfig);
   const [showAnonKey, setShowAnonKey] = useState(false);
   const [message, setMessage] = useState("");
@@ -128,6 +128,10 @@ export default function AdminSetupPage() {
   }, [supabaseAnonKey, supabaseUrl]);
 
   useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
     const initialCheckId = window.setTimeout(() => {
       void verifySupabaseConnection();
     }, 0);
@@ -139,7 +143,7 @@ export default function AdminSetupPage() {
       window.clearTimeout(initialCheckId);
       window.clearInterval(intervalId);
     };
-  }, [verifySupabaseConnection]);
+  }, [isAdmin, verifySupabaseConnection]);
 
   if (isLoadingSession) {
     return (
@@ -151,7 +155,7 @@ export default function AdminSetupPage() {
     );
   }
 
-  if (authEnabled && !isAdmin) {
+  if (!isAdmin) {
     return (
       <main className="min-h-screen bg-[#050607] px-4 py-10 text-white">
         <section className="mx-auto max-w-xl rounded-lg border border-cyan-300/20 bg-[#101317] p-6 text-center">

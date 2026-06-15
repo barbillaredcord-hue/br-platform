@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { demoUsers, type User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
-import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser } from "@/lib/supabase/queries";
+import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser, updateProfile } from "@/lib/supabase/queries";
 
 type AuthResult = {
   ok: boolean;
@@ -19,7 +19,7 @@ type UserContextValue = {
   brceoEnvEmail: string;
   setCurrentUser: (user: User | null) => void;
   loginAsUser: (email: string, password: string) => Promise<AuthResult>;
-  registerUser: (input: { name: string; username: string; email: string; password: string }) => Promise<AuthResult>;
+  registerUser: (input: { name: string; username: string; email: string; phone: string; password: string }) => Promise<AuthResult>;
   logout: () => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
   isAuthenticated: boolean;
@@ -39,7 +39,11 @@ function getBrceoEnvEmail() {
   return normalizeEmail(process.env.NEXT_PUBLIC_BRCEO_EMAIL);
 }
 
-async function getUserFromAuthUser(authUser?: { id: string; email?: string | null } | null, input?: { name?: string; username?: string }): Promise<{ user: User | null; profileRole: string }> {
+function isValidPhone(phone: string) {
+  return /^[0-9+\-()\s]+$/.test(phone.trim()) && phone.replace(/\D/g, "").length >= 8;
+}
+
+async function getUserFromAuthUser(authUser?: { id: string; email?: string | null } | null, input?: { name?: string; username?: string; phone?: string }): Promise<{ user: User | null; profileRole: string }> {
   if (!authUser?.email) {
     return { user: null, profileRole: "" };
   }
@@ -70,6 +74,7 @@ async function getUserFromAuthUser(authUser?: { id: string; email?: string | nul
         name: input?.name || "B.RCEO",
         username: input?.username || "brceo",
         email: authEmail,
+        phone: input?.phone ?? null,
         role: "admin",
         accessibleBeatIds: [],
       },
@@ -143,9 +148,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return { ok: true };
   }, [refreshUsers]);
 
-  const registerUser = useCallback(async (input: { name: string; username: string; email: string; password: string }) => {
+  const registerUser = useCallback(async (input: { name: string; username: string; email: string; phone: string; password: string }) => {
     if (!supabase) {
       return { ok: false, message: SUPABASE_NOT_CONFIGURED_MESSAGE };
+    }
+
+    if (!isValidPhone(input.phone)) {
+      return { ok: false, message: "Agrega tu teléfono para solicitar acceso." };
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -155,6 +164,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         data: {
           name: input.name,
           username: input.username,
+          phone: input.phone,
         },
       },
     });
@@ -164,6 +174,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (data.user) {
+      if (data.session) {
+        await updateProfile(data.user.id, { username: input.username, displayName: input.name, phone: input.phone });
+      }
+
       const resolvedUser = await getUserFromAuthUser(data.user, input);
       setAuthEmail(normalizeEmail(data.user.email));
       setProfileRole(resolvedUser.profileRole);
@@ -198,7 +212,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUsers]);
 
   const brceoEnvEmail = getBrceoEnvEmail();
-  const isAdmin = currentUser?.role === "admin" || (Boolean(authEmail) && authEmail === brceoEnvEmail);
+  const isAdmin = profileRole === "admin";
 
   const value = useMemo(
     () => ({

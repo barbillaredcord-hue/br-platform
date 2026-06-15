@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
@@ -29,7 +30,7 @@ export default function RegisterPage() {
           className="space-y-4"
           onSubmit={async (event) => {
             event.preventDefault();
-            const result = await registerUser({ name, username, email, password });
+            const result = await registerUser({ name, username, email, phone, password });
             setMessage(result.message ?? (result.ok ? "Cuenta creada." : "No se pudo crear la cuenta."));
           }}
         >
@@ -46,6 +47,10 @@ export default function RegisterPage() {
             <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
           <label className="grid gap-2">
+            <span className="text-sm font-semibold text-zinc-300">Teléfono</span>
+            <input value={phone} onChange={(event) => setPhone(event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+          </label>
+          <label className="grid gap-2">
             <span className="text-sm font-semibold text-zinc-300">Password</span>
             <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
           </label>
@@ -57,9 +62,6 @@ export default function RegisterPage() {
         {!authEnabled ? (
           <div className="mt-4 grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
             <p className="text-sm text-zinc-300">{SUPABASE_NOT_CONFIGURED_MESSAGE}</p>
-            <Link href="/admin/setup" className="inline-flex h-10 items-center justify-center rounded-md border border-cyan-300/30 text-sm font-bold text-cyan-200 hover:border-cyan-300 hover:bg-cyan-300/10">
-              Configurar B.R
-            </Link>
           </div>
         ) : null}
         {message ? <p className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm text-cyan-100">{message}</p> : null}

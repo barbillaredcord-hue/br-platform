@@ -12,6 +12,7 @@ export type ProfileRow = {
   email: string;
   username: string | null;
   display_name: string | null;
+  phone: string | null;
   role: "admin" | "user";
   created_at?: string;
   updated_at?: string;
@@ -45,7 +46,7 @@ export type AccessRequestRow = {
   message: string | null;
   created_at: string | null;
   updated_at: string | null;
-  profiles?: Pick<ProfileRow, "email" | "username" | "display_name"> | Pick<ProfileRow, "email" | "username" | "display_name">[] | null;
+  profiles?: Pick<ProfileRow, "email" | "username" | "display_name" | "phone"> | Pick<ProfileRow, "email" | "username" | "display_name" | "phone">[] | null;
   beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
 };
 
@@ -162,6 +163,7 @@ export function mapProfileToUser(profile: ProfileRow, accessibleBeatIds: string[
     name: profile.display_name || username,
     username,
     email: profile.email,
+    phone: profile.phone,
     role: profile.role,
     accessibleBeatIds,
   };
@@ -183,7 +185,7 @@ export async function getCurrentProfile() {
   return ensureProfile(authData.user);
 }
 
-export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?: string; username?: string }) {
+export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?: string; username?: string; phone?: string }) {
   const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase || !authUser.email) {
@@ -193,27 +195,56 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
   const authEmail = authUser.email.trim().toLowerCase();
   const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "").trim().toLowerCase();
   const isBrceoEmail = Boolean(brceoEmail) && authEmail === brceoEmail;
+  const metadata = authUser.user_metadata as Record<string, unknown>;
+  const metadataUsername = typeof metadata.username === "string" ? metadata.username : "";
+  const metadataName = typeof metadata.display_name === "string" ? metadata.display_name : typeof metadata.name === "string" ? metadata.name : "";
+  const metadataPhone = typeof metadata.phone === "string" ? metadata.phone : "";
+  const inputUsername = input?.username || metadataUsername;
+  const inputName = input?.name || metadataName;
+  const inputPhone = input?.phone || metadataPhone;
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id,email,username,display_name,role,created_at,updated_at")
+    .select("id,email,username,display_name,phone,role,created_at,updated_at")
     .eq("id", authUser.id)
     .maybeSingle<ProfileRow>();
 
   if (profile) {
-    return profile;
+    const patch = {
+      username: profile.username || inputUsername || null,
+      display_name: profile.display_name || inputName || null,
+      phone: profile.phone || inputPhone || null,
+    };
+    const shouldSyncProfile = patch.username !== profile.username || patch.display_name !== profile.display_name || patch.phone !== profile.phone;
+
+    if (!shouldSyncProfile) {
+      return profile;
+    }
+
+    const { error } = await supabase.from("profiles").update(patch).eq("id", authUser.id);
+
+    if (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("B.R sync profile metadata error", error);
+      }
+
+      return profile;
+    }
+
+    return { ...profile, ...patch };
   }
 
   const emailName = authEmail.split("@")[0] || "usuario";
 
   if (isBrceoEmail) {
-    console.warn("B.RCEO debe existir en Supabase public.profiles con role='admin'. Usando profile admin fallback en memoria.");
+    console.warn("B.RCEO debe existir en Supabase public.profiles con role='admin'. Usando profile temporal sin permisos admin.");
 
     return {
       id: authUser.id,
       email: authEmail,
-      username: input?.username || "brceo",
-      display_name: input?.name || "B.RCEO",
-      role: "admin",
+      username: inputUsername || "brceo",
+      display_name: inputName || "B.RCEO",
+      phone: inputPhone || null,
+      role: "user",
     } satisfies ProfileRow;
   }
 
@@ -222,8 +253,9 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
   return {
     id: authUser.id,
     email: authEmail,
-    username: input?.username || emailName,
-    display_name: input?.name || emailName,
+    username: inputUsername || emailName,
+    display_name: inputName || emailName,
+    phone: inputPhone || null,
     role: "user",
   } satisfies ProfileRow;
 }
@@ -327,7 +359,7 @@ export async function getUsersWithAccessToBeat(beatId: string) {
 
   const { data, error } = await supabase
     .from("beat_access")
-    .select("profiles(id,email,username,display_name,role)")
+    .select("profiles(id,email,username,display_name,phone,role)")
     .eq("beat_id", resolvedBeatId);
 
   if (error || !data) {
@@ -370,11 +402,27 @@ export async function createAccessRequest(userId: string, beatId: string, messag
   return { ok: false, message: error.message };
 }
 
-export async function createAccessRequestWithPhone(userId: string, beatId: string, input: { phone: string; message?: string }) {
-  const phone = input.phone.trim();
+function normalizePhone(phone: string) {
+  return phone.trim().replace(/\s+/g, " ");
+}
 
-  if (!phone) {
-    return { ok: false, message: "El teléfono es obligatorio." };
+function isValidPhone(phone: string) {
+  return /^[0-9+\-()\s]+$/.test(phone) && phone.replace(/\D/g, "").length >= 8;
+}
+
+export async function createAccessRequestWithPhone(userId: string, beatId: string, input: { phone: string; message?: string; currentPhone?: string | null }) {
+  const phone = normalizePhone(input.currentPhone || input.phone);
+
+  if (!phone || !isValidPhone(phone)) {
+    return { ok: false, message: "Agrega tu teléfono para solicitar acceso." };
+  }
+
+  if (!input.currentPhone) {
+    const phoneResult = await updateProfilePhone(userId, phone);
+
+    if (!phoneResult.ok) {
+      return { ok: false, message: "No se pudo guardar el teléfono." };
+    }
   }
 
   return createAccessRequest(userId, beatId, `Teléfono: ${phone}\nMensaje: ${input.message?.trim() || "Sin mensaje"}`);
@@ -389,7 +437,7 @@ export async function getAccessRequests() {
 
   const { data, error } = await supabase
     .from("access_requests")
-    .select("id,user_id,beat_id,status,message,created_at,updated_at,profiles(email,username,display_name),beats(slug,title)")
+    .select("id,user_id,beat_id,status,message,created_at,updated_at,profiles(email,username,display_name,phone),beats(slug,title)")
     .order("created_at", { ascending: false });
 
   if (error || !data) {
@@ -556,7 +604,7 @@ export async function getProfilesResult(supabaseOverride?: SupabaseClient | null
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,username,display_name,role,created_at,updated_at")
+    .select("id,email,username,display_name,phone,role,created_at,updated_at")
     .order("created_at", { ascending: false });
 
   const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "").trim().toLowerCase();
@@ -590,10 +638,11 @@ export async function getProfilesResult(supabaseOverride?: SupabaseClient | null
   return { users, error: "", emptyReason: "" };
 }
 
-export async function updateProfile(userId: string, input: { username: string; displayName: string }) {
+export async function updateProfile(userId: string, input: { username: string; displayName: string; phone?: string }) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const username = input.username.trim().replace(/^@+/, "").toLowerCase();
+  const phone = normalizePhone(input.phone ?? "");
   const diagnostics = {
     profileId: userId,
     authUserId: undefined as string | undefined,
@@ -609,6 +658,10 @@ export async function updateProfile(userId: string, input: { username: string; d
     return { ok: false, message: "Username inválido: mínimo 3 caracteres y sin espacios.", diagnostics };
   }
 
+  if (phone && !isValidPhone(phone)) {
+    return { ok: false, message: "Teléfono inválido. Usa mínimo 8 dígitos.", diagnostics };
+  }
+
   diagnostics.authUserId = authClient.sessionInfo.userId ?? undefined;
 
   if (authClient.sessionInfo.userId !== userId) {
@@ -618,6 +671,7 @@ export async function updateProfile(userId: string, input: { username: string; d
   const payload = {
     username,
     display_name: input.displayName.trim() || username,
+    phone: phone || null,
   };
   diagnostics.payload = payload;
 
@@ -633,11 +687,42 @@ export async function updateProfile(userId: string, input: { username: string; d
       details: error.details,
       hint: error.hint,
     };
-    console.error("B.R update profile error", diagnostics);
-    return { ok: false, message: error.message, diagnostics };
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R update profile error", diagnostics);
+    }
+    return { ok: false, message: "No se pudieron guardar los cambios", diagnostics };
   }
 
-  return { ok: true, message: "Perfil actualizado.", diagnostics };
+  return { ok: true, message: "Cambios guardados", diagnostics };
+}
+
+export async function updateProfilePhone(userId: string, phoneInput: string) {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+  const phone = normalizePhone(phoneInput);
+
+  if (!supabase) {
+    return { ok: false, message: authClient.message };
+  }
+
+  if (!phone || !isValidPhone(phone)) {
+    return { ok: false, message: "Agrega tu teléfono para solicitar acceso." };
+  }
+
+  if (authClient.sessionInfo.userId !== userId) {
+    return { ok: false, message: "No hay profile real autenticado para esta acción." };
+  }
+
+  const { error } = await supabase.from("profiles").update({ phone }).eq("id", userId);
+
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R update phone error", error);
+    }
+    return { ok: false, message: "No se pudo guardar el teléfono." };
+  }
+
+  return { ok: true, message: "Teléfono guardado." };
 }
 
 function slugify(value: string) {
@@ -657,8 +742,6 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     payload: null as Record<string, unknown> | null,
     error: null as { message?: string; code?: string; details?: string; hint?: string } | null,
   };
-
-  console.log("B.R upload session", authClient.sessionInfo);
 
   if (!supabase) {
     return { ok: false, message: authClient.message, diagnostics };
@@ -686,8 +769,10 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
       message: uploadError.message,
       code: "code" in uploadError ? String(uploadError.code) : undefined,
     };
-    console.error("B.R upload beat storage error", diagnostics);
-    return { ok: false, message: uploadError.message.includes("Bucket") ? "Bucket beats no existe o no está accesible." : uploadError.message, diagnostics };
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R upload beat storage error", diagnostics);
+    }
+    return { ok: false, message: uploadError.message.includes("Bucket") ? "Bucket beats no existe o no está accesible." : "No se pudo guardar el beat", diagnostics };
   }
 
   const { data: publicData } = supabase.storage.from("beats").getPublicUrl(path);
@@ -712,9 +797,11 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
       details: insertError.details,
       hint: insertError.hint,
     };
-    console.error("B.R create beat insert error", diagnostics);
-    return { ok: false, message: insertError.message, diagnostics };
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R create beat insert error", diagnostics);
+    }
+    return { ok: false, message: "No se pudo guardar el beat", diagnostics };
   }
 
-  return { ok: true, message: "Beat creado correctamente.", slug, diagnostics };
+  return { ok: true, message: "Beat guardado correctamente", slug, diagnostics };
 }

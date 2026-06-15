@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AuthControls } from "./AuthControls";
 import { LogoMark } from "./LogoMark";
+import { useUser } from "@/context/UserContext";
 import { isSupabaseReadyForAdmin, SUPABASE_CONNECTION_STATUS_EVENT, SUPABASE_CONNECTION_STATUS_KEY, type SupabaseConnectionStatus } from "@/lib/supabase/config";
 
 function getStoredSupabaseStatus(): SupabaseConnectionStatus {
@@ -16,6 +17,7 @@ function getStoredSupabaseStatus(): SupabaseConnectionStatus {
 }
 
 export function Header() {
+  const { isAdmin } = useUser();
   const supabaseReady = isSupabaseReadyForAdmin();
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseConnectionStatus>("pending");
   const headerStatus = supabaseReady ? supabaseStatus : "pending";
@@ -46,9 +48,11 @@ export function Header() {
         </div>
 
         <div className="flex flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-end">
-          <div className="inline-flex h-11 shrink-0 items-center rounded-md border border-white/10 bg-white/5 px-3 text-xs font-bold text-zinc-200">
-            {statusLabel}
-          </div>
+          {isAdmin ? (
+            <div className="inline-flex h-11 shrink-0 items-center rounded-md border border-white/10 bg-white/5 px-3 text-xs font-bold text-zinc-200">
+              {statusLabel}
+            </div>
+          ) : null}
           <label className="sr-only" htmlFor="search">
             Buscar beats
           </label>

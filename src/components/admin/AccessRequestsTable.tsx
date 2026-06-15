@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { AccessRequestStatus } from "@/data/accessRequests";
 import { approveAccessRequest, getAccessRequests, markAccessRequestContacted, rejectAccessRequest, type AccessRequestRow } from "@/lib/supabase/queries";
 
@@ -26,6 +27,11 @@ function getRequestProfile(request: AccessRequestRow) {
 }
 
 function getRequestPhone(request: AccessRequestRow) {
+  const profile = getRequestProfile(request);
+  if (profile?.phone) {
+    return profile.phone;
+  }
+
   const match = request.message?.match(/Tel[eé]fono:\s*([^\n]+)/i);
   return match?.[1]?.trim() || "Sin teléfono";
 }
@@ -44,6 +50,8 @@ function getRequestDate(request: AccessRequestRow) {
 }
 
 export function AccessRequestsTable() {
+  const pathname = usePathname();
+  const router = useRouter();
   const [items, setItems] = useState<AccessRequestRow[]>([]);
   const [message, setMessage] = useState("");
 
@@ -55,12 +63,14 @@ export function AccessRequestsTable() {
     const result = status === "approved" ? await approveAccessRequest(id) : await rejectAccessRequest(id);
     setMessage(result.ok ? "Solicitud actualizada." : result.message ?? "No se pudo actualizar.");
     await refresh();
+    router.refresh();
   }
 
   async function markContacted(request: AccessRequestRow) {
     const result = await markAccessRequestContacted(request.id, request.message);
     setMessage(result.ok ? "Solicitud marcada como contactada." : result.message ?? "No se pudo marcar.");
     await refresh();
+    router.refresh();
   }
 
   useEffect(() => {
@@ -71,7 +81,7 @@ export function AccessRequestsTable() {
     return () => {
       window.clearTimeout(loadId);
     };
-  }, []);
+  }, [pathname]);
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-4">

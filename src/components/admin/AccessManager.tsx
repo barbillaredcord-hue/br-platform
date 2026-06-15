@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getBeats, getProfilesResult, grantBeatAccess, revokeBeatAccess } from "@/lib/supabase/queries";
 
 export function AccessManager() {
+  const pathname = usePathname();
+  const router = useRouter();
   const [beats, setBeats] = useState<Beat[]>([]);
   const [localUsers, setLocalUsers] = useState<User[]>([]);
   const [selectedBeatId, setSelectedBeatId] = useState("");
@@ -38,7 +41,7 @@ export function AccessManager() {
     return () => {
       window.clearTimeout(loadId);
     };
-  }, []);
+  }, [pathname]);
 
   const accessRows = useMemo(
     () =>
@@ -106,8 +109,9 @@ export function AccessManager() {
             setIsProcessing(true);
             setMessage("Procesando...");
             const result = await grantBeatAccess(selectedUserId, selectedBeatId);
-            setMessage(result.ok ? "Acceso concedido" : `Error real: ${result.message ?? "No se pudo otorgar acceso."}`);
+            setMessage(result.ok ? "Acceso concedido" : result.message ?? "No se pudo otorgar acceso.");
             await refresh();
+            router.refresh();
             setIsProcessing(false);
           }}
           disabled={isProcessing}
@@ -121,8 +125,9 @@ export function AccessManager() {
             setIsProcessing(true);
             setMessage("Procesando...");
             const result = await revokeBeatAccess(selectedUserId, selectedBeatId);
-            setMessage(result.ok ? "Acceso removido" : `Error real: ${result.message ?? "No se pudo retirar acceso."}`);
+            setMessage(result.ok ? "Acceso removido" : result.message ?? "No se pudo retirar acceso.");
             await refresh();
+            router.refresh();
             setIsProcessing(false);
           }}
           disabled={isProcessing}

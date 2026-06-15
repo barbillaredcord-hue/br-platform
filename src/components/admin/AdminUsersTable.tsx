@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -12,6 +13,7 @@ function getAuthorizedBeats(user: User, beats: Beat[]) {
 }
 
 export function AdminUsersTable() {
+  const pathname = usePathname();
   const [users, setUsers] = useState<User[]>([]);
   const [beats, setBeats] = useState<Beat[]>([]);
   const [error, setError] = useState("");
@@ -54,7 +56,7 @@ export function AdminUsersTable() {
     return () => {
       window.clearTimeout(loadId);
     };
-  }, []);
+  }, [pathname]);
 
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-[#101317]">
@@ -62,7 +64,7 @@ export function AdminUsersTable() {
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por email, username o display name"
+          placeholder="Buscar por email, username, display name o teléfono"
           className="h-11 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300"
         />
       </div>
@@ -87,19 +89,21 @@ export function AdminUsersTable() {
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Username</th>
               <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">Teléfono</th>
               <th className="px-4 py-3">Rol</th>
               <th className="px-4 py-3">Cantidad</th>
               <th className="px-4 py-3">Beats autorizados</th>
             </tr>
           </thead>
           <tbody>
-            {users.filter((user) => [user.email, user.username, user.name].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
+            {users.filter((user) => [user.email, user.username, user.name, user.phone ?? ""].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
               const authorizedBeats = getAuthorizedBeats(user, beats);
               return (
                 <tr key={user.id} className="border-t border-white/10">
                   <td className="px-4 py-3 font-semibold">{user.name}</td>
                   <td className="px-4 py-3 text-cyan-200">@{user.username}</td>
                   <td className="px-4 py-3 text-zinc-400">{user.email}</td>
+                  <td className="px-4 py-3 text-zinc-400">{user.phone || "Sin teléfono"}</td>
                   <td className="px-4 py-3 text-zinc-400">{user.role === "admin" ? "Admin" : "Usuario"}</td>
                   <td className="px-4 py-3 text-zinc-400">{authorizedBeats.length}</td>
                   <td className="px-4 py-3 text-zinc-400">
@@ -115,13 +119,14 @@ export function AdminUsersTable() {
         </table>
       </div>
       <div className="grid gap-3 p-4 md:hidden">
-        {users.filter((user) => [user.email, user.username, user.name].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
+        {users.filter((user) => [user.email, user.username, user.name, user.phone ?? ""].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
           const authorizedBeats = getAuthorizedBeats(user, beats);
           return (
             <article key={user.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
               <p className="font-semibold">{user.name}</p>
               <p className="mt-1 text-sm text-cyan-200">@{user.username}</p>
               <p className="mt-1 text-sm text-zinc-400">{user.email}</p>
+              <p className="mt-1 text-sm text-zinc-400">{user.phone || "Sin teléfono"}</p>
               <p className="mt-1 text-sm text-zinc-400">Rol: {user.role === "admin" ? "Admin" : "Usuario"}</p>
               <p className="mt-3 text-sm text-zinc-300">Beats: {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</p>
               <Link href="/admin/access" className="mt-3 inline-flex text-sm font-bold text-cyan-200">Gestionar acceso</Link>

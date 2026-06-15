@@ -4,6 +4,8 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminStatCard } from "@/components/admin/AdminStatCard";
 import { getAccessRequests, getBeats, getProfiles } from "@/lib/supabase/queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPage() {
   const [{ beats }, users, requests] = await Promise.all([getBeats(), getProfiles(), getAccessRequests()]);
   const exclusiveBeats = beats.filter((beat) => beat.status === "Exclusivo");
