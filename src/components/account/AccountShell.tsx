@@ -16,7 +16,7 @@ const navItems = [
 
 export function AccountShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   const pathname = usePathname();
-  const { currentUser, isLoadingSession, refreshCurrentUser } = useUser();
+  const { currentUser, inactiveAccountMessage, isLoadingSession, refreshCurrentUser } = useUser();
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -40,7 +40,7 @@ export function AccountShell({ title, subtitle, children }: { title: string; sub
         <section className="mx-auto max-w-xl rounded-lg border border-cyan-300/20 bg-[#101317] p-6 text-center">
           <Lock className="mx-auto h-8 w-8 text-cyan-200" aria-hidden="true" />
           <h1 className="mt-4 text-3xl font-black">Inicia sesión</h1>
-          <p className="mt-2 text-sm text-zinc-400">Necesitas una sesión B.R para abrir tu cuenta.</p>
+          <p className="mt-2 text-sm text-zinc-400">{inactiveAccountMessage || "Necesitas una sesión B.R para abrir tu cuenta."}</p>
           <Link href="/login" className="mt-6 inline-flex h-11 items-center rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200">
             Ir a login
           </Link>

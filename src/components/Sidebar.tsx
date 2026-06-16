@@ -1,6 +1,12 @@
+import Link from "next/link";
 import { LogoMark } from "./LogoMark";
 
-const sidebarItems = ["Inicio", "Explorar", "Favoritos", "Mis Beats"];
+const sidebarItems = [
+  { label: "Inicio", href: "/" },
+  { label: "Explorar", href: "/explore" },
+  { label: "Favoritos", href: "/account/saved" },
+  { label: "Mis Beats", href: "/account/beats" },
+];
 
 export function Sidebar() {
   return (
@@ -15,13 +21,13 @@ export function Sidebar() {
 
       <nav className="space-y-2">
         {sidebarItems.map((item) => (
-          <a
-            key={item}
-            href="#"
+          <Link
+            key={item.label}
+            href={item.href}
             className="block rounded-md px-3 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white/10 hover:text-cyan-200"
           >
-            {item}
-          </a>
+            {item.label}
+          </Link>
         ))}
       </nav>
     </aside>

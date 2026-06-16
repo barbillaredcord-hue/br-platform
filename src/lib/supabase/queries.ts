@@ -50,6 +50,8 @@ export type AccessRequestRow = {
   beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
 };
 
+const answeredRequestVisibleMs = 3 * 24 * 60 * 60 * 1000;
+
 let supabaseClient: SupabaseClient | null = null;
 
 function getSupabaseClient() {
@@ -122,6 +124,20 @@ function first<T>(value: T | T[] | null | undefined): T | null {
 
 function getFallbackRows(): BeatRow[] {
   return beatRows;
+}
+
+export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status" | "updated_at" | "created_at" | "message">) {
+  if (request.status === "pending") {
+    return true;
+  }
+
+  const answeredAt = request.updated_at || request.created_at;
+
+  if (!answeredAt) {
+    return false;
+  }
+
+  return Date.now() - new Date(answeredAt).getTime() <= answeredRequestVisibleMs;
 }
 
 export function mapSupabaseBeat(row: BeatRowDb): Beat {
@@ -248,7 +264,11 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
     } satisfies ProfileRow;
   }
 
-  console.warn("Profile aún no existe. Intenta cerrar sesión e iniciar de nuevo.");
+  if (!input) {
+    return null;
+  }
+
+  console.warn("Profile aún no existe. Usando datos temporales tras registro mientras Supabase sincroniza el trigger.");
 
   return {
     id: authUser.id,
@@ -302,6 +322,18 @@ export async function getBeatBySlug(slug: string) {
   return mapSupabaseBeat(data);
 }
 
+export async function beatSlugExists(slug: string, supabaseOverride?: SupabaseClient | null) {
+  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
+
+  if (!supabase || !slug) {
+    return false;
+  }
+
+  const { data, error } = await supabase.from("beats").select("id").eq("slug", slug).maybeSingle<{ id: string }>();
+
+  return !error && Boolean(data?.id);
+}
+
 async function resolveBeatId(beatId: string) {
   const supabase = getSupabaseClient();
 
@@ -349,7 +381,7 @@ export async function canAccessBeatSupabase(userId: string, beatId: string) {
   return accessIds.includes(beatId);
 }
 
-export async function getUsersWithAccessToBeat(beatId: string) {
+export async function getUsersWithAccessToBeat(beatId: string): Promise<User[]> {
   const supabase = getSupabaseClient();
   const resolvedBeatId = await resolveBeatId(beatId);
 
@@ -399,7 +431,7 @@ export async function createAccessRequest(userId: string, beatId: string, messag
     return { ok: false, message: "Ya existe una solicitud para este beat." };
   }
 
-  return { ok: false, message: error.message };
+  return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
 }
 
 function normalizePhone(phone: string) {
@@ -444,7 +476,7 @@ export async function getAccessRequests() {
     return [];
   }
 
-  return data as AccessRequestRow[];
+  return (data as AccessRequestRow[]).filter(isRecentAnsweredRequest);
 }
 
 export async function getAccessRequestsForUser(userId: string) {
@@ -464,7 +496,7 @@ export async function getAccessRequestsForUser(userId: string) {
     return [];
   }
 
-  return data as AccessRequestRow[];
+  return (data as AccessRequestRow[]).filter(isRecentAnsweredRequest);
 }
 
 export async function approveAccessRequest(requestId: string) {
@@ -495,12 +527,12 @@ export async function approveAccessRequest(requestId: string) {
   );
 
   if (accessError) {
-    return { ok: false, message: accessError.message };
+    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
   }
 
   const { error: updateError } = await supabase.from("access_requests").update({ status: "approved" }).eq("id", requestId);
 
-  return updateError ? { ok: false, message: updateError.message } : { ok: true };
+  return updateError ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true };
 }
 
 export async function rejectAccessRequest(requestId: string) {
@@ -513,7 +545,7 @@ export async function rejectAccessRequest(requestId: string) {
 
   const { error } = await supabase.from("access_requests").update({ status: "rejected" }).eq("id", requestId);
 
-  return error ? { ok: false, message: error.message } : { ok: true };
+  return error ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true };
 }
 
 export async function markAccessRequestContacted(requestId: string, currentMessage?: string | null) {
@@ -528,7 +560,7 @@ export async function markAccessRequestContacted(requestId: string, currentMessa
   const message = currentMessage?.includes(marker) ? currentMessage : `${currentMessage || ""}\n${marker}`.trim();
   const { error } = await supabase.from("access_requests").update({ message }).eq("id", requestId);
 
-  return error ? { ok: false, message: error.message } : { ok: true, message: "Solicitud marcada como contactada." };
+  return error ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true, message: "Solicitud marcada como contactada." };
 }
 
 export async function grantBeatAccess(userId: string, beatId: string) {
@@ -553,7 +585,13 @@ export async function grantBeatAccess(userId: string, beatId: string) {
     { onConflict: "user_id,beat_id" },
   );
 
-  return error ? { ok: false, message: error.message } : { ok: true };
+  if (error) {
+    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
+  }
+
+  await supabase.from("access_requests").update({ status: "approved" }).eq("user_id", userId).eq("beat_id", resolvedBeatId).eq("status", "pending");
+
+  return { ok: true };
 }
 
 export async function revokeBeatAccess(userId: string, beatId: string) {
@@ -571,7 +609,7 @@ export async function revokeBeatAccess(userId: string, beatId: string) {
 
   const { error } = await supabase.from("beat_access").delete().eq("user_id", userId).eq("beat_id", resolvedBeatId);
 
-  return error ? { ok: false, message: error.message } : { ok: true };
+  return error ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true };
 }
 
 export async function getProfiles() {
@@ -755,6 +793,35 @@ export async function deleteOwnAccount() {
   return { ok: true, message: "Cuenta eliminada." };
 }
 
+export async function recoverDeletedAccountAccess() {
+  const authClient = await getAuthenticatedBrowserClient();
+
+  if (!authClient.supabase) {
+    return { ok: false, restored: 0, message: authClient.message };
+  }
+
+  const { data: sessionData } = await authClient.supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    return { ok: false, restored: 0, message: "Sesión no válida." };
+  }
+
+  const response = await fetch("/api/account/recover-access", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const result = await response.json().catch(() => ({ ok: false, restored: 0, message: "No se pudo recuperar el acceso." }));
+
+  return {
+    ok: Boolean(response.ok && result.ok),
+    restored: typeof result.restored === "number" ? result.restored : 0,
+    message: typeof result.message === "string" ? result.message : "",
+  };
+}
+
 export async function deleteUserAsAdmin(userId: string) {
   const authClient = await getAuthenticatedBrowserClient();
 
@@ -797,7 +864,7 @@ function slugify(value: string) {
 export async function createBeatWithUpload(input: { file: File; title: string; slug: string; genre: string; bpm: string; musicalKey: string }) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
-  const slug = slugify(input.slug || input.title);
+  const slug = slugify(input.title);
   const diagnostics = {
     authUser: null as { id?: string; email?: string } | null,
     payload: null as Record<string, unknown> | null,
@@ -817,6 +884,10 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     email: authClient.sessionInfo.userEmail ?? undefined,
   };
 
+  if (await beatSlugExists(slug, supabase)) {
+    return { ok: false, message: "Ese nombre ya está en uso. Usa otro nombre para el beat.", diagnostics };
+  }
+
   const safeFilename = input.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const path = `full/${slug}/${Date.now()}-${safeFilename}`;
   const { error: uploadError } = await supabase.storage.from("beats").upload(path, input.file, {
@@ -833,7 +904,7 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     if (process.env.NODE_ENV === "development") {
       console.error("B.R upload beat storage error", diagnostics);
     }
-    return { ok: false, message: uploadError.message.includes("Bucket") ? "Bucket beats no existe o no está accesible." : "No se pudo guardar el beat", diagnostics };
+    return { ok: false, message: uploadError.message.includes("Bucket") ? "Bucket beats no existe o no está accesible." : "No se pudo subir el MP3.", diagnostics };
   }
 
   const { data: publicData } = supabase.storage.from("beats").getPublicUrl(path);
@@ -852,6 +923,7 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
   const { error: insertError } = await supabase.from("beats").insert(payload);
 
   if (insertError) {
+    await supabase.storage.from("beats").remove([path]);
     diagnostics.error = {
       message: insertError.message,
       code: insertError.code,
@@ -861,7 +933,12 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     if (process.env.NODE_ENV === "development") {
       console.error("B.R create beat insert error", diagnostics);
     }
-    return { ok: false, message: "No se pudo guardar el beat", diagnostics };
+
+    if (insertError.code === "23505" || (insertError as { status?: number }).status === 409 || insertError.message.includes("409") || insertError.message.toLowerCase().includes("duplicate")) {
+      return { ok: false, message: "Ese nombre ya está en uso. Usa otro nombre para el beat.", diagnostics };
+    }
+
+    return { ok: false, message: "No se pudo crear el beat.", diagnostics };
   }
 
   return { ok: true, message: "Beat guardado correctamente", slug, diagnostics };

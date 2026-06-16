@@ -2,12 +2,12 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { AdminBeatList } from "@/components/admin/AdminBeatList";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { getBeats } from "@/lib/supabase/queries";
+import { getBeats, getProfiles } from "@/lib/supabase/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminBeatsPage() {
-  const { beats, usingFallback } = await getBeats();
+  const [{ beats, usingFallback }, users] = await Promise.all([getBeats(), getProfiles()]);
 
   return (
     <AdminShell
@@ -25,7 +25,7 @@ export default async function AdminBeatsPage() {
         </Link>
       </div>
 
-      <AdminBeatList beats={beats} />
+      <AdminBeatList beats={beats} users={users} />
     </AdminShell>
   );
 }

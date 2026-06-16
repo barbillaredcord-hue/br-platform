@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { Fragment, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { useUser } from "@/context/UserContext";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { deleteUserAsAdmin, getBeats, getProfilesResult } from "@/lib/supabase/queries";
+import { deleteUserAsAdmin, getAccessRequests, getBeats, getProfilesResult, isRecentAnsweredRequest, type AccessRequestRow } from "@/lib/supabase/queries";
 
 function getAuthorizedBeats(user: User, beats: Beat[]) {
   return beats.filter((beat) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
@@ -15,9 +15,12 @@ function getAuthorizedBeats(user: User, beats: Beat[]) {
 
 export function AdminUsersTable() {
   const pathname = usePathname();
+  const router = useRouter();
   const { currentUser } = useUser();
   const [users, setUsers] = useState<User[]>([]);
   const [beats, setBeats] = useState<Beat[]>([]);
+  const [requests, setRequests] = useState<AccessRequestRow[]>([]);
+  const [expandedUserId, setExpandedUserId] = useState("");
   const [error, setError] = useState("");
   const [emptyReason, setEmptyReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -44,9 +47,10 @@ export function AdminUsersTable() {
         return;
       }
 
-      const [profilesResult, beatsResult] = await Promise.all([getProfilesResult(supabase), getBeats()]);
+      const [profilesResult, beatsResult, requestsResult] = await Promise.all([getProfilesResult(supabase), getBeats(), getAccessRequests()]);
       setUsers(profilesResult.users);
       setBeats(beatsResult.beats);
+      setRequests(requestsResult);
       setError(profilesResult.error);
       setEmptyReason(profilesResult.emptyReason);
       setIsLoading(false);
@@ -74,7 +78,12 @@ export function AdminUsersTable() {
 
     if (result.ok) {
       setUsers((current) => current.filter((item) => item.id !== user.id));
+      router.refresh();
     }
+  }
+
+  function getUserRequests(userId: string) {
+    return requests.filter((request) => request.user_id === userId && isRecentAnsweredRequest(request));
   }
 
   return (
@@ -120,25 +129,58 @@ export function AdminUsersTable() {
             {users.filter((user) => [user.email, user.username, user.name, user.phone ?? ""].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
               const authorizedBeats = getAuthorizedBeats(user, beats);
               return (
-                <tr key={user.id} className="border-t border-white/10">
-                  <td className="px-4 py-3 font-semibold">{user.name}</td>
-                  <td className="px-4 py-3 text-cyan-200">@{user.username}</td>
-                  <td className="px-4 py-3 text-zinc-400">{user.email}</td>
-                  <td className="px-4 py-3 text-zinc-400">{user.phone || "Sin teléfono"}</td>
-                  <td className="px-4 py-3 text-zinc-400">{user.role === "admin" ? "Admin" : "Usuario"}</td>
-                  <td className="px-4 py-3 text-zinc-400">{authorizedBeats.length}</td>
-                  <td className="px-4 py-3 text-zinc-400">
-                    <div className="grid gap-2">
-                      <span>{authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</span>
-                      <Link href="/admin/access" className="text-xs font-bold text-cyan-200 hover:text-cyan-100">Gestionar acceso</Link>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button type="button" disabled={user.id === currentUser?.id} onClick={() => void deleteUser(user)} className="rounded-md border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-40">
-                      Eliminar usuario
-                    </button>
-                  </td>
-                </tr>
+                <Fragment key={user.id}>
+                  <tr className="border-t border-white/10">
+                    <td className="px-4 py-3 font-semibold">
+                      <button type="button" onClick={() => setExpandedUserId((current) => (current === user.id ? "" : user.id))} className="text-left hover:text-cyan-200">
+                        {user.name}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-cyan-200">@{user.username}</td>
+                    <td className="px-4 py-3 text-zinc-400">{user.email}</td>
+                    <td className="px-4 py-3 text-zinc-400">{user.phone || "Sin teléfono"}</td>
+                    <td className="px-4 py-3 text-zinc-400">{user.role === "admin" ? "Admin" : "Usuario"}</td>
+                    <td className="px-4 py-3 text-zinc-400">{authorizedBeats.length}</td>
+                    <td className="px-4 py-3 text-zinc-400">
+                      <button type="button" onClick={() => setExpandedUserId((current) => (current === user.id ? "" : user.id))} className="text-left hover:text-cyan-200">
+                        {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button type="button" disabled={user.id === currentUser?.id} onClick={() => void deleteUser(user)} className="rounded-md border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-40">
+                        Eliminar usuario
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedUserId === user.id ? (
+                    <tr className="border-t border-cyan-300/20 bg-white/[0.03]">
+                      <td colSpan={8} className="px-4 py-4">
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div>
+                            <p className="text-xs uppercase text-zinc-500">Usuario</p>
+                            <p className="mt-1 font-semibold">{user.name}</p>
+                            <p className="text-sm text-cyan-200">@{user.username}</p>
+                            <p className="mt-1 text-sm text-zinc-400">{user.email}</p>
+                            <p className="mt-1 text-sm text-zinc-400">{user.phone || "Sin teléfono"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-zinc-500">Beats con acceso</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {authorizedBeats.length ? authorizedBeats.map((beat) => <span key={beat.id} className="rounded-md border border-cyan-300/30 px-2 py-1 text-xs font-semibold text-cyan-200">{beat.name}</span>) : <span className="text-sm text-zinc-400">Sin accesos</span>}
+                            </div>
+                            <Link href="/admin/access" className="mt-3 inline-flex text-xs font-bold text-cyan-200 hover:text-cyan-100">Gestionar acceso</Link>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-zinc-500">Solicitudes recientes</p>
+                            <div className="mt-2 grid gap-2">
+                              {getUserRequests(user.id).length ? getUserRequests(user.id).map((request) => <span key={request.id} className="text-sm text-zinc-300">{request.status} · {request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha"}</span>) : <span className="text-sm text-zinc-400">Sin solicitudes recientes</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               );
             })}
           </tbody>
@@ -149,7 +191,7 @@ export function AdminUsersTable() {
           const authorizedBeats = getAuthorizedBeats(user, beats);
           return (
             <article key={user.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
-              <p className="font-semibold">{user.name}</p>
+              <button type="button" onClick={() => setExpandedUserId((current) => (current === user.id ? "" : user.id))} className="text-left font-semibold hover:text-cyan-200">{user.name}</button>
               <p className="mt-1 text-sm text-cyan-200">@{user.username}</p>
               <p className="mt-1 text-sm text-zinc-400">{user.email}</p>
               <p className="mt-1 text-sm text-zinc-400">{user.phone || "Sin teléfono"}</p>
@@ -159,6 +201,18 @@ export function AdminUsersTable() {
                 <Link href="/admin/access" className="inline-flex text-sm font-bold text-cyan-200">Gestionar acceso</Link>
                 <button type="button" disabled={user.id === currentUser?.id} onClick={() => void deleteUser(user)} className="text-sm font-bold text-red-100 disabled:cursor-not-allowed disabled:opacity-40">Eliminar usuario</button>
               </div>
+              {expandedUserId === user.id ? (
+                <div className="mt-4 grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
+                  <div>
+                    <p className="text-xs uppercase text-zinc-500">Beats con acceso</p>
+                    <p className="mt-1 text-sm text-zinc-300">{authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-zinc-500">Solicitudes recientes</p>
+                    <p className="mt-1 text-sm text-zinc-300">{getUserRequests(user.id).map((request) => request.status).join(", ") || "Sin solicitudes recientes"}</p>
+                  </div>
+                </div>
+              ) : null}
             </article>
           );
         })}

@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { demoUsers, type User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
-import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser, updateProfile } from "@/lib/supabase/queries";
+import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser, recoverDeletedAccountAccess, updateProfile } from "@/lib/supabase/queries";
 
 type AuthResult = {
   ok: boolean;
@@ -26,6 +26,7 @@ type UserContextValue = {
   isAdmin: boolean;
   isLoadingSession: boolean;
   authEnabled: boolean;
+  inactiveAccountMessage: string;
 };
 
 const UserContext = createContext<UserContextValue | null>(null);
@@ -90,6 +91,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [authEmail, setAuthEmail] = useState("");
   const [profileRole, setProfileRole] = useState("");
   const [isLoadingSession, setIsLoadingSession] = useState(Boolean(supabase));
+  const [inactiveAccountMessage, setInactiveAccountMessage] = useState("");
 
   const refreshUsers = useCallback(async () => {
     const realUsers = await getProfiles();
@@ -101,12 +103,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      const sessionUser = data.session?.user;
+    supabase.auth.getUser().then(async ({ data, error }) => {
+      const sessionUser = error ? null : data.user;
       const resolvedUser = await getUserFromAuthUser(sessionUser);
       setAuthEmail(normalizeEmail(sessionUser?.email));
       setProfileRole(resolvedUser.profileRole);
       setCurrentUser(resolvedUser.user);
+      if (sessionUser && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
+        setInactiveAccountMessage("Tu cuenta ya no está activa.");
+        await supabase.auth.signOut();
+      } else {
+        setInactiveAccountMessage("");
+      }
       await refreshUsers();
       setIsLoadingSession(false);
     });
@@ -116,6 +124,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setAuthEmail(normalizeEmail(session?.user.email));
         setProfileRole(resolvedUser.profileRole);
         setCurrentUser(resolvedUser.user);
+        if (session?.user && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
+          setInactiveAccountMessage("Tu cuenta ya no está activa.");
+          await supabase.auth.signOut();
+        } else {
+          setInactiveAccountMessage("");
+        }
         await refreshUsers();
       });
       setIsLoadingSession(false);
@@ -140,10 +154,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: error.message };
     }
 
+    const initialUser = await getUserFromAuthUser(data.user);
+    if (!initialUser.user) {
+      await supabase.auth.signOut();
+      setInactiveAccountMessage("Tu cuenta ya no está activa.");
+      return { ok: false, message: "Tu cuenta ya no está activa." };
+    }
+
+    await recoverDeletedAccountAccess();
     const resolvedUser = await getUserFromAuthUser(data.user);
     setAuthEmail(normalizeEmail(data.user.email));
     setProfileRole(resolvedUser.profileRole);
     setCurrentUser(resolvedUser.user);
+    setInactiveAccountMessage("");
     await refreshUsers();
     return { ok: true };
   }, [refreshUsers]);
@@ -178,10 +201,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         await updateProfile(data.user.id, { username: input.username, displayName: input.name, phone: input.phone });
       }
 
+      await getUserFromAuthUser(data.user, input);
+      await recoverDeletedAccountAccess();
       const resolvedUser = await getUserFromAuthUser(data.user, input);
       setAuthEmail(normalizeEmail(data.user.email));
       setProfileRole(resolvedUser.profileRole);
       setCurrentUser(resolvedUser.user);
+      setInactiveAccountMessage("");
       await refreshUsers();
     }
 
@@ -196,6 +222,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(null);
     setAuthEmail("");
     setProfileRole("");
+    setInactiveAccountMessage("");
   }, []);
 
   const refreshCurrentUser = useCallback(async () => {
@@ -203,11 +230,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const { data } = await supabase.auth.getSession();
-    const resolvedUser = await getUserFromAuthUser(data.session?.user);
-    setAuthEmail(normalizeEmail(data.session?.user.email));
+    const { data, error } = await supabase.auth.getUser();
+    const sessionUser = error ? null : data.user;
+    const resolvedUser = await getUserFromAuthUser(sessionUser);
+    setAuthEmail(normalizeEmail(sessionUser?.email));
     setProfileRole(resolvedUser.profileRole);
     setCurrentUser(resolvedUser.user);
+    if (sessionUser && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
+      setInactiveAccountMessage("Tu cuenta ya no está activa.");
+      await supabase.auth.signOut();
+    } else {
+      setInactiveAccountMessage("");
+    }
     await refreshUsers();
   }, [refreshUsers]);
 
@@ -230,8 +264,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       isAdmin,
       isLoadingSession,
       authEnabled: Boolean(supabase),
+      inactiveAccountMessage,
     }),
-    [authEmail, brceoEnvEmail, currentUser, isAdmin, isLoadingSession, loginAsUser, logout, profileRole, refreshCurrentUser, registerUser, users],
+    [authEmail, brceoEnvEmail, currentUser, inactiveAccountMessage, isAdmin, isLoadingSession, loginAsUser, logout, profileRole, refreshCurrentUser, registerUser, users],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

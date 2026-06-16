@@ -188,11 +188,11 @@ export function AccountSettings() {
     if (result.ok) {
       await refreshCurrentUser();
       router.refresh();
-      setMessage("Cambios guardados");
+      setMessage("Perfil actualizado.");
       return;
     }
 
-    setMessage(result.message || "No se pudieron guardar los cambios");
+    setMessage(result.message || "No se pudo actualizar el perfil.");
   }
 
   async function deleteAccount() {

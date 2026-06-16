@@ -20,6 +20,9 @@ const licenses = [
   { name: "Exclusive", detail: "Reserva privada y retiro del catálogo público." },
 ];
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function BeatPage({ params }: BeatPageProps) {
   const { id } = await params;
   const beat = await getBeatBySlug(id);

@@ -191,8 +191,10 @@ export function NewBeatForm() {
 
               setIsSaving(true);
               setSaveStatus("Subiendo MP3...");
-              const result = await createBeatWithUpload({ file, title: name, slug, genre, bpm, musicalKey: key });
-              setSaveStatus(result.ok ? "Beat guardado correctamente" : result.message || "No se pudo guardar el beat");
+              const generatedSlug = slugify(name);
+              setSlug(generatedSlug);
+              const result = await createBeatWithUpload({ file, title: name, slug: generatedSlug, genre, bpm, musicalKey: key });
+              setSaveStatus(result.ok ? "Beat creado correctamente." : result.message || "No se pudo crear el beat.");
               setCreatedSlug(result.slug ?? "");
               router.refresh();
               setIsSaving(false);

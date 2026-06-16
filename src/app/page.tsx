@@ -6,6 +6,9 @@ import { Sidebar } from "@/components/Sidebar";
 import { SupabaseFallbackNotice } from "@/components/SupabaseFallbackNotice";
 import { getBeats } from "@/lib/supabase/queries";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function Home() {
   const { beats, rows: beatRows, usingFallback } = await getBeats();
   const featuredBeat = beats[0];

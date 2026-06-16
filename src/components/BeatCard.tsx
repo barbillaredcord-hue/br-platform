@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AccessStatusBadge } from "@/components/AccessStatusBadge";
 import { useUser } from "@/context/UserContext";
 import type { Beat } from "@/data/beats";
-import { getPublicAccessLabel, userCanAccessBeat } from "@/lib/access";
+import { userCanAccessBeat } from "@/lib/access";
 import { AccessBadge } from "./AccessBadge";
 import { PlayButton } from "./PlayButton";
 
@@ -43,7 +43,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
         <div className="mt-3">
           <AccessStatusBadge hasAccess={hasAccess} />
         </div>
-        <p className="mt-2 truncate text-xs font-semibold text-zinc-500">{getPublicAccessLabel(beat.dbId ?? beat.id)}</p>
+        <p className="mt-2 truncate text-xs font-semibold text-zinc-500">{hasAccess ? "Acceso completo activo" : "Acceso privado disponible"}</p>
       </Link>
       <PlayButton variant="light" className="mt-4" beat={beat} mode={hasAccess ? "full" : "preview"} queue={queue} showPauseState>
         Play

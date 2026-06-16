@@ -1,14 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
-import { getUsersWithBeatAccess } from "@/lib/access";
+import type { User } from "@/data/users";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getProfilesResult } from "@/lib/supabase/queries";
 import { AdminBeatStatus } from "./AdminBeatStatus";
 
-export function AdminBeatList({ beats }: { beats: Beat[] }) {
+function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
+  return users.filter((user) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
+}
+
+export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: User[] }) {
+  const pathname = usePathname();
   const [search, setSearch] = useState("");
+  const [localUsers, setLocalUsers] = useState(users);
   const filteredBeats = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) {
@@ -17,6 +26,18 @@ export function AdminBeatList({ beats }: { beats: Beat[] }) {
 
     return beats.filter((beat) => [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) => value.toLowerCase().includes(term)));
   }, [beats, search]);
+
+  useEffect(() => {
+    const loadId = window.setTimeout(() => {
+      void getProfilesResult(createSupabaseBrowserClient()).then((result) => {
+        if (result.users.length) {
+          setLocalUsers(result.users);
+        }
+      });
+    }, 0);
+
+    return () => window.clearTimeout(loadId);
+  }, [pathname]);
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
@@ -44,7 +65,7 @@ export function AdminBeatList({ beats }: { beats: Beat[] }) {
           </thead>
           <tbody>
             {filteredBeats.map((beat) => {
-              const usersWithAccess = getUsersWithBeatAccess(beat.id);
+              const usersWithAccess = getUsersWithBeatAccess(beat, localUsers);
 
               return (
                 <tr key={beat.id} className="border-t border-white/10">
@@ -91,7 +112,7 @@ export function AdminBeatList({ beats }: { beats: Beat[] }) {
                 </div>
                 <p className="mt-2 text-xs text-zinc-500">
                   Usuarios con acceso:{" "}
-                  {getUsersWithBeatAccess(beat.id).map((user) => user.name).join(", ") || "Sin usuarios"}
+                  {getUsersWithBeatAccess(beat, localUsers).map((user) => user.name).join(", ") || "Sin usuarios"}
                 </p>
               </div>
             </div>

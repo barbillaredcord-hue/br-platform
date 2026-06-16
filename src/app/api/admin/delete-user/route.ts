@@ -1,5 +1,7 @@
 import { createSupabaseServiceClient, getBearerToken } from "@/lib/supabase/admin";
 
+const recoveryWindowMs = 183 * 24 * 60 * 60 * 1000;
+
 export async function POST(request: Request) {
   const supabase = createSupabaseServiceClient();
 
@@ -38,6 +40,31 @@ export async function POST(request: Request) {
 
   if (profileError || requesterProfile?.role !== "admin") {
     return Response.json({ ok: false, message: "Acceso restringido." }, { status: 403 });
+  }
+
+  const { data: deletedProfile } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle<{ email: string }>();
+  const { data: accessRows } = await supabase.from("beat_access").select("beat_id").eq("user_id", userId);
+  const email = deletedProfile?.email?.trim().toLowerCase();
+
+  if (email && accessRows?.length) {
+    const closedAt = new Date();
+    const expiresAt = new Date(closedAt.getTime() + recoveryWindowMs);
+    const recoveryRows = accessRows.map((row) => ({
+      email,
+      beat_id: row.beat_id,
+      source_user_id: userId,
+      closed_at: closedAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    }));
+    const { error: recoveryError } = await supabase.from("account_access_recovery").upsert(recoveryRows, { onConflict: "email,beat_id" });
+
+    if (recoveryError) {
+      console.error("B.R account access recovery archive error", recoveryError);
+    }
   }
 
   await supabase.from("beat_access").delete().eq("user_id", userId);

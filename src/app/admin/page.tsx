@@ -1,29 +1,21 @@
 import { Inbox, KeyRound, ListMusic, PlugZap, Plus, Users } from "lucide-react";
+import { AdminDashboardStats } from "@/components/admin/AdminDashboardStats";
 import { AdminQuickLink } from "@/components/admin/AdminQuickLink";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { AdminStatCard } from "@/components/admin/AdminStatCard";
 import { getAccessRequests, getBeats, getProfiles } from "@/lib/supabase/queries";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AdminPage() {
   const [{ beats }, users, requests] = await Promise.all([getBeats(), getProfiles(), getAccessRequests()]);
-  const exclusiveBeats = beats.filter((beat) => beat.status === "Exclusivo");
-  const mostPlayedBeat = beats[0];
-  const pendingRequests = requests.filter((request) => request.status === "pending");
 
   return (
     <AdminShell
       title="Dashboard Admin"
       subtitle="Vista demo para operar el catálogo privado, revisar solicitudes y preparar previews antes de liberar accesos."
     >
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminStatCard label="Total de beats" value={String(beats.length)} detail="Catálogo activo" href="/admin/beats" />
-        <AdminStatCard label="Accesos" value={String(exclusiveBeats.length)} detail="Gestionar accesos" href="/admin/access" />
-        <AdminStatCard label="Usuarios" value={String(users.length)} detail="Profiles reales" href="/admin/users" />
-        <AdminStatCard label="Solicitudes pendientes" value={String(pendingRequests.length)} detail="Por revisar" href="/admin/access-requests" />
-        <AdminStatCard label="Beat destacado" value={mostPlayedBeat?.name ?? "Sin beats"} detail={mostPlayedBeat ? `${mostPlayedBeat.genre} · ${mostPlayedBeat.bpm} BPM` : "Pendiente"} href={mostPlayedBeat ? `/beats/${mostPlayedBeat.id}` : undefined} />
-      </section>
+      <AdminDashboardStats initialBeats={beats} initialUsers={users} initialRequests={requests} />
 
       <section>
         <h2 className="mb-4 text-xl font-bold">Accesos rápidos</h2>
