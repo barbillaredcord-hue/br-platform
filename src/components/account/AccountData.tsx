@@ -7,8 +7,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { PlayButton } from "@/components/PlayButton";
+import { BeatCard } from "@/components/BeatCard";
 import { deleteOwnAccount, getBeats, getAccessRequestsForUser, updateProfile, type AccessRequestRow } from "@/lib/supabase/queries";
 import { userCanAccessBeat } from "@/lib/access";
+import { getSavedBeatIds, SAVED_BEATS_EVENT } from "@/lib/saved-beats";
 
 function requestBeatName(request: AccessRequestRow) {
   const beat = Array.isArray(request.beats) ? request.beats[0] : request.beats;
@@ -140,14 +142,52 @@ export function AccountRequests() {
 }
 
 export function AccountSaved() {
+  const { beats, currentUser } = useAccountData();
+  const [savedBeatIds, setSavedBeatIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const syncSavedBeats = () => {
+      setSavedBeatIds(getSavedBeatIds(currentUser?.id));
+    };
+
+    syncSavedBeats();
+
+    window.addEventListener(SAVED_BEATS_EVENT, syncSavedBeats);
+    window.addEventListener("storage", syncSavedBeats);
+
+    return () => {
+      window.removeEventListener(SAVED_BEATS_EVENT, syncSavedBeats);
+      window.removeEventListener("storage", syncSavedBeats);
+    };
+  }, [currentUser?.id]);
+
+  const savedBeats = useMemo(() => {
+    const savedIds = new Set(savedBeatIds.map(String));
+
+    return beats.filter((beat) => {
+      const beatIds = [beat.dbId, beat.id].filter(Boolean).map(String);
+      return beatIds.some((id) => savedIds.has(id));
+    });
+  }, [beats, savedBeatIds]);
+
   return (
     <div className="grid gap-3">
       <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
       <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
         <Heart className="h-5 w-5 text-cyan-200" aria-hidden="true" />
         <h2 className="mt-3 text-xl font-bold">Guardados</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">UI demo para favoritos. La persistencia se conectará después de Storage/upload real.</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">Tus beats guardados se mantienen en este navegador por ahora.</p>
       </section>
+
+      {savedBeats.length === 0 ? (
+        <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">Aún no tienes beats guardados. Usa el botón Guardar en cualquier beat para agregarlo aquí.</p>
+      ) : (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {savedBeats.map((beat, beatIndex) => (
+            <BeatCard key={beat.id} beat={beat} gradientIndex={beatIndex} queue={savedBeats} />
+          ))}
+        </section>
+      )}
     </div>
   );
 }

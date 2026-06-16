@@ -22,6 +22,7 @@ type PlayerContextValue = {
   playNext: () => void;
   playPrevious: () => void;
   togglePlayback: () => void;
+  seekTo: (seconds: number) => void;
   pause: () => void;
   closePlayer: () => void;
 };
@@ -176,6 +177,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setIsPlaying(false);
   }, []);
 
+  const seekTo = useCallback((seconds: number) => {
+    const audio = audioRef.current;
+
+    if (!audio || !Number.isFinite(seconds)) {
+      return;
+    }
+
+    const previewLimit = 15;
+    const maxTime = mode === "preview" ? Math.min(duration || previewLimit, previewLimit) : duration || audio.duration || 0;
+    const nextTime = Math.max(0, Math.min(seconds, maxTime));
+
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  }, [duration, mode]);
+
   const pause = useCallback(() => {
     audioRef.current?.pause();
     setIsPlaying(false);
@@ -207,10 +223,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       playNext,
       playPrevious,
       togglePlayback,
+      seekTo,
       pause,
       closePlayer,
     }),
-    [audioUrl, closePlayer, currentBeat, currentIndex, currentTime, duration, isPlaying, mode, pause, playBeat, playNext, playPrevious, queue, togglePlayback],
+    [audioUrl, closePlayer, currentBeat, currentIndex, currentTime, duration, isPlaying, mode, pause, playBeat, playNext, playPrevious, queue, seekTo, togglePlayback],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

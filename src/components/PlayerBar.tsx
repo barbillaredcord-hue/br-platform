@@ -1,6 +1,7 @@
 "use client";
 
 import { Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
+import { useEffect } from "react";
 import { usePlayer } from "@/context/PlayerContext";
 
 function formatTime(seconds: number) {
@@ -15,11 +16,38 @@ function formatTime(seconds: number) {
 }
 
 export function PlayerBar() {
-  const { audioUrl, closePlayer, currentBeat, isPlaying, mode, duration, currentTime, queue, currentIndex, playNext, playPrevious, togglePlayback } = usePlayer();
+  const { audioUrl, closePlayer, currentBeat, isPlaying, mode, duration, currentTime, queue, currentIndex, playNext, playPrevious, seekTo, togglePlayback } = usePlayer();
   const status = mode === "full" ? "Acceso completo" : "Preview 15s";
   const progress = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < queue.length - 1;
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName.toLowerCase();
+
+      if (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        togglePlayback();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [togglePlayback]);
 
   if (!currentBeat || !audioUrl) {
     return null;
@@ -69,9 +97,17 @@ export function PlayerBar() {
         </div>
         <div className="flex flex-1 items-center gap-3 md:max-w-xl">
           <span className="text-xs text-zinc-500">{formatTime(currentTime)}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: `${progress}%` }} />
-          </div>
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={Math.min(currentTime, duration || currentTime || 0)}
+            onChange={(event) => seekTo(Number(event.target.value))}
+            aria-label="Avance del beat"
+            className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-300"
+            style={{ background: `linear-gradient(to right, rgb(103 232 249) ${progress}%, rgba(255,255,255,0.10) ${progress}%)` }}
+          />
           <span className="text-xs text-zinc-500">{formatTime(duration)}</span>
         </div>
         <button type="button" onClick={closePlayer} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-300 transition hover:border-cyan-300 hover:text-cyan-200" aria-label="Ocultar player">
