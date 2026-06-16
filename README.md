@@ -16,7 +16,7 @@ Convertir B.R en un marketplace musical para productores, musicos, beatmakers, D
 
 - App: `br-platform`
 - Tipo: Marketplace musical / plataforma privada de beats
-- Fase: Fase 11D completada / produccion inicial
+- Fase: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
 - Estado: implemented
 - Avance: 70%
 - Siguiente fase: Consolidacion comercial
@@ -92,3 +92,138 @@ Archivos derivados:
 - `README.md`
 
 Ultima generacion: 2026-06-15T12:38:03
+
+# B.R / br-platform
+
+B.R es una plataforma musical privada/premium para administrar beats, previews, solicitudes, accesos y futuras licencias.
+
+## Meta principal
+
+Consolidar el flujo comercial base antes de expandir a marketplace multiusuario:
+
+```text
+Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia
+```
+
+## Estado actual
+
+```text
+Fase actual: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
+Progreso aproximado: 80%
+Siguiente fase: Fase 12 - player por acceso y preview real
+```
+
+## Stack
+
+```text
+Next.js
+TypeScript
+Tailwind
+Supabase Auth
+Supabase Postgres
+Supabase Storage
+Vercel
+```
+
+## Funcionalidad lista
+
+```text
+Home con beats reales
+Explore / Ver todo
+Favoritos
+Mis Beats
+Player global
+Registro/login con Supabase Auth
+Perfiles con telefono
+Panel admin B.RCEO
+Subida de MP3 reales a Supabase Storage
+Solicitudes de acceso
+Contacto por WhatsApp
+Aprobar/rechazar solicitudes
+Dar/quitar acceso
+Admin Access centrado en beat
+Usuarios admin expandibles
+Eliminar usuario/cuenta
+Catalogo activo visible para usuarios nuevos, existentes y admin
+```
+
+## Regla permanente de catalogo
+
+```text
+Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO, segun la visibilidad publica prevista.
+
+beat_access NO debe filtrar la visibilidad del catalogo.
+
+beat_access solo controla:
+- preview vs full
+- descarga
+- badges
+- acciones protegidas
+```
+
+## Decisiones de producto
+
+```text
+Si un usuario elimina su cuenta, se eliminaran sus datos/accesos.
+Si vuelve a crear una cuenta con el mismo correo, B.R no garantiza recuperar accesos anteriores.
+Esto debe aclararse despues en terminos y condiciones.
+```
+
+## Pendientes principales
+
+```text
+Fase 12: player full/preview por acceso
+Preview real de 15 segundos
+Descarga controlada
+Licencias descargables
+Pagos automaticos
+Suscripciones / freemium / watermark
+Terminos y condiciones
+Marketplace multiusuario
+Chat / rooms de colaboracion
+```
+
+## Comandos
+
+```bash
+npm run lint
+npm run build
+npm run dev
+```
+
+Validar estado:
+
+```bash
+python3 -m json.tool APP_STATE.json >/dev/null
+```
+
+## Supabase
+
+La app usa Supabase real para:
+
+```text
+Auth
+profiles
+beats
+beat_access
+access_requests
+Storage bucket beats
+```
+
+El schema vive en:
+
+```text
+docs/supabase/schema.sql
+```
+
+La guia de setup vive en:
+
+```text
+docs/SETUP_SUPABASE.md
+```
+
+## BR.autocarmation
+
+B.R ya esta registrada en BR.autocarmation Core v3 como app administrada.
+
+BR.autocarmation es infraestructura de continuidad; no debe reemplazar el foco principal del producto B.R.

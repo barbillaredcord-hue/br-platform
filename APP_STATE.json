@@ -20,7 +20,8 @@
     "primary_product_focus": "Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
     "primary_product_rule": "El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.",
     "autocar_role_inside_product": "Objetivo secundario e infraestructura de continuidad",
-    "catalog_visibility_rule": "Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO segun la visibilidad publica prevista. beat_access no debe filtrar la visibilidad del catalogo; solo debe controlar preview/full, descarga, badges y acciones protegidas."
+    "catalog_visibility_rule": "Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO segun la visibilidad publica prevista. beat_access no debe filtrar la visibilidad del catalogo; solo debe controlar preview/full, descarga, badges y acciones protegidas.",
+    "account_deletion_rule": "Si un usuario elimina su cuenta, se eliminan sus datos y accesos. Si vuelve a crear una cuenta con el mismo correo, B.R no garantiza recuperar accesos anteriores. Esta regla debe incluirse despues en terminos y condiciones."
   },
   "product": {
     "offer": [
@@ -31,6 +32,8 @@
       "Subida de MP3 reales",
       "Panel admin",
       "Perfiles de usuario con telefono",
+      "Favoritos",
+      "Mis Beats",
       "Eliminacion de usuarios",
       "Base futura para licencias, pagos y marketplace"
     ],
@@ -46,8 +49,10 @@
     ],
     "limits": [
       "Preview real de 15 segundos pendiente",
+      "Player full/preview por acceso pendiente de Fase 12",
       "Pagos automaticos pendientes",
       "Licencias descargables pendientes",
+      "Descarga controlada pendiente",
       "Marketplace multiusuario pendiente",
       "Chat interno pendiente"
     ]
@@ -55,6 +60,12 @@
   "objectives": {
     "main": "Consolidar primero el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia antes de expandir a marketplace multiusuario.",
     "secondary": [
+      {
+        "name": "Player por acceso",
+        "goal": "Reproducir full audio cuando el usuario tiene acceso y preview cuando no tiene acceso o no ha iniciado sesion.",
+        "progress_percent": 0,
+        "status": "next"
+      },
       {
         "name": "Preview real",
         "goal": "Generar y administrar previews reales de 15 segundos.",
@@ -81,23 +92,24 @@
       }
     ],
     "future": [
-      "Guardar beat / favoritos",
       "Perfiles publicos de productores y artistas",
       "Servicios musicales",
       "Escrow o pago protegido",
+      "Suscripciones / freemium",
+      "Watermark para reproduccion completa sin acceso limpio",
       "Chat interno",
       "Rooms de colaboracion musical"
     ]
   },
   "status": {
-    "current_phase": "fase_11d",
-    "current_phase_label": "Fase 11D completada / produccion inicial",
-    "current_phase_status": "implemented",
-    "progress_percent": 70,
-    "current_level": "App Next.js publicada en Vercel con Supabase Auth, Storage, acceso manual y admin B.RCEO",
-    "next_phase": "fase_12_consolidacion_comercial",
-    "next_phase_label": "Consolidacion comercial",
-    "next_phase_goal": "Consolidar flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia."
+    "current_phase": "fase_11f_c",
+    "current_phase_label": "Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos",
+    "current_phase_status": "completed",
+    "progress_percent": 80,
+    "current_level": "App Next.js publicada en Vercel con Supabase Auth, Storage, beats reales, favoritos, Mis Beats, solicitudes, acceso manual, admin B.RCEO y catalogo activo visible para usuarios nuevos, existentes y admin.",
+    "next_phase": "fase_12_player_preview_access",
+    "next_phase_label": "Player por acceso y preview real",
+    "next_phase_goal": "Corregir reproduccion full/preview segun acceso, asegurar siguiente/anterior por acceso y preparar preview real de 15 segundos."
   },
   "phases": {
     "completed": [
@@ -130,17 +142,37 @@
         "phase": "fase_11d",
         "label": "Produccion inicial",
         "result": "Deploy en Vercel, acceso manual, B.RCEO admin, eliminacion de usuarios y app lista para consolidacion comercial."
+      },
+      {
+        "phase": "fase_11e",
+        "label": "Consistencia y duplicados",
+        "result": "Control de slugs duplicados, mensajes claros, limpieza defensiva de MP3 huerfanos y refresh de accesos."
+      },
+      {
+        "phase": "fase_11f",
+        "label": "UX de solicitudes y dashboard",
+        "result": "Dashboard admin vivo, solicitudes mas claras, contacto por WhatsApp, rutas dinamicas y datos reales desde Supabase."
+      },
+      {
+        "phase": "fase_11f_b",
+        "label": "Accesos, usuarios y navegacion",
+        "result": "Access Manager centrado en beat, solicitudes con historial, usuarios expandibles, Explore, Favoritos y Mis Beats funcionales."
+      },
+      {
+        "phase": "fase_11f_c",
+        "label": "Estabilidad de catalogo, usuarios y accesos",
+        "result": "Usuarios existentes reciben beats nuevos, regla permanente de catalogo activo agregada, UserContext valida cuenta eliminada y Supabase schema actualizado."
       }
     ],
     "current": {
-      "phase": "fase_11d",
-      "label": "Fase 11D completada / produccion inicial",
-      "status": "implemented"
+      "phase": "fase_11f_c",
+      "label": "Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos",
+      "status": "completed"
     },
     "next": {
-      "phase": "fase_12_consolidacion_comercial",
-      "label": "Consolidacion comercial",
-      "goal": "Consolidar Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia."
+      "phase": "fase_12_player_preview_access",
+      "label": "Player por acceso y preview real",
+      "goal": "Corregir full/preview segun acceso y preparar preview real de 15 segundos."
     }
   },
   "execution": {
@@ -152,30 +184,41 @@
       "Bucket beats funcional",
       "Upload MP3 funcional",
       "Home con beats reales",
+      "Explore conectado",
+      "Favoritos funcionales",
+      "Mis Beats funcional",
       "Player funcional",
       "Solicitudes de acceso funcionales",
       "Dar y quitar acceso funcional",
       "Panel admin funcional",
       "Usuarios visibles para admin",
+      "Usuarios admin expandibles",
       "Telefono en perfil",
       "Cambio de username",
       "Ocultar Supabase conectado a usuarios normales",
       "Eliminar usuarios implementado",
+      "UserContext valida cuenta eliminada",
+      "Solicitudes con pendientes e historial reciente",
+      "Admin Access centrado en beat",
+      "Usuarios existentes reciben beats nuevos",
+      "Regla de catalogo activo agregada",
+      "Supabase schema actualizado para Fase 11F-C",
       "Deploy en Vercel funcionando",
       "GitHub conectado",
       "APP_STATE.json creado para BR.autocarmation",
       "B.R registrada en Core v3 registry"
     ],
     "pending": [
+      "Player full/preview por acceso",
       "Preview real de 15 segundos",
-      "Guardar beat / favoritos",
       "Pagos",
       "Licencias descargables",
       "Descargas controladas por tipo de licencia",
       "Marketplace multiusuario",
       "Perfiles publicos de productores/artistas",
       "Servicios musicales",
-      "Escrow o pago protegido"
+      "Escrow o pago protegido",
+      "Terminos y condiciones"
     ],
     "blocked": []
   },
@@ -187,28 +230,35 @@
     "Bucket beats funcional",
     "Upload MP3 funcional",
     "Home con beats reales",
+    "Explore conectado",
+    "Favoritos funcionales",
+    "Mis Beats funcional",
     "Player funcional",
     "Solicitudes de acceso funcionales",
     "Dar y quitar acceso funcional",
     "Panel admin funcional",
     "Usuarios visibles para admin",
+    "Usuarios admin expandibles",
     "Telefono en perfil",
     "Cambio de username",
     "Ocultar Supabase conectado a usuarios normales",
     "Eliminar usuarios implementado",
+    "Usuarios existentes reciben beats nuevos",
+    "Regla de catalogo activo agregada",
     "Deploy en Vercel funcionando",
     "GitHub conectado"
   ],
   "pending": [
+    "Player full/preview por acceso",
     "Preview real de 15 segundos",
-    "Guardar beat / favoritos",
     "Pagos",
     "Licencias descargables",
     "Descargas controladas por tipo de licencia",
     "Marketplace multiusuario",
     "Perfiles publicos de productores/artistas",
     "Servicios musicales",
-    "Escrow o pago protegido"
+    "Escrow o pago protegido",
+    "Terminos y condiciones"
   ],
   "blocked": [],
   "risks": [
@@ -217,19 +267,24 @@
     "No permitir acciones protegidas con fallback admin",
     "No mezclar BR.autocarmation con la logica principal de B.R",
     "Evitar expandir a marketplace antes de consolidar el flujo comercial base",
-    "No volver a filtrar el catalogo por beat_access: usuarios nuevos, existentes y admin deben recibir beats activos nuevos sin depender de sus accesos"
+    "No volver a filtrar el catalogo por beat_access: usuarios nuevos, existentes y admin deben recibir beats activos nuevos sin depender de sus accesos",
+    "No reproducir preview por error cuando el usuario ya tiene acceso full"
   ],
   "pros": [
     "Base funcional ya publicada",
     "Supabase Auth y Storage operativos",
     "Flujo de acceso manual ya probado",
+    "Favoritos y Mis Beats ya funcionan",
+    "Catalogo activo ya funciona para usuarios nuevos, existentes y admin",
     "Arquitectura lista para pagos y licencias",
     "Marca B.R puede evolucionar a marketplace musical"
   ],
   "cons": [
     "Aun falta preview real",
+    "Aun falta corregir player full/preview por acceso en siguiente/anterior",
     "Aun falta pagos automaticos",
     "Aun falta sistema formal de licencias",
+    "Aun falta descarga controlada",
     "El marketplace multiusuario requiere roles, permisos y moderacion adicionales"
   ],
   "architecture": {
@@ -244,6 +299,12 @@
   "documentation": {
     "files": [
       "APP_STATE.json",
+      "README.md",
+      "AGENTS.md",
+      "CHATGPT_CONTEXT.md",
+      "CODEX_CONTEXT.md",
+      "PROJECT_STATUS.md",
+      "docs/SETUP_SUPABASE.md",
       "docs/supabase/schema.sql",
       ".env.local.example"
     ]
@@ -256,8 +317,8 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Consolidar flujo comercial base antes de marketplace.",
-    "next_action": "Siguiente revision: blindar regla de catalogo activo para que beats nuevos aparezcan a visitantes, usuarios nuevos, usuarios existentes y admin; luego corregir player full/preview por acceso en Fase 12.",
-    "context": "B.R ya esta publicada en Vercel y lista para seguimiento por BR.autocarmation."
+    "priority": "Entrar a Fase 12 sin romper catalogo ni accesos.",
+    "next_action": "Implementar Fase 12: player full si el usuario tiene acceso, preview si no tiene acceso, siguiente/anterior por acceso y base de preview real de 15 segundos.",
+    "context": "B.R esta publicada en Vercel, conectada a Supabase real, registrada en BR.autocarmation y con Fase 11F-C cerrada."
   }
 }
