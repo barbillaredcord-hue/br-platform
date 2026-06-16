@@ -50,8 +50,24 @@ create table if not exists public.access_requests (
   message text,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
+  contacted_at timestamptz,
+  responded_at timestamptz,
   unique (user_id, beat_id),
-  constraint access_requests_status_check check (status in ('pending', 'approved', 'rejected'))
+  constraint access_requests_status_check check (status in ('pending', 'approved', 'rejected', 'contacted'))
+);
+
+create table if not exists public.account_access_recovery (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  beat_id uuid references public.beats(id) on delete cascade,
+  source_user_id uuid,
+  closed_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  restored_user_id uuid references public.profiles(id) on delete set null,
+  restored_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (email, beat_id)
 );
 
 create index if not exists beats_slug_idx on public.beats (slug);
@@ -60,6 +76,10 @@ create index if not exists beat_access_beat_id_idx on public.beat_access (beat_i
 create index if not exists access_requests_status_idx on public.access_requests (status);
 create index if not exists access_requests_user_id_idx on public.access_requests (user_id);
 create index if not exists access_requests_beat_id_idx on public.access_requests (beat_id);
+create index if not exists account_access_recovery_email_idx on public.account_access_recovery (email);
+create index if not exists account_access_recovery_expires_at_idx on public.account_access_recovery (expires_at);
+create index if not exists account_access_recovery_source_user_id_idx on public.account_access_recovery (source_user_id);
+create index if not exists account_access_recovery_restored_user_id_idx on public.account_access_recovery (restored_user_id);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -84,6 +104,11 @@ for each row execute function public.set_updated_at();
 drop trigger if exists access_requests_set_updated_at on public.access_requests;
 create trigger access_requests_set_updated_at
 before update on public.access_requests
+for each row execute function public.set_updated_at();
+
+drop trigger if exists account_access_recovery_set_updated_at on public.account_access_recovery;
+create trigger account_access_recovery_set_updated_at
+before update on public.account_access_recovery
 for each row execute function public.set_updated_at();
 
 -- Automatically create a public profile when a Supabase Auth user is created.
@@ -161,11 +186,13 @@ alter table public.profiles enable row level security;
 alter table public.beats enable row level security;
 alter table public.beat_access enable row level security;
 alter table public.access_requests enable row level security;
+alter table public.account_access_recovery enable row level security;
 
 grant select on public.beats to anon, authenticated;
 grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.beat_access to authenticated;
 grant select, insert, update, delete on public.access_requests to authenticated;
+grant select, insert, update, delete on public.account_access_recovery to authenticated;
 
 drop policy if exists "profiles_select_own_or_admin" on public.profiles;
 create policy "profiles_select_own_or_admin"
@@ -293,7 +320,58 @@ for delete
 to authenticated
 using (private.is_br_admin());
 
+drop policy if exists "account_access_recovery_select_admin" on public.account_access_recovery;
+create policy "account_access_recovery_select_admin"
+on public.account_access_recovery
+for select
+to authenticated
+using (private.is_br_admin());
+
+drop policy if exists "account_access_recovery_insert_admin" on public.account_access_recovery;
+create policy "account_access_recovery_insert_admin"
+on public.account_access_recovery
+for insert
+to authenticated
+with check (private.is_br_admin());
+
+drop policy if exists "account_access_recovery_update_admin" on public.account_access_recovery;
+create policy "account_access_recovery_update_admin"
+on public.account_access_recovery
+for update
+to authenticated
+using (private.is_br_admin())
+with check (private.is_br_admin());
+
+drop policy if exists "account_access_recovery_delete_admin" on public.account_access_recovery;
+create policy "account_access_recovery_delete_admin"
+on public.account_access_recovery
+for delete
+to authenticated
+using (private.is_br_admin());
+
 -- Fase 11B - SQL adicional para proyectos que ya ejecutaron el esquema antes de agregar phone.
 -- Ejecutar en Supabase SQL Editor si public.profiles aún no tiene la columna phone.
 alter table public.profiles
 add column if not exists phone text;
+
+
+-- Fase 11F-C - Migracion segura para proyectos que ya ejecutaron el esquema antes
+-- de agregar recuperacion de accesos, contacted_at/responded_at y status contacted.
+alter table public.access_requests
+add column if not exists contacted_at timestamptz;
+
+alter table public.access_requests
+add column if not exists responded_at timestamptz;
+
+alter table public.account_access_recovery
+add column if not exists updated_at timestamptz default now();
+
+alter table public.account_access_recovery
+add column if not exists restored_user_id uuid;
+
+alter table public.access_requests
+drop constraint if exists access_requests_status_check;
+
+alter table public.access_requests
+add constraint access_requests_status_check
+check (status in ('pending', 'approved', 'rejected', 'contacted'));

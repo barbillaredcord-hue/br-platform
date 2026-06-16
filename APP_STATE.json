@@ -19,7 +19,8 @@
     "positioning": "Plataforma musical premium, privada y escalable con enfoque en acceso controlado, licencias y colaboracion.",
     "primary_product_focus": "Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
     "primary_product_rule": "El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.",
-    "autocar_role_inside_product": "Objetivo secundario e infraestructura de continuidad"
+    "autocar_role_inside_product": "Objetivo secundario e infraestructura de continuidad",
+    "catalog_visibility_rule": "Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO segun la visibilidad publica prevista. beat_access no debe filtrar la visibilidad del catalogo; solo debe controlar preview/full, descarga, badges y acciones protegidas."
   },
   "product": {
     "offer": [
@@ -215,7 +216,8 @@
     "Mantener B.RCEO como unico admin real",
     "No permitir acciones protegidas con fallback admin",
     "No mezclar BR.autocarmation con la logica principal de B.R",
-    "Evitar expandir a marketplace antes de consolidar el flujo comercial base"
+    "Evitar expandir a marketplace antes de consolidar el flujo comercial base",
+    "No volver a filtrar el catalogo por beat_access: usuarios nuevos, existentes y admin deben recibir beats activos nuevos sin depender de sus accesos"
   ],
   "pros": [
     "Base funcional ya publicada",
@@ -255,7 +257,7 @@
   },
   "continuity": {
     "priority": "Consolidar flujo comercial base antes de marketplace.",
-    "next_action": "Registrar B.R en BR.autocarmation y luego iniciar consolidacion Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
+    "next_action": "Siguiente revision: blindar regla de catalogo activo para que beats nuevos aparezcan a visitantes, usuarios nuevos, usuarios existentes y admin; luego corregir player full/preview por acceso en Fase 12.",
     "context": "B.R ya esta publicada en Vercel y lista para seguimiento por BR.autocarmation."
   }
 }
