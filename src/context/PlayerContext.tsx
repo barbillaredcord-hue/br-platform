@@ -6,6 +6,7 @@ import { useUser } from "@/context/UserContext";
 import { userCanAccessBeat } from "@/lib/access";
 
 export type PlayerMode = "preview" | "full";
+type PlaybackRequestMode = PlayerMode | "auto";
 
 type PlayerContextValue = {
   currentBeat: Beat | null;
@@ -17,7 +18,7 @@ type PlayerContextValue = {
   queue: Beat[];
   currentIndex: number;
   setQueue: (beats: Beat[]) => void;
-  playBeat: (beat: Beat, mode?: PlayerMode, queue?: Beat[]) => void;
+  playBeat: (beat: Beat, mode?: PlaybackRequestMode, queue?: Beat[]) => void;
   playNext: () => void;
   playPrevious: () => void;
   togglePlayback: () => void;
@@ -30,6 +31,7 @@ const PlayerContext = createContext<PlayerContextValue | null>(null);
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const { currentUser } = useUser();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentUserRef = useRef(currentUser);
   const [currentBeat, setCurrentBeat] = useState<Beat | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [mode, setMode] = useState<PlayerMode>("preview");
@@ -40,6 +42,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [currentIndex, setCurrentIndex] = useState(-1);
 
   useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
     return () => {
       audioRef.current?.pause();
       audioRef.current = null;
@@ -48,6 +54,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const startAudio = useCallback((beat: Beat, nextMode: PlayerMode) => {
     const nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl;
+    console.log("[player audio]", {
+      beatName: beat.name,
+      beatId: beat.id,
+      beatDbId: beat.dbId,
+      nextMode,
+      previewUrl: beat.previewUrl,
+      fullAudioUrl: beat.fullAudioUrl,
+      selectedUrl: nextAudioUrl,
+      fullEqualsPreview: beat.fullAudioUrl === beat.previewUrl,
+    });
     const previewLimit = 15;
 
     audioRef.current?.pause();
@@ -93,24 +109,41 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
-  const resolveMode = useCallback((beat: Beat, requestedMode: PlayerMode) => {
-    if (requestedMode === "full" && !userCanAccessBeat(currentUser, beat)) {
+  const resolvePlaybackMode = useCallback((beat: Beat, requestedMode: PlaybackRequestMode) => {
+    // Do not use access to filter catalog visibility. Access only controls playback/download/protected actions.
+    const hasAccess = userCanAccessBeat(currentUserRef.current, beat);
+    console.log("[player resolve]", {
+      beatName: beat.name,
+      beatId: beat.id,
+      beatDbId: beat.dbId,
+      requestedMode,
+      accessibleBeatIds: currentUserRef.current?.accessibleBeatIds,
+      hasAccess,
+    });
+
+    if (requestedMode === "auto") {
+      return hasAccess ? "full" : "preview";
+    }
+
+    if (requestedMode === "full" && !hasAccess) {
       return "preview";
     }
 
     return requestedMode;
-  }, [currentUser]);
+  }, []);
 
   const playBeat = useCallback(
-    (beat: Beat, nextMode: PlayerMode = "preview", nextQueue?: Beat[]) => {
+    (beat: Beat, nextMode: PlaybackRequestMode = "preview", nextQueue?: Beat[]) => {
       const effectiveQueue = nextQueue?.length ? nextQueue : queue.length ? queue : [beat];
       const nextIndex = effectiveQueue.findIndex((item) => item.id === beat.id);
 
       setQueueState(effectiveQueue);
       setCurrentIndex(nextIndex >= 0 ? nextIndex : 0);
-      startAudio(beat, resolveMode(beat, nextMode));
+      const resolvedMode = resolvePlaybackMode(beat, nextMode);
+
+      startAudio(beat, resolvedMode);
     },
-    [queue, resolveMode, startAudio],
+    [queue, resolvePlaybackMode, startAudio],
   );
 
   const playNext = useCallback(() => {
@@ -121,8 +154,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    playBeat(nextBeat, resolveMode(nextBeat, mode), queue);
-  }, [currentIndex, mode, playBeat, queue, resolveMode]);
+    const resolvedMode = resolvePlaybackMode(nextBeat, "auto");
+    console.log("[player next]", {
+      currentIndex,
+      nextIndex,
+      nextBeatName: nextBeat.name,
+      nextBeatId: nextBeat.id,
+      nextBeatDbId: nextBeat.dbId,
+      resolvedMode,
+    });
+
+    playBeat(nextBeat, resolvedMode, queue);
+  }, [currentIndex, playBeat, queue, resolvePlaybackMode]);
 
   const playPrevious = useCallback(() => {
     const previousIndex = currentIndex - 1;
@@ -132,8 +175,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    playBeat(previousBeat, resolveMode(previousBeat, mode), queue);
-  }, [currentIndex, mode, playBeat, queue, resolveMode]);
+    const resolvedMode = resolvePlaybackMode(previousBeat, "auto");
+    console.log("[player previous]", {
+      currentIndex,
+      previousIndex,
+      previousBeatName: previousBeat.name,
+      previousBeatId: previousBeat.id,
+      previousBeatDbId: previousBeat.dbId,
+      resolvedMode,
+    });
+
+    playBeat(previousBeat, resolvedMode, queue);
+  }, [currentIndex, playBeat, queue, resolvePlaybackMode]);
 
   const togglePlayback = useCallback(() => {
     const audio = audioRef.current;

@@ -11,12 +11,15 @@ export function canAccessBeat(userId: string | null | undefined, beatId: string)
   return Boolean(user?.accessibleBeatIds.includes(beatId));
 }
 
-export function userCanAccessBeat(user: User | null | undefined, beat: Pick<Beat, "id" | "dbId">) {
+export function userCanAccessBeat(user: User | null | undefined, beat: Pick<Beat, "id" | "dbId"> & { slug?: string | null }) {
   if (!user) {
     return false;
   }
 
-  return user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId));
+  const accessIds = new Set(user.accessibleBeatIds.map(String));
+  const beatIds = [beat.id, beat.dbId, beat.slug].filter(Boolean).map(String);
+
+  return beatIds.some((id) => accessIds.has(id));
 }
 
 export function getUsersWithAccessToBeat(beatId: string, users: User[] = demoUsers) {
