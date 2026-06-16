@@ -49,7 +49,6 @@
     ],
     "limits": [
       "Preview real de 15 segundos pendiente",
-      "Player full/preview por acceso pendiente de Fase 12",
       "Pagos automaticos pendientes",
       "Licencias descargables pendientes",
       "Descarga controlada pendiente",
@@ -63,8 +62,8 @@
       {
         "name": "Player por acceso",
         "goal": "Reproducir full audio cuando el usuario tiene acceso y preview cuando no tiene acceso o no ha iniciado sesion.",
-        "progress_percent": 0,
-        "status": "next"
+        "progress_percent": 100,
+        "status": "completed"
       },
       {
         "name": "Preview real",
@@ -85,6 +84,12 @@
         "status": "planned"
       },
       {
+        "name": "Descargas controladas",
+        "goal": "Permitir descarga solo cuando el usuario tiene acceso/licencia valida para el beat.",
+        "progress_percent": 0,
+        "status": "next"
+      },
+      {
         "name": "Marketplace musical",
         "goal": "Expandir B.R a marketplace para productores, musicos, beatmakers, DJs y servicios musicales.",
         "progress_percent": 0,
@@ -102,14 +107,14 @@
     ]
   },
   "status": {
-    "current_phase": "fase_11f_c",
-    "current_phase_label": "Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos",
-    "current_phase_status": "completed",
-    "progress_percent": 80,
-    "current_level": "App Next.js publicada en Vercel con Supabase Auth, Storage, beats reales, favoritos, Mis Beats, solicitudes, acceso manual, admin B.RCEO y catalogo activo visible para usuarios nuevos, existentes y admin.",
-    "next_phase": "fase_12_player_preview_access",
-    "next_phase_label": "Player por acceso y preview real",
-    "next_phase_goal": "Corregir reproduccion full/preview segun acceso, asegurar siguiente/anterior por acceso y preparar preview real de 15 segundos."
+    "current_phase": "fase_12d_checkpoint_comercial",
+    "current_phase_label": "Fase 12D en progreso / checkpoint comercial y continuidad",
+    "current_phase_status": "in_progress",
+    "progress_percent": 85,
+    "current_level": "App Next.js publicada en Vercel con Supabase Auth, Storage, beats reales, catalogo visible, player full/preview por acceso, guardados locales, Mis Beats, solicitudes, acceso manual, admin B.RCEO y controles de player con Space/seek.",
+    "next_phase": "fase_12e_descargas_controladas",
+    "next_phase_label": "Descargas controladas por acceso/licencia",
+    "next_phase_goal": "Permitir descarga solo si el usuario tiene acceso valido al beat y preparar la base para licencias descargables."
   },
   "phases": {
     "completed": [
@@ -162,17 +167,27 @@
         "phase": "fase_11f_c",
         "label": "Estabilidad de catalogo, usuarios y accesos",
         "result": "Usuarios existentes reciben beats nuevos, regla permanente de catalogo activo agregada, UserContext valida cuenta eliminada y Supabase schema actualizado."
+      },
+      {
+        "phase": "fase_12b",
+        "label": "Player por acceso",
+        "result": "Player full/preview resuelto por acceso real; siguiente/anterior selecciona full si el usuario tiene acceso y preview si no lo tiene."
+      },
+      {
+        "phase": "fase_12c",
+        "label": "Guardados y controles del player",
+        "result": "Scroll horizontal Safari-safe, guardados locales, /account/saved funcional, Space play/pause y barra de progreso seekable/clickeable. Commit 5daddf3."
       }
     ],
     "current": {
-      "phase": "fase_11f_c",
-      "label": "Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos",
-      "status": "completed"
+      "phase": "fase_12d_checkpoint_comercial",
+      "label": "Fase 12D en progreso / checkpoint comercial y continuidad",
+      "status": "in_progress"
     },
     "next": {
-      "phase": "fase_12_player_preview_access",
-      "label": "Player por acceso y preview real",
-      "goal": "Corregir full/preview segun acceso y preparar preview real de 15 segundos."
+      "phase": "fase_12e_descargas_controladas",
+      "label": "Descargas controladas por acceso/licencia",
+      "goal": "Permitir descarga solo si el usuario tiene acceso valido al beat y preparar la base para licencias descargables."
     }
   },
   "execution": {
@@ -202,6 +217,13 @@
       "Admin Access centrado en beat",
       "Usuarios existentes reciben beats nuevos",
       "Regla de catalogo activo agregada",
+      "Player full/preview por acceso completado",
+      "Siguiente/anterior del player respeta acceso real",
+      "Scroll horizontal Safari-safe en BeatRow",
+      "Guardados locales implementados con localStorage",
+      "/account/saved conectado a guardados reales",
+      "Space play/pause agregado al player",
+      "Barra de progreso clickeable/seekable agregada al player",
       "Supabase schema actualizado para Fase 11F-C",
       "Deploy en Vercel funcionando",
       "GitHub conectado",
@@ -209,7 +231,6 @@
       "B.R registrada en Core v3 registry"
     ],
     "pending": [
-      "Player full/preview por acceso",
       "Preview real de 15 segundos",
       "Pagos",
       "Licencias descargables",
@@ -245,11 +266,17 @@
     "Eliminar usuarios implementado",
     "Usuarios existentes reciben beats nuevos",
     "Regla de catalogo activo agregada",
+    "Player full/preview por acceso completado",
+    "Siguiente/anterior del player respeta acceso real",
+    "Scroll horizontal Safari-safe en BeatRow",
+    "Guardados locales implementados con localStorage",
+    "/account/saved conectado a guardados reales",
+    "Space play/pause agregado al player",
+    "Barra de progreso clickeable/seekable agregada al player",
     "Deploy en Vercel funcionando",
     "GitHub conectado"
   ],
   "pending": [
-    "Player full/preview por acceso",
     "Preview real de 15 segundos",
     "Pagos",
     "Licencias descargables",
@@ -276,12 +303,14 @@
     "Flujo de acceso manual ya probado",
     "Favoritos y Mis Beats ya funcionan",
     "Catalogo activo ya funciona para usuarios nuevos, existentes y admin",
+    "Player ya respeta acceso full/preview",
+    "Guardados locales ya funcionan como base de favoritos",
+    "Controles de player mejorados con teclado y seek",
     "Arquitectura lista para pagos y licencias",
     "Marca B.R puede evolucionar a marketplace musical"
   ],
   "cons": [
     "Aun falta preview real",
-    "Aun falta corregir player full/preview por acceso en siguiente/anterior",
     "Aun falta pagos automaticos",
     "Aun falta sistema formal de licencias",
     "Aun falta descarga controlada",
@@ -317,8 +346,8 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Entrar a Fase 12 sin romper catalogo ni accesos.",
-    "next_action": "Implementar Fase 12: player full si el usuario tiene acceso, preview si no tiene acceso, siguiente/anterior por acceso y base de preview real de 15 segundos.",
-    "context": "B.R esta publicada en Vercel, conectada a Supabase real, registrada en BR.autocarmation y con Fase 11F-C cerrada."
+    "priority": "Completar Fase 12D como checkpoint comercial antes de iniciar descargas, licencias y diseno visual premium.",
+    "next_action": "Actualizar documentacion de continuidad, definir Fase 12E de descargas controladas por acceso/licencia y preparar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
+    "context": "B.R esta publicada en Vercel, conectada a Supabase real, registrada en BR.autocarmation y con Fase 12C cerrada en commit 5daddf3. El player respeta acceso full/preview, guardados locales funcionan y el siguiente foco es consolidacion comercial."
   }
 }

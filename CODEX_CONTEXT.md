@@ -1,66 +1,3 @@
-# Codex Context - B.R
-
-Generado automaticamente por BR.autocar Documentation Engine. No editar manualmente.
-
-## Foco técnico principal
-
-El trabajo técnico debe proteger el producto `B.R`.
-BR.autocar es infraestructura de soporte y automatización; sus cambios no deben desplazar la funcionalidad, roadmap ni continuidad principal de la app.
-
-Foco: Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
-
-## Proyecto
-
-- App ID: br-platform
-- Producto: B.R
-- Tipo: Marketplace musical / plataforma privada de beats
-- Fase: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
-- Avance: 70%
-
-## Arquitectura
-
-- Stack: Next.js, TypeScript, Tailwind, Supabase, Vercel
-- Nivel de datos: Supabase Postgres
-- Backend: True
-- Database: True
-- Auth: True
-- Payments: False
-
-## Reglas tecnicas
-
-- APP_STATE.json es la fuente unica de verdad.
-- Los documentos `.md` son derivados.
-- No editar documentacion generada manualmente.
-- No instalar dependencias ni modificar package.json salvo instruccion explicita.
-- Antes de editar codigo, listar archivos a crear o modificar.
-- Mantener cambios pequenos y verificables.
-
-## Tareas pendientes
-
-- Preview real de 15 segundos
-- Guardar beat / favoritos
-- Pagos
-- Licencias descargables
-- Descargas controladas por tipo de licencia
-- Marketplace multiusuario
-- Perfiles publicos de productores/artistas
-- Servicios musicales
-- Escrow o pago protegido
-
-## Riesgos tecnicos / producto
-
-- Sin datos registrados
-
-## Validaciones recomendadas
-
-```bash
-python3 -m json.tool APP_STATE.json >/dev/null
-npm run lint
-npm run build
-```
-
-Ultima generacion: 2026-06-15T12:38:03
-
 # CODEX_CONTEXT.md - B.R / br-platform
 
 Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.json.
@@ -76,9 +13,11 @@ B.R es el producto principal. BR.autocarmation es infraestructura de soporte, co
 - App ID: `br-platform`
 - Producto: B.R
 - Tipo: Marketplace musical / plataforma privada de beats
-- Fase actual: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
-- Avance: 80%
-- Siguiente fase: Fase 12 - player por acceso y preview real
+- Fase actual: Fase 12D en progreso / checkpoint comercial y continuidad
+- Estado: in_progress
+- Avance: 85%
+- Ultimo commit funcional: 5daddf3 Complete phase 12C saved beats and player controls
+- Siguiente fase: Fase 12E - descargas controladas por acceso/licencia
 
 ## Meta principal
 
@@ -107,9 +46,14 @@ Bucket beats
 Upload MP3 real
 Home con beats reales
 Explore / Ver todo
-Favoritos
+Guardados locales
+/account/saved conectado a guardados reales
 Mis Beats
 Player global
+Player full/preview por acceso real
+Siguiente/anterior del player respeta acceso por beat
+Space play/pause en player
+Barra del player clickeable/seekable
 Solicitudes de acceso
 Contacto por WhatsApp
 Aprobar/rechazar solicitudes
@@ -119,6 +63,7 @@ Admin Access centrado en beat
 Usuarios admin expandibles
 Eliminacion de usuario/cuenta
 Usuarios nuevos, existentes y admin reciben beats activos nuevos
+Scroll horizontal Safari-safe en BeatRow
 ```
 
 ## Reglas tecnicas criticas
@@ -128,6 +73,7 @@ Usuarios nuevos, existentes y admin reciben beats activos nuevos
 - Antes de editar codigo, listar archivos a crear o modificar si el cambio es amplio.
 - Mantener cambios pequenos y verificables.
 - Ejecutar validaciones despues de cambios.
+- No mezclar logica principal de B.R con infraestructura de BR.autocarmation.
 
 ## Regla permanente de catalogo
 
@@ -153,15 +99,14 @@ Comentario recomendado cerca de queries de catalogo/acceso:
 // Access only controls playback/download/protected actions.
 ```
 
-## Tarea inmediata - Fase 12
-
-Implementar player por acceso:
+## Regla permanente del player
 
 ```text
 Si el usuario tiene acceso al beat -> reproducir full audio.
 Si no tiene acceso -> reproducir preview.
 Si no hay sesion -> reproducir preview.
 Siguiente/anterior deben resolver acceso por beat, no reutilizar la URL anterior.
+No romper esta regla al implementar descargas, licencias, pagos o rediseño visual.
 ```
 
 Debe funcionar desde:
@@ -170,11 +115,36 @@ Debe funcionar desde:
 home cards
 explore
 beat detail
-favoritos
+guardados
 Mis Beats
 global player queue
 next button
 previous button
+```
+
+## Fase 12E propuesta - Descargas controladas
+
+Meta:
+Permitir descarga solo cuando el usuario tiene acceso valido al beat y preparar la base para licencias descargables.
+
+Alcance inicial:
+
+```text
+Boton Descargar visible solo si el usuario tiene acceso valido.
+Validacion de acceso antes de habilitar descarga.
+No usar beat_access para filtrar catalogo.
+Mantener preview/full playback separado de descarga.
+Preparar modelo para licencia futura sin implementar pagos aun.
+```
+
+Fuera de alcance inicial:
+
+```text
+Pagos automaticos.
+Marketplace multiusuario.
+Licencias PDF avanzadas.
+Escrow o pago protegido.
+Rediseño visual premium.
 ```
 
 ## Cuenta eliminada
@@ -194,13 +164,14 @@ No exponer SUPABASE_SERVICE_ROLE_KEY al cliente.
 Mantener B.RCEO como unico admin real.
 No permitir acciones protegidas con fallback admin.
 Usar rutas server/API para operaciones privilegiadas.
+No habilitar descarga sin acceso o licencia valida.
 ```
 
-## Pendientes despues de Fase 12
+## Pendientes despues de Fase 12D
 
 ```text
+Fase 12E: descargas controladas por acceso/licencia
 Preview real de 15 segundos
-Descarga controlada
 Licencias descargables
 Pagos automaticos
 Suscripciones / freemium / watermark
@@ -210,13 +181,15 @@ Perfiles publicos de productores/artistas
 Servicios musicales
 Escrow o pago protegido
 Chat / rooms de colaboracion
+Diseño visual premium despues del flujo comercial base
 ```
 
 ## Riesgos tecnicos / producto
 
 ```text
 No volver a filtrar catalogo por beat_access.
-No reproducir preview por error cuando el usuario ya tiene acceso full.
+No romper player full/preview por acceso.
+No habilitar descarga sin acceso/licencia valida.
 No exponer service role key al cliente.
 No avanzar a marketplace antes de consolidar el flujo comercial base.
 ```
@@ -229,4 +202,4 @@ npm run lint
 npm run build
 ```
 
-Ultima actualizacion: Fase 11F-C cerrada / preparacion Fase 12
+Ultima actualizacion: Fase 12D en progreso / checkpoint comercial y continuidad

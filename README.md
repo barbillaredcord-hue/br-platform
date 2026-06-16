@@ -1,101 +1,6 @@
-# B.R
-
-Generado automaticamente por BR.autocar Documentation Engine. No editar manualmente.
-
-## Foco principal
-
-Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
-
-El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.
-
-## Resumen
-
-Convertir B.R en un marketplace musical para productores, musicos, beatmakers, DJs, artistas e ingenieros.
-
-## Estado actual
-
-- App: `br-platform`
-- Tipo: Marketplace musical / plataforma privada de beats
-- Fase: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
-- Estado: implemented
-- Avance: 70%
-- Siguiente fase: Consolidacion comercial
-
-## Oferta del producto
-
-- Catalogo de beats
-- Preview de beats
-- Solicitud de acceso
-- Acceso manual administrado por B.RCEO
-- Subida de MP3 reales
-- Panel admin
-- Perfiles de usuario con telefono
-- Eliminacion de usuarios
-- Base futura para licencias, pagos y marketplace
-
-## Usuarios objetivo
-
-- B.RCEO
-- Artistas
-- Productores
-- Beatmakers
-- Musicos
-- DJs
-- Ingenieros de audio
-- Clientes que buscan beats/licencias
-
-## Limites del producto
-
-- Preview real de 15 segundos pendiente
-- Pagos automaticos pendientes
-- Licencias descargables pendientes
-- Marketplace multiusuario pendiente
-- Chat interno pendiente
-
-## Arquitectura
-
-- Stack: Next.js, TypeScript, Tailwind, Supabase, Vercel
-- Nivel de datos: Supabase Postgres
-- Backend: True
-- Database: True
-- Auth: True
-
-## BR.autocar como soporte
-
-- Managed: True
-- Rol dentro del producto: Objetivo secundario e infraestructura de continuidad
-- Regla de foco: BR.autocar debe actuar como soporte y no como foco principal cuando esta app no sea BR.autocar Admin Web.
-- Template version: app-state-schema-v3
-- Future sync target: BR.autocar Admin Web
-
-## Comandos BR
-
-```bash
-# Desde BR.autocarmation:
-./scripts/br-wake /Users/fabianhonoriogonzalezandrade/br-platform
-./scripts/br-health /Users/fabianhonoriogonzalezandrade/br-platform
-./scripts/br-sync-docs /Users/fabianhonoriogonzalezandrade/br-platform
-```
-
-## Documentacion
-
-La documentacion de este proyecto es generada automaticamente desde `APP_STATE.json`.
-
-Archivos derivados:
-
-- `PROJECT_STATUS.md`
-- `CHANGELOG.md`
-- `CHATGPT_CONTEXT.md`
-- `CODEX_CONTEXT.md`
-- `AGENTS.md`
-- `CLAUDE.md`
-- `README.md`
-
-Ultima generacion: 2026-06-15T12:38:03
-
 # B.R / br-platform
 
-B.R es una plataforma musical privada/premium para administrar beats, previews, solicitudes, accesos y futuras licencias.
+B.R es una plataforma musical privada/premium para administrar beats, previews, solicitudes, accesos, descargas controladas y futuras licencias.
 
 ## Meta principal
 
@@ -108,9 +13,11 @@ Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia
 ## Estado actual
 
 ```text
-Fase actual: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
-Progreso aproximado: 80%
-Siguiente fase: Fase 12 - player por acceso y preview real
+Fase actual: Fase 12D en progreso / checkpoint comercial y continuidad
+Estado: in_progress
+Progreso aproximado: 85%
+Ultimo commit funcional: 5daddf3 Complete phase 12C saved beats and player controls
+Siguiente fase: Fase 12E - descargas controladas por acceso/licencia
 ```
 
 ## Stack
@@ -130,9 +37,14 @@ Vercel
 ```text
 Home con beats reales
 Explore / Ver todo
-Favoritos
+Guardados locales
+/account/saved conectado a guardados reales
 Mis Beats
 Player global
+Player full/preview por acceso real
+Siguiente/anterior del player respeta acceso por beat
+Space play/pause en player
+Barra del player clickeable/seekable
 Registro/login con Supabase Auth
 Perfiles con telefono
 Panel admin B.RCEO
@@ -144,7 +56,8 @@ Dar/quitar acceso
 Admin Access centrado en beat
 Usuarios admin expandibles
 Eliminar usuario/cuenta
-Catalogo activo visible para usuarios nuevos, existentes y admin
+Catalogo activo visible para visitantes, usuarios nuevos, usuarios existentes y admin
+Scroll horizontal Safari-safe en BeatRow
 ```
 
 ## Regla permanente de catalogo
@@ -161,6 +74,16 @@ beat_access solo controla:
 - acciones protegidas
 ```
 
+## Regla permanente del player
+
+```text
+Si el usuario tiene acceso al beat -> reproducir full audio.
+Si no tiene acceso -> reproducir preview.
+Si no hay sesion -> reproducir preview.
+Siguiente/anterior deben resolver acceso por beat, no reutilizar la URL anterior.
+No romper esta regla al implementar descargas, licencias, pagos o rediseño visual.
+```
+
 ## Decisiones de producto
 
 ```text
@@ -172,15 +95,42 @@ Esto debe aclararse despues en terminos y condiciones.
 ## Pendientes principales
 
 ```text
-Fase 12: player full/preview por acceso
+Fase 12E: descargas controladas por acceso/licencia
 Preview real de 15 segundos
-Descarga controlada
 Licencias descargables
 Pagos automaticos
 Suscripciones / freemium / watermark
 Terminos y condiciones
 Marketplace multiusuario
+Perfiles publicos de productores/artistas
+Servicios musicales
+Escrow o pago protegido
 Chat / rooms de colaboracion
+Diseño visual premium despues del flujo comercial base
+```
+
+## Fase 12E propuesta - Descargas controladas
+
+Meta: permitir descarga solo cuando el usuario tiene acceso valido al beat y preparar la base para licencias descargables.
+
+Alcance inicial:
+
+```text
+Boton Descargar visible solo si el usuario tiene acceso valido.
+Validacion de acceso antes de habilitar descarga.
+No usar beat_access para filtrar catalogo.
+Mantener preview/full playback separado de descarga.
+Preparar modelo para licencia futura sin implementar pagos aun.
+```
+
+Fuera de alcance inicial:
+
+```text
+Pagos automaticos.
+Marketplace multiusuario.
+Licencias PDF avanzadas.
+Escrow o pago protegido.
+Rediseño visual premium.
 ```
 
 ## Comandos
@@ -227,3 +177,28 @@ docs/SETUP_SUPABASE.md
 B.R ya esta registrada en BR.autocarmation Core v3 como app administrada.
 
 BR.autocarmation es infraestructura de continuidad; no debe reemplazar el foco principal del producto B.R.
+
+## Documentacion de continuidad
+
+Archivos principales:
+
+```text
+APP_STATE.json
+PROJECT_STATUS.md
+CHATGPT_CONTEXT.md
+CODEX_CONTEXT.md
+AGENTS.md
+README.md
+```
+
+Antes de cerrar una fase, revisar si estos archivos deben actualizarse para evitar estados viejos o duplicados.
+
+## Validaciones minimas
+
+```bash
+python3 -m json.tool APP_STATE.json >/dev/null
+npm run lint
+npm run build
+```
+
+Ultima actualizacion: Fase 12D en progreso / checkpoint comercial y continuidad

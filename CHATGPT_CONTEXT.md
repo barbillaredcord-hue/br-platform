@@ -1,65 +1,3 @@
-# ChatGPT Context - B.R
-
-Generado automaticamente por BR.autocar Documentation Engine. No editar manualmente.
-
-## Foco principal al retomar sesión
-
-El foco principal de esta sesión debe ser `B.R`, no BR.autocar.
-
-Foco del producto:
-Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
-
-Regla:
-El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.
-
-BR.autocar dentro de esta app debe tratarse como: Objetivo secundario e infraestructura de continuidad.
-
-## Resumen del proyecto
-
-`br-platform` es `B.R`.
-
-Tipo: Marketplace musical / plataforma privada de beats
-
-Vision:
-Convertir B.R en un marketplace musical para productores, musicos, beatmakers, DJs, artistas e ingenieros.
-
-Posicionamiento:
-Plataforma musical premium, privada y escalable con enfoque en acceso controlado, licencias y colaboracion.
-
-## Estado actual
-
-- Fase: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
-- Estado: implemented
-- Avance: 70%
-- Health: 3 healthy / 0 risk / 0 blocked
-- Siguiente accion: Registrar B.R en BR.autocarmation y luego iniciar consolidacion Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
-
-## Reglas de continuidad
-
-- Al cambiar de sesión, primero recuperar el foco, fase, pendientes y próxima acción de `B.R`.
-- BR.autocar es soporte interno dentro de esta app; no debe reemplazar el roadmap del producto.
-- APP_STATE.json es la fuente principal.
-- No editar manualmente PROJECT_STATUS.md, CHANGELOG.md, CHATGPT_CONTEXT.md, CODEX_CONTEXT.md, AGENTS.md, CLAUDE.md ni README.md.
-- Regenerar documentacion con `./scripts/br-sync-docs`.
-
-## Contexto de continuidad
-
-Sin contexto registrado
-
-## Pendiente principal
-
-- Preview real de 15 segundos
-- Guardar beat / favoritos
-- Pagos
-- Licencias descargables
-- Descargas controladas por tipo de licencia
-- Marketplace multiusuario
-- Perfiles publicos de productores/artistas
-- Servicios musicales
-- Escrow o pago protegido
-
-Ultima generacion: 2026-06-15T12:38:03
-
 # CHATGPT_CONTEXT.md - B.R / br-platform
 
 Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.json.
@@ -92,14 +30,15 @@ Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia
 
 ## Estado actual
 
-- Fase: Fase 11F-C completada / estabilidad de catalogo, usuarios y accesos
-- Estado: completed
-- Avance: 80%
+- Fase: Fase 12D en progreso / checkpoint comercial y continuidad
+- Estado: in_progress
+- Avance: 85%
 - Backend: Supabase real
 - Deploy: Vercel
 - BR.autocarmation: B.R ya registrada en Core v3
-- Siguiente fase: Fase 12 - player por acceso y preview real
-- Siguiente accion: Implementar player full si el usuario tiene acceso, preview si no tiene acceso, siguiente/anterior por acceso y base de preview real de 15 segundos.
+- Ultimo commit funcional: 5daddf3 Complete phase 12C saved beats and player controls
+- Siguiente fase: Fase 12E - descargas controladas por acceso/licencia
+- Siguiente accion: Definir e implementar descargas controladas sin romper catalogo, player full/preview por acceso ni reglas de seguridad.
 
 ## Funcionalidad lista
 
@@ -110,9 +49,14 @@ Bucket beats
 MP3 reales
 Home con beats reales
 Explore / Ver todo
-Favoritos
+Guardados locales
+/account/saved conectado a guardados reales
 Mis Beats
 Player global
+Player full/preview por acceso real
+Siguiente/anterior del player respeta acceso por beat
+Space play/pause en player
+Barra del player clickeable/seekable
 Solicitudes de acceso
 Contacto por WhatsApp
 Aprobar/rechazar solicitudes
@@ -122,6 +66,7 @@ Admin Access centrado en beat
 Usuarios admin expandibles
 Eliminacion de usuario/cuenta
 Usuarios nuevos, existentes y admin reciben beats activos nuevos
+Scroll horizontal Safari-safe en BeatRow
 ```
 
 ## Regla permanente de catalogo
@@ -138,15 +83,14 @@ beat_access solo controla:
 - acciones protegidas
 ```
 
-## Regla de player para Fase 12
-
-Pendiente inmediato:
+## Regla permanente del player
 
 ```text
 Si el usuario tiene acceso al beat -> reproducir full audio.
 Si no tiene acceso -> reproducir preview.
 Si no hay sesion -> reproducir preview.
 Siguiente/anterior deben resolver acceso por beat, no reutilizar la URL anterior.
+No romper esta regla al implementar descargas, licencias, pagos o rediseño visual.
 ```
 
 ## Regla de cuenta eliminada
@@ -164,20 +108,47 @@ No exponer SUPABASE_SERVICE_ROLE_KEY al cliente.
 Mantener B.RCEO como unico admin real.
 No permitir acciones protegidas con fallback admin.
 Usar rutas server/API para operaciones privilegiadas.
+No habilitar descarga sin acceso o licencia valida.
 ```
 
 ## Pendiente principal
 
 ```text
-Fase 12: player full/preview por acceso
+Fase 12D: checkpoint comercial y continuidad
+Fase 12E: descargas controladas por acceso/licencia
 Preview real de 15 segundos
-Descarga controlada
 Licencias descargables
 Pagos automaticos
 Suscripciones / freemium / watermark
 Terminos y condiciones
 Marketplace multiusuario
 Chat / rooms de colaboracion
+Diseño visual premium despues del flujo comercial base
+```
+
+## Fase 12E propuesta - Descargas controladas
+
+Meta:
+Permitir descarga solo cuando el usuario tiene acceso valido al beat y preparar la base para licencias descargables.
+
+Alcance inicial:
+
+```text
+Boton Descargar visible solo si el usuario tiene acceso valido.
+Validacion de acceso antes de habilitar descarga.
+No usar beat_access para filtrar catalogo.
+Mantener preview/full playback separado de descarga.
+Preparar modelo para licencia futura sin implementar pagos aun.
+```
+
+Fuera de alcance inicial:
+
+```text
+Pagos automaticos.
+Marketplace multiusuario.
+Licencias PDF avanzadas.
+Escrow o pago protegido.
+Rediseño visual premium.
 ```
 
 ## Validaciones minimas
@@ -188,4 +159,4 @@ npm run lint
 npm run build
 ```
 
-Ultima actualizacion: Fase 11F-C cerrada / preparacion Fase 12
+Ultima actualizacion: Fase 12D en progreso / checkpoint comercial y continuidad
