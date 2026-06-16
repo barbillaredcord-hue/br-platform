@@ -54,16 +54,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const startAudio = useCallback((beat: Beat, nextMode: PlayerMode) => {
     const nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl;
-    console.log("[player audio]", {
-      beatName: beat.name,
-      beatId: beat.id,
-      beatDbId: beat.dbId,
-      nextMode,
-      previewUrl: beat.previewUrl,
-      fullAudioUrl: beat.fullAudioUrl,
-      selectedUrl: nextAudioUrl,
-      fullEqualsPreview: beat.fullAudioUrl === beat.previewUrl,
-    });
+
     const previewLimit = 15;
 
     audioRef.current?.pause();
@@ -112,14 +103,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const resolvePlaybackMode = useCallback((beat: Beat, requestedMode: PlaybackRequestMode) => {
     // Do not use access to filter catalog visibility. Access only controls playback/download/protected actions.
     const hasAccess = userCanAccessBeat(currentUserRef.current, beat);
-    console.log("[player resolve]", {
-      beatName: beat.name,
-      beatId: beat.id,
-      beatDbId: beat.dbId,
-      requestedMode,
-      accessibleBeatIds: currentUserRef.current?.accessibleBeatIds,
-      hasAccess,
-    });
 
     if (requestedMode === "auto") {
       return hasAccess ? "full" : "preview";
@@ -155,14 +138,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     const resolvedMode = resolvePlaybackMode(nextBeat, "auto");
-    console.log("[player next]", {
-      currentIndex,
-      nextIndex,
-      nextBeatName: nextBeat.name,
-      nextBeatId: nextBeat.id,
-      nextBeatDbId: nextBeat.dbId,
-      resolvedMode,
-    });
 
     playBeat(nextBeat, resolvedMode, queue);
   }, [currentIndex, playBeat, queue, resolvePlaybackMode]);
@@ -176,14 +151,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     const resolvedMode = resolvePlaybackMode(previousBeat, "auto");
-    console.log("[player previous]", {
-      currentIndex,
-      previousIndex,
-      previousBeatName: previousBeat.name,
-      previousBeatId: previousBeat.id,
-      previousBeatDbId: previousBeat.dbId,
-      resolvedMode,
-    });
 
     playBeat(previousBeat, resolvedMode, queue);
   }, [currentIndex, playBeat, queue, resolvePlaybackMode]);
