@@ -18,7 +18,6 @@ function formatTime(seconds: number) {
 export function PlayerBar() {
   const { audioUrl, closePlayer, currentBeat, isPlaying, mode, duration, currentTime, queue, currentIndex, playNext, playPrevious, seekTo, togglePlayback } = usePlayer();
   const status = mode === "full" ? "Acceso completo" : "Preview 15s";
-  const progress = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < queue.length - 1;
 
@@ -105,8 +104,7 @@ export function PlayerBar() {
             value={Math.min(currentTime, duration || currentTime || 0)}
             onChange={(event) => seekTo(Number(event.target.value))}
             aria-label="Avance del beat"
-            className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-300"
-            style={{ background: `linear-gradient(to right, rgb(103 232 249) ${progress}%, rgba(255,255,255,0.10) ${progress}%)` }}
+            className="h-2 flex-1 cursor-pointer accent-cyan-300"
           />
           <span className="text-xs text-zinc-500">{formatTime(duration)}</span>
         </div>
