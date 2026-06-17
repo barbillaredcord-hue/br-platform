@@ -180,9 +180,9 @@ export function NewBeatForm() {
       ) : null}
 
       <div className="rounded-lg border border-cyan-300/20 bg-white/5 p-4 md:col-span-2">
-        <p className="font-bold">Preview temporal</p>
+        <p className="font-bold">Preview inicial</p>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
-          Preview real separado se implementará en una fase posterior. Actualmente preview_url utiliza temporalmente el mismo MP3.
+          Al crear el beat, B.R usa temporalmente el MP3 completo como preview inicial. Después puedes abrir el Preview Editor para subir un preview real de 15 a 30 segundos sin modificar el archivo completo.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button
@@ -234,7 +234,8 @@ export function NewBeatForm() {
         {createdSlug ? (
           <div className="mt-4 flex flex-wrap gap-3">
             <Link href="/admin/beats" className="inline-flex h-10 items-center rounded-md bg-cyan-300 px-4 text-sm font-bold text-black hover:bg-cyan-200">Ir a catálogo admin</Link>
-            <Link href={`/beats/${createdSlug}`} className="inline-flex h-10 items-center rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 hover:border-cyan-300">Ver beat</Link>
+            <Link href={`/admin/beats/${createdSlug}/preview-editor`} className="inline-flex h-10 items-center rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 hover:border-cyan-300">Editar preview</Link>
+            <Link href={`/beats/${createdSlug}`} className="inline-flex h-10 items-center rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">Ver beat</Link>
           </div>
         ) : null}
       </div>

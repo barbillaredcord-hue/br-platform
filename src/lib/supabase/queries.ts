@@ -27,6 +27,8 @@ type BeatRowDb = {
   musical_key: string | null;
   preview_url: string;
   full_audio_url: string;
+  preview_duration_seconds?: number | null;
+  preview_updated_at?: string | null;
   is_active: boolean | null;
 };
 
@@ -141,7 +143,7 @@ export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status"
 }
 
 export function mapSupabaseBeat(row: BeatRowDb): Beat {
-  return {
+  const beat: Beat = {
     id: row.slug,
     dbId: row.id,
     name: row.title,
@@ -154,6 +156,11 @@ export function mapSupabaseBeat(row: BeatRowDb): Beat {
     fullAudioUrl: row.full_audio_url,
     isDemoAudio: false,
   };
+
+  return Object.assign(beat, {
+    previewDurationSeconds: row.preview_duration_seconds ?? 15,
+    previewUpdatedAt: row.preview_updated_at ?? null,
+  });
 }
 
 export function buildBeatRows(beats: Beat[]): BeatRow[] {
@@ -289,7 +296,7 @@ export async function getBeats() {
 
   const { data, error } = await supabase
     .from("beats")
-    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,is_active")
+    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,is_active")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -311,7 +318,7 @@ export async function getBeatBySlug(slug: string) {
 
   const { data, error } = await supabase
     .from("beats")
-    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,is_active")
+    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,is_active")
     .eq("slug", slug)
     .maybeSingle<BeatRowDb>();
 
@@ -948,6 +955,8 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     musical_key: input.musicalKey.trim() || null,
     full_audio_url: publicUrl,
     preview_url: publicUrl,
+    preview_duration_seconds: 15,
+    preview_updated_at: null,
     is_active: true,
   };
   diagnostics.payload = payload;
@@ -973,4 +982,89 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
   }
 
   return { ok: true, message: "Beat guardado correctamente", slug, diagnostics };
+}
+
+export async function updateBeatPreviewWithUpload(input: { beatId: string; slug: string; file: File; durationSeconds: number }) {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+  const durationSeconds = Math.min(30, Math.max(15, Math.round(input.durationSeconds || 15)));
+  const diagnostics = {
+    authUser: null as { id?: string; email?: string } | null,
+    payload: null as Record<string, unknown> | null,
+    error: null as { message?: string; code?: string; details?: string; hint?: string } | null,
+  };
+
+  if (!supabase) {
+    return { ok: false, message: authClient.message, diagnostics };
+  }
+
+  diagnostics.authUser = {
+    id: authClient.sessionInfo.userId ?? undefined,
+    email: authClient.sessionInfo.userEmail ?? undefined,
+  };
+
+  if (!input.beatId || !input.slug || !input.file) {
+    return { ok: false, message: "Beat y archivo preview son obligatorios.", diagnostics };
+  }
+
+  if (!input.file.name.toLowerCase().endsWith(".mp3") && input.file.type !== "audio/mpeg") {
+    return { ok: false, message: "El preview debe ser un archivo MP3.", diagnostics };
+  }
+
+  const safeFilename = input.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const path = `previews/${input.slug}/${Date.now()}-${safeFilename}`;
+
+  const { error: uploadError } = await supabase.storage.from("beats").upload(path, input.file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: input.file.type || "audio/mpeg",
+  });
+
+  if (uploadError) {
+    diagnostics.error = {
+      message: uploadError.message,
+      code: "code" in uploadError ? String(uploadError.code) : undefined,
+    };
+
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R upload preview storage error", diagnostics);
+    }
+
+    return { ok: false, message: "No se pudo subir el preview.", diagnostics };
+  }
+
+  const { data: publicData } = supabase.storage.from("beats").getPublicUrl(path);
+  const publicUrl = publicData.publicUrl;
+
+  const payload = {
+    preview_url: publicUrl,
+    preview_duration_seconds: durationSeconds,
+    preview_updated_at: new Date().toISOString(),
+  };
+
+  diagnostics.payload = payload;
+
+  const { error: updateError } = await supabase
+    .from("beats")
+    .update(payload)
+    .eq(uuidPattern.test(input.beatId) ? "id" : "slug", input.beatId);
+
+  if (updateError) {
+    await supabase.storage.from("beats").remove([path]);
+
+    diagnostics.error = {
+      message: updateError.message,
+      code: updateError.code,
+      details: updateError.details,
+      hint: updateError.hint,
+    };
+
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R update beat preview error", diagnostics);
+    }
+
+    return { ok: false, message: "No se pudo actualizar el preview del beat.", diagnostics };
+  }
+
+  return { ok: true, message: "Preview actualizado correctamente.", previewUrl: publicUrl, durationSeconds, diagnostics };
 }

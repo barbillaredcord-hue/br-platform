@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Save, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal } from "lucide-react";
 import { AdminBeatStatus } from "@/components/admin/AdminBeatStatus";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { WaveformPreview } from "@/components/admin/WaveformPreview";
+import { PreviewEditorForm } from "@/components/admin/PreviewEditorForm";
 import { PlayButton } from "@/components/PlayButton";
-import { getBeatById } from "@/data/beats";
+import { getBeatBySlug } from "@/lib/supabase/queries";
+
+type BeatWithPreviewMeta = Awaited<ReturnType<typeof getBeatBySlug>> & {
+  previewDurationSeconds?: number;
+  previewUpdatedAt?: string | null;
+};
 
 type PreviewEditorPageProps = {
   params: Promise<{
@@ -15,63 +20,42 @@ type PreviewEditorPageProps = {
 
 export default async function PreviewEditorPage({ params }: PreviewEditorPageProps) {
   const { id } = await params;
-  const beat = getBeatById(id);
+  const beat = (await getBeatBySlug(id)) as BeatWithPreviewMeta;
 
   if (!beat) {
     notFound();
   }
 
+  const previewDurationSeconds = typeof beat.previewDurationSeconds === "number" ? beat.previewDurationSeconds : 15;
+  const hasRealPreview = beat.previewUrl !== beat.fullAudioUrl;
+
   return (
     <AdminShell
       title="Editor de Preview"
-      subtitle="Simulación profesional para definir corte público, duración y fades del preview."
+      subtitle="Sube y administra el preview público real del beat. Duración permitida: 15 a 30 segundos."
     >
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
         <section className="space-y-5">
-          <WaveformPreview />
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <PlayButton beat={beat} mode="preview" showPauseState className="justify-center">
-              Play Preview
-            </PlayButton>
-            <button type="button" className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
-              Cambiar inicio
-            </button>
-            <button type="button" className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
-              Fade In
-            </button>
-            <button type="button" className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
-              Fade Out
-            </button>
-            <button type="button" className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 py-3 text-sm font-bold text-black hover:bg-cyan-200">
-              <Save className="h-4 w-4" aria-hidden="true" />
-              Guardar Preview
-            </button>
-          </div>
-
           <div className="rounded-lg border border-white/10 bg-[#101317] p-5">
-            <div className="mb-4 flex items-center gap-2 text-cyan-200">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-              <p className="text-sm font-bold uppercase">Configuración demo</p>
-            </div>
-            <p className="mb-4 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 text-sm leading-6 text-cyan-100">
-              Preview real se implementará en Fase 12. Actualmente preview_url utiliza temporalmente el mismo MP3.
+            <p className="text-sm font-bold uppercase text-cyan-200">Prueba rápida</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              Este botón reproduce el preview actual que escuchan visitantes y usuarios sin acceso. El beat completo se mantiene separado para usuarios con acceso.
             </p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-md bg-white/5 p-4">
-                <p className="text-xs text-zinc-500">Marcador inicio</p>
-                <p className="mt-1 font-bold">0:08</p>
-              </div>
-              <div className="rounded-md bg-white/5 p-4">
-                <p className="text-xs text-zinc-500">Marcador fin</p>
-                <p className="mt-1 font-bold">0:23</p>
-              </div>
-              <div className="rounded-md bg-white/5 p-4">
-                <p className="text-xs text-zinc-500">Duración preview</p>
-                <p className="mt-1 font-bold">15 segundos</p>
-              </div>
+            <div className="mt-4 max-w-xs">
+              <PlayButton beat={beat} mode="preview" showPauseState className="justify-center">
+                Play Preview Actual
+              </PlayButton>
             </div>
           </div>
+
+          <PreviewEditorForm
+            beatId={beat.dbId ?? beat.id}
+            slug={beat.id}
+            title={beat.name}
+            currentPreviewUrl={beat.previewUrl}
+            fullAudioUrl={beat.fullAudioUrl}
+            initialDurationSeconds={previewDurationSeconds}
+          />
         </section>
 
         <aside className="rounded-lg border border-white/10 bg-[#101317] p-5">
@@ -87,6 +71,11 @@ export default async function PreviewEditorPage({ params }: PreviewEditorPagePro
             <div className="rounded-md bg-white/5 p-3">
               <p className="text-xs uppercase text-zinc-500">Género</p>
               <p className="mt-1 font-bold">{beat.genre}</p>
+            </div>
+            <div className="rounded-md bg-white/5 p-3">
+              <p className="text-xs uppercase text-zinc-500">Preview</p>
+              <p className="mt-1 font-bold">{previewDurationSeconds} segundos</p>
+              <p className="mt-1 text-xs text-zinc-500">{hasRealPreview ? "Preview real" : "Temporal: usa el MP3 completo"}</p>
             </div>
             <div className="rounded-md bg-white/5 p-3">
               <p className="mb-2 text-xs uppercase text-zinc-500">Estado</p>
