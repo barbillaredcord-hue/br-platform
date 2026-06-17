@@ -27,10 +27,13 @@ create table if not exists public.beats (
   musical_key text,
   preview_url text not null,
   full_audio_url text not null,
+  preview_duration_seconds integer not null default 15,
+  preview_updated_at timestamptz,
   is_active boolean default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
-  constraint beats_bpm_check check (bpm is null or bpm between 40 and 240)
+  constraint beats_bpm_check check (bpm is null or bpm between 40 and 240),
+  constraint beats_preview_duration_seconds_check check (preview_duration_seconds between 15 and 30)
 );
 
 create table if not exists public.beat_access (
