@@ -66,3 +66,8 @@ on public.manual_payments
 for select
 to authenticated
 using (private.is_br_admin());
+
+-- 12L.1 - Evita pagos manuales duplicados por usuario + beat.
+create unique index if not exists manual_payments_user_beat_unique_idx
+on public.manual_payments (user_id, beat_id)
+where user_id is not null and beat_id is not null;

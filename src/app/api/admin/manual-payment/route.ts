@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     return admin.response;
   }
 
-  const payload = await request.json().catch(() => null) as ManualPaymentPayload | null;
+  const payload = (await request.json().catch(() => null)) as ManualPaymentPayload | null;
   const userId = cleanText(payload?.user_id);
   const beatIdentifier = cleanText(payload?.beat_id);
   const amount = Number(payload?.amount);
@@ -76,23 +76,13 @@ export async function POST(request: Request) {
   let beatError: unknown = null;
 
   if (uuidPattern.test(beatIdentifier)) {
-    const result = await admin.supabase
-      .from("beats")
-      .select("id,title,slug")
-      .eq("id", beatIdentifier)
-      .maybeSingle<BeatPaymentRow>();
-
+    const result = await admin.supabase.from("beats").select("id,title,slug").eq("id", beatIdentifier).maybeSingle<BeatPaymentRow>();
     beat = result.data;
     beatError = result.error;
   }
 
   if (!beat && !beatError) {
-    const result = await admin.supabase
-      .from("beats")
-      .select("id,title,slug")
-      .eq("slug", beatIdentifier)
-      .maybeSingle<BeatPaymentRow>();
-
+    const result = await admin.supabase.from("beats").select("id,title,slug").eq("slug", beatIdentifier).maybeSingle<BeatPaymentRow>();
     beat = result.data;
     beatError = result.error;
   }
@@ -106,6 +96,38 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, message: "Beat no encontrado." }, { status: 404 });
   }
 
+  const { data: accessRow, error: accessError } = await admin.supabase
+    .from("beat_access")
+    .select("beat_id")
+    .eq("user_id", profile.id)
+    .eq("beat_id", beat.id)
+    .maybeSingle<{ beat_id: string }>();
+
+  if (accessError) {
+    console.error("B.R manual payment access lookup error", accessError);
+    return Response.json({ ok: false, message: "No se pudo validar el acceso del usuario al beat." }, { status: 500 });
+  }
+
+  if (!accessRow) {
+    return Response.json({ ok: false, message: "Ese usuario todavía no tiene acceso a este beat." }, { status: 400 });
+  }
+
+  const { data: existingPayment, error: existingPaymentError } = await admin.supabase
+    .from("manual_payments")
+    .select("id")
+    .eq("user_id", profile.id)
+    .eq("beat_id", beat.id)
+    .maybeSingle<{ id: string }>();
+
+  if (existingPaymentError) {
+    console.error("B.R manual payment duplicate lookup error", existingPaymentError);
+    return Response.json({ ok: false, message: "No se pudo validar si el pago ya existe." }, { status: 500 });
+  }
+
+  if (existingPayment) {
+    return Response.json({ ok: false, message: "Ese beat ya tiene pago registrado para este usuario." }, { status: 409 });
+  }
+
   const paymentRow = {
     user_id: profile.id,
     user_email: profile.email,
@@ -117,6 +139,7 @@ export async function POST(request: Request) {
     note: note || null,
     created_by_admin: admin.requester.id,
   };
+
   const { error: paymentError } = await admin.supabase.from("manual_payments").insert(paymentRow);
 
   if (paymentError) {

@@ -3,7 +3,7 @@ import { AdminDashboardStats } from "@/components/admin/AdminDashboardStats";
 import { AdminQuickLink } from "@/components/admin/AdminQuickLink";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { CommercialActivityPanel } from "@/components/admin/CommercialActivityPanel";
-import { ManualPaymentForm } from "@/components/admin/ManualPaymentForm";
+import { CommercialUsersPanel } from "@/components/admin/CommercialUsersPanel";
 import { ProductUpdatesPanel } from "@/components/ProductUpdatesPanel";
 import { getAccessRequests, getBeats, getProfiles } from "@/lib/supabase/queries";
 
@@ -21,8 +21,8 @@ export default async function AdminPage() {
       <AdminDashboardStats initialBeats={beats} initialUsers={users} initialRequests={requests} />
       <ProductUpdatesPanel audience="admin" />
       <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        <CommercialUsersPanel />
         <CommercialActivityPanel />
-        <ManualPaymentForm />
       </div>
 
       <section>
