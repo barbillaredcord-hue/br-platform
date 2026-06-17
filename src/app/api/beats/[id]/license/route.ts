@@ -34,6 +34,25 @@ function formatDate(date = new Date()) {
   });
 }
 
+async function logLicenseActivity(
+  supabase: NonNullable<ReturnType<typeof createSupabaseServiceClient>>,
+  input: { userId: string; userEmail?: string | null; beat: BeatLicenseRow },
+) {
+  const { error } = await supabase.from("commercial_activity").insert({
+    event_type: "license_download",
+    user_id: input.userId,
+    user_email: input.userEmail ?? null,
+    beat_id: input.beat.id,
+    beat_title: input.beat.title ?? null,
+    beat_slug: input.beat.slug ?? null,
+    metadata: { source: "license_api" },
+  });
+
+  if (error) {
+    console.error("B.R commercial activity license_download log error", error);
+  }
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const supabase = createSupabaseServiceClient();
 
@@ -146,6 +165,12 @@ export async function GET(request: Request, context: RouteContext) {
   ].join("\n");
 
   const filename = `${safeFileName(beat.slug || beat.title)}-license.txt`;
+
+  await logLicenseActivity(supabase, {
+    userId: user.id,
+    userEmail: user.email,
+    beat,
+  });
 
   return new Response(licenseText, {
     headers: {

@@ -2,6 +2,8 @@ import { Inbox, KeyRound, ListMusic, PlugZap, Plus, Users } from "lucide-react";
 import { AdminDashboardStats } from "@/components/admin/AdminDashboardStats";
 import { AdminQuickLink } from "@/components/admin/AdminQuickLink";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { CommercialActivityPanel } from "@/components/admin/CommercialActivityPanel";
+import { ManualPaymentForm } from "@/components/admin/ManualPaymentForm";
 import { ProductUpdatesPanel } from "@/components/ProductUpdatesPanel";
 import { getAccessRequests, getBeats, getProfiles } from "@/lib/supabase/queries";
 
@@ -18,6 +20,10 @@ export default async function AdminPage() {
     >
       <AdminDashboardStats initialBeats={beats} initialUsers={users} initialRequests={requests} />
       <ProductUpdatesPanel audience="admin" />
+      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        <CommercialActivityPanel />
+        <ManualPaymentForm />
+      </div>
 
       <section>
         <h2 className="mb-4 text-xl font-bold">Accesos rápidos</h2>

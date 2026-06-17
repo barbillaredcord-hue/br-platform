@@ -14,6 +14,25 @@ function safeFileName(input?: string | null) {
     .replace(/^-|-$/g, "") || "br-beat";
 }
 
+async function logDownloadActivity(
+  supabase: NonNullable<ReturnType<typeof createSupabaseServiceClient>>,
+  input: { userId: string; userEmail?: string | null; beat: { id: string; title?: string | null; slug?: string | null } },
+) {
+  const { error } = await supabase.from("commercial_activity").insert({
+    event_type: "mp3_download",
+    user_id: input.userId,
+    user_email: input.userEmail ?? null,
+    beat_id: input.beat.id,
+    beat_title: input.beat.title ?? null,
+    beat_slug: input.beat.slug ?? null,
+    metadata: { source: "download_api" },
+  });
+
+  if (error) {
+    console.error("B.R commercial activity mp3_download log error", error);
+  }
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const supabase = createSupabaseServiceClient();
 
@@ -90,6 +109,12 @@ export async function GET(request: Request, context: RouteContext) {
   if (!audioResponse.ok || !audioResponse.body) {
     return Response.json({ ok: false, message: "No se pudo preparar la descarga." }, { status: 502 });
   }
+
+  await logDownloadActivity(supabase, {
+    userId: user.id,
+    userEmail: user.email,
+    beat,
+  });
 
   const filename = `${safeFileName(beat.slug || beat.title)}.mp3`;
 
