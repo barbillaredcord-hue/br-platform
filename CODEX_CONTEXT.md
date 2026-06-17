@@ -1,23 +1,25 @@
 # CODEX_CONTEXT.md - B.R / br-platform
 
-Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.json.
+Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.json, PROJECT_STATUS.md, README.md, AGENTS.md y CHATGPT_CONTEXT.md.
 
-## Foco tecnico principal
+## Foco técnico principal
 
-El trabajo tecnico debe proteger el producto `B.R`.
+El trabajo técnico debe proteger el producto `B.R`.
 
-B.R es el producto principal. BR.autocarmation es infraestructura de soporte, continuidad y administracion secundaria; sus cambios no deben desplazar la funcionalidad, roadmap ni continuidad principal de la app.
+B.R es el producto principal. BR.autocarmation es infraestructura de soporte, continuidad y administración secundaria; sus cambios no deben desplazar la funcionalidad, roadmap ni continuidad principal de la app.
 
 ## Proyecto
 
 - App ID: `br-platform`
 - Producto: B.R
-- Tipo: Marketplace musical / plataforma privada de beats
-- Fase actual: Fase 12D en progreso / checkpoint comercial y continuidad
-- Estado: in_progress
+- Tipo: marketplace musical / plataforma privada de beats
+- Fase actual: Fase 12 cerrada / comercial base completada
+- Estado: implemented / estable
 - Avance: 85%
-- Ultimo commit funcional: 5daddf3 Complete phase 12C saved beats and player controls
-- Siguiente fase: Fase 12E - descargas controladas por acceso/licencia
+- Último commit funcional: be3d8cb feat:add license type support and phase 12 checkpoint
+- Checkpoint principal: docs/phase-12-commercial-checkpoint.md
+- SQL comercial: docs/supabase/phase-12-commercial.sql
+- Siguiente fase: Fase 13 - preview real de 15 segundos + UX premium del player
 
 ## Meta principal
 
@@ -26,6 +28,8 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario:
 ```text
 Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia
 ```
+
+La base comercial de Fase 12 ya quedó cerrada. La siguiente prioridad es Fase 13: preview real de 15 segundos y UX premium del player.
 
 ## Arquitectura
 
@@ -36,6 +40,8 @@ Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia
 - Auth: true
 - Storage: true
 - Payments: false
+- Pagos manuales: true
+- Licencias: basic, premium, exclusive
 
 ## Funcionalidad ya implementada
 
@@ -61,26 +67,36 @@ Dar/quitar acceso
 Panel admin B.RCEO
 Admin Access centrado en beat
 Usuarios admin expandibles
-Eliminacion de usuario/cuenta
+Eliminación de usuario/cuenta
 Usuarios nuevos, existentes y admin reciben beats activos nuevos
 Scroll horizontal Safari-safe en BeatRow
+Descarga protegida de MP3 por sesión y beat_access
+Descarga protegida de licencia por sesión y beat_access
+Registro server-side de actividad comercial en commercial_activity
+Panel admin de actividad comercial
+Panel admin de usuarios comerciales
+Registro de pagos manuales por usuario + beat
+Prevención de pago manual duplicado por usuario + beat
+Tipos de licencia basic, premium y exclusive
+Checkpoint de Fase 12 en docs/phase-12-commercial-checkpoint.md
 ```
 
-## Reglas tecnicas criticas
+## Reglas técnicas críticas
 
 - APP_STATE.json es la fuente principal de verdad del estado del producto.
-- No instalar dependencias ni modificar package.json salvo instruccion explicita.
-- Antes de editar codigo, listar archivos a crear o modificar si el cambio es amplio.
-- Mantener cambios pequenos y verificables.
-- Ejecutar validaciones despues de cambios.
-- No mezclar logica principal de B.R con infraestructura de BR.autocarmation.
+- No instalar dependencias ni modificar package.json salvo instrucción explícita.
+- Antes de editar código, listar archivos a crear o modificar si el cambio es amplio.
+- Mantener cambios pequeños y verificables.
+- Ejecutar validaciones después de cambios.
+- No mezclar lógica principal de B.R con infraestructura de BR.autocarmation.
+- No tocar pagos automáticos, Stripe, escrow, marketplace multiusuario ni perfiles públicos hasta que Fase 13 esté definida.
 
-## Regla permanente de catalogo
+## Regla permanente de catálogo
 
-Nunca filtrar la visibilidad del catalogo por `beat_access`.
+Nunca filtrar la visibilidad del catálogo por `beat_access`.
 
 ```text
-Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO, segun la visibilidad publica prevista.
+Todo beat activo debe aparecer en el catálogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO, según la visibilidad pública prevista.
 ```
 
 `beat_access` solo controla:
@@ -88,11 +104,12 @@ Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, 
 ```text
 preview/full
 descarga
+licencia
 badges
 acciones protegidas
 ```
 
-Comentario recomendado cerca de queries de catalogo/acceso:
+Comentario recomendado cerca de queries de catálogo/acceso:
 
 ```ts
 // Do not use access to filter catalog visibility.
@@ -104,9 +121,9 @@ Comentario recomendado cerca de queries de catalogo/acceso:
 ```text
 Si el usuario tiene acceso al beat -> reproducir full audio.
 Si no tiene acceso -> reproducir preview.
-Si no hay sesion -> reproducir preview.
+Si no hay sesión -> reproducir preview.
 Siguiente/anterior deben resolver acceso por beat, no reutilizar la URL anterior.
-No romper esta regla al implementar descargas, licencias, pagos o rediseño visual.
+No romper esta regla al implementar preview real, descargas, licencias, pagos o rediseño visual.
 ```
 
 Debe funcionar desde:
@@ -122,76 +139,129 @@ next button
 previous button
 ```
 
-## Fase 12E propuesta - Descargas controladas
+## Fase 12 cerrada - Comercial base
+
+Completado:
+
+```text
+Preview/full por acceso.
+Saved beats.
+Descarga protegida MP3.
+Descarga protegida licencia.
+Registro server-side de actividad comercial en commercial_activity.
+Panel admin de actividad comercial.
+Panel admin de usuarios comerciales.
+Pagos manuales por usuario + beat.
+Prevención de pago duplicado por usuario + beat.
+Tipos de licencia basic, premium y exclusive.
+Checkpoint de cierre de Fase 12.
+```
+
+Rutas activas:
+
+```text
+GET /api/beats/[id]/download
+GET /api/beats/[id]/license
+GET /api/admin/commercial-activity
+GET /api/admin/commercial-users
+GET /api/admin/manual-payment-options
+POST /api/admin/manual-payment
+```
+
+SQL asociado:
+
+```text
+docs/supabase/phase-12-commercial.sql
+```
+
+Este SQL debe estar ejecutado o re-ejecutado en Supabase. Incluye commercial_activity, manual_payments, unique index de pago manual y columna manual_payments.license_type.
+
+## Fase 13 propuesta - Preview real y UX premium
 
 Meta:
-Permitir descarga solo cuando el usuario tiene acceso valido al beat y preparar la base para licencias descargables.
+Separar un preview real de 15 segundos del audio full, mejorar la experiencia premium del player y preparar la base para pagos iniciales/licencias sin expandir todavía a marketplace multiusuario.
 
 Alcance inicial:
 
 ```text
-Boton Descargar visible solo si el usuario tiene acceso valido.
-Validacion de acceso antes de habilitar descarga.
-No usar beat_access para filtrar catalogo.
-Mantener preview/full playback separado de descarga.
-Preparar modelo para licencia futura sin implementar pagos aun.
+Crear preview real separado de 15 segundos.
+Mantener full audio solo para usuarios con acceso.
+Mejorar UX premium del player sin romper preview/full actual.
+Evaluar bucket privado y signed URLs.
+Mantener descarga MP3/licencia protegida por sesión y beat_access.
+No usar beat_access para filtrar catálogo.
 ```
 
 Fuera de alcance inicial:
 
 ```text
-Pagos automaticos.
+Stripe o pagos automáticos completos.
 Marketplace multiusuario.
-Licencias PDF avanzadas.
+Perfiles públicos de productores/artistas.
+Licencias legales avanzadas.
 Escrow o pago protegido.
-Rediseño visual premium.
 ```
 
 ## Cuenta eliminada
 
-Decision de producto:
+Decisión de producto:
 
 ```text
 Si el usuario elimina su cuenta, se eliminan sus datos y accesos.
 Si vuelve a crear una cuenta con el mismo correo, B.R no garantiza recuperar accesos anteriores.
-Esta regla debe incluirse despues en terminos y condiciones.
+Esta regla debe incluirse después en términos y condiciones.
 ```
 
 ## Seguridad
 
 ```text
 No exponer SUPABASE_SERVICE_ROLE_KEY al cliente.
-Mantener B.RCEO como unico admin real.
+Mantener B.RCEO como único admin real.
 No permitir acciones protegidas con fallback admin.
 Usar rutas server/API para operaciones privilegiadas.
-No habilitar descarga sin acceso o licencia valida.
+No habilitar descarga sin acceso o licencia válida.
+No expandir marketplace multiusuario antes de consolidar preview real, pagos iniciales y licencias.
 ```
 
-## Pendientes despues de Fase 12D
+## Pendientes principales
 
 ```text
-Fase 12E: descargas controladas por acceso/licencia
-Preview real de 15 segundos
-Licencias descargables
-Pagos automaticos
+Fase 13: preview real de 15 segundos + UX premium del player
+Evaluar bucket privado y signed URLs
+Preparar pagos iniciales sin Stripe hasta definir alcance
+Mejorar modelo formal de licencias después del preview real
+Términos y condiciones
 Suscripciones / freemium / watermark
-Terminos y condiciones
 Marketplace multiusuario
-Perfiles publicos de productores/artistas
+Perfiles públicos de productores/artistas
 Servicios musicales
 Escrow o pago protegido
-Chat / rooms de colaboracion
-Diseño visual premium despues del flujo comercial base
+Chat / rooms de colaboración
 ```
 
-## Riesgos tecnicos / producto
+## Riesgos técnicos / producto
 
 ```text
-No volver a filtrar catalogo por beat_access.
+No volver a filtrar catálogo por beat_access.
 No romper player full/preview por acceso.
-No habilitar descarga sin acceso/licencia valida.
+No habilitar descarga sin acceso/licencia válida.
 No exponer service role key al cliente.
-No avanzar a marketplace antes de consolidar el flujo comercial base.
+No avanzar a marketplace antes de consolidar preview real, pagos iniciales y licencias.
+```
+
+## Documentación de continuidad
+
+Archivos principales:
+
+```text
+APP_STATE.json
+PROJECT_STATUS.md
+README.md
+AGENTS.md
+CHATGPT_CONTEXT.md
+CODEX_CONTEXT.md
+docs/phase-12-commercial-checkpoint.md
+docs/phase-12m1-continuity-sync.md
 ```
 
 ## Validaciones recomendadas
@@ -202,4 +272,4 @@ npm run lint
 npm run build
 ```
 
-Ultima actualizacion: Fase 12D en progreso / checkpoint comercial y continuidad
+Última actualización: Fase 12 cerrada / comercial base completada

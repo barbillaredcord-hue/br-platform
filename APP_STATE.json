@@ -13,14 +13,15 @@
   },
   "identity": {
     "product_name": "B.R",
-    "product_type": "Marketplace musical / plataforma privada de beats",
-    "created_reason": "Crear una plataforma musical privada para administrar beats, previews, solicitudes, accesos y futuras licencias.",
-    "vision": "Convertir B.R en un marketplace musical para productores, musicos, beatmakers, DJs, artistas e ingenieros.",
-    "positioning": "Plataforma musical premium, privada y escalable con enfoque en acceso controlado, licencias y colaboracion.",
+    "product_type": "marketplace musical / plataforma privada de beats",
+    "created_reason": "Crear una plataforma musical privada para administrar beats, previews, solicitudes, accesos, descargas controladas y licencias.",
+    "vision": "Convertir B.R en una plataforma musical premium para productores, musicos, beatmakers, DJs, artistas e ingenieros.",
+    "positioning": "Plataforma musical premium, privada y escalable con enfoque en acceso controlado, licencias, pagos manuales iniciales y futura colaboracion.",
     "primary_product_focus": "Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
     "primary_product_rule": "El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.",
     "autocar_role_inside_product": "Objetivo secundario e infraestructura de continuidad",
-    "catalog_visibility_rule": "Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO segun la visibilidad publica prevista. beat_access no debe filtrar la visibilidad del catalogo; solo debe controlar preview/full, descarga, badges y acciones protegidas.",
+    "catalog_visibility_rule": "Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO segun la visibilidad publica prevista. beat_access no debe filtrar la visibilidad del catalogo; solo debe controlar preview/full, descarga, licencia, badges y acciones protegidas.",
+    "player_access_rule": "Si el usuario tiene acceso al beat debe reproducir full audio. Si no tiene acceso o no hay sesion debe reproducir preview. Siguiente/anterior deben resolver acceso por beat y no reutilizar la URL anterior.",
     "account_deletion_rule": "Si un usuario elimina su cuenta, se eliminan sus datos y accesos. Si vuelve a crear una cuenta con el mismo correo, B.R no garantiza recuperar accesos anteriores. Esta regla debe incluirse despues en terminos y condiciones."
   },
   "product": {
@@ -35,7 +36,12 @@
       "Favoritos",
       "Mis Beats",
       "Eliminacion de usuarios",
-      "Base futura para licencias, pagos y marketplace"
+      "Descarga protegida de MP3",
+      "Descarga protegida de licencia",
+      "Pagos manuales por usuario + beat",
+      "Actividad comercial",
+      "Tipos de licencia basic, premium y exclusive",
+      "Base futura para preview real, pagos iniciales y marketplace"
     ],
     "target_users": [
       "B.RCEO",
@@ -49,10 +55,10 @@
     ],
     "limits": [
       "Preview real de 15 segundos pendiente",
-      "Pagos automaticos pendientes",
-      "Licencias descargables pendientes",
-      "Descarga controlada pendiente",
+      "Pagos automaticos completos pendientes",
+      "Licencias legales avanzadas pendientes",
       "Marketplace multiusuario pendiente",
+      "Perfiles publicos de productores/artistas pendientes",
       "Chat interno pendiente"
     ]
   },
@@ -66,28 +72,52 @@
         "status": "completed"
       },
       {
+        "name": "Descargas protegidas",
+        "goal": "Descargar MP3 solo con sesion y beat_access valido.",
+        "progress_percent": 100,
+        "status": "completed"
+      },
+      {
+        "name": "Licencias protegidas",
+        "goal": "Descargar licencia solo con sesion y beat_access valido.",
+        "progress_percent": 100,
+        "status": "completed"
+      },
+      {
+        "name": "Actividad comercial",
+        "goal": "Registrar actividad server-side en commercial_activity.",
+        "progress_percent": 100,
+        "status": "completed"
+      },
+      {
+        "name": "Pagos manuales",
+        "goal": "Registrar pagos manuales por usuario + beat, con prevencion de duplicados.",
+        "progress_percent": 100,
+        "status": "completed"
+      },
+      {
+        "name": "Tipos de licencia",
+        "goal": "Soportar licencias basic, premium y exclusive.",
+        "progress_percent": 100,
+        "status": "completed"
+      },
+      {
         "name": "Preview real",
         "goal": "Generar y administrar previews reales de 15 segundos.",
         "progress_percent": 0,
         "status": "planned"
       },
       {
-        "name": "Pagos y acceso automatico",
-        "goal": "Implementar flujo pago -> acceso automatico.",
+        "name": "Pagos iniciales automatizados",
+        "goal": "Preparar flujo de pagos iniciales sin Stripe completo hasta definir alcance.",
         "progress_percent": 0,
         "status": "planned"
       },
       {
-        "name": "Licencias",
-        "goal": "Crear licencias MP3, WAV, trackouts y exclusivas.",
+        "name": "Licencias formales",
+        "goal": "Mejorar modelo legal y descargable de licencias despues del preview real.",
         "progress_percent": 0,
         "status": "planned"
-      },
-      {
-        "name": "Descargas controladas",
-        "goal": "Permitir descarga solo cuando el usuario tiene acceso/licencia valida para el beat.",
-        "progress_percent": 0,
-        "status": "next"
       },
       {
         "name": "Marketplace musical",
@@ -107,14 +137,17 @@
     ]
   },
   "status": {
-    "current_phase": "fase_12d_checkpoint_comercial",
-    "current_phase_label": "Fase 12D en progreso / checkpoint comercial y continuidad",
-    "current_phase_status": "in_progress",
+    "current_phase": "fase_12_closed_commercial_base",
+    "current_phase_label": "Fase 12 cerrada / comercial base completada",
+    "current_phase_status": "implemented",
     "progress_percent": 85,
-    "current_level": "App Next.js publicada en Vercel con Supabase Auth, Storage, beats reales, catalogo visible, player full/preview por acceso, guardados locales, Mis Beats, solicitudes, acceso manual, admin B.RCEO y controles de player con Space/seek.",
-    "next_phase": "fase_12e_descargas_controladas",
-    "next_phase_label": "Descargas controladas por acceso/licencia",
-    "next_phase_goal": "Permitir descarga solo si el usuario tiene acceso valido al beat y preparar la base para licencias descargables."
+    "current_level": "App Next.js publicada en Vercel con Supabase Auth, Storage, beats reales, catalogo visible, player full/preview por acceso, guardados locales, Mis Beats, solicitudes, acceso manual, descargas protegidas, licencias protegidas, pagos manuales, actividad comercial, admin B.RCEO y controles de player con Space/seek.",
+    "last_stable_commit": "be3d8cb feat:add license type support and phase 12 checkpoint",
+    "checkpoint_doc": "docs/phase-12-commercial-checkpoint.md",
+    "commercial_sql": "docs/supabase/phase-12-commercial.sql",
+    "next_phase": "fase_13_preview_real_ux_player",
+    "next_phase_label": "Fase 13 - preview real de 15 segundos + UX premium del player",
+    "next_phase_goal": "Separar un preview real de 15 segundos del audio full, mejorar la experiencia premium del player y preparar la base para pagos iniciales/licencias sin expandir todavia a marketplace multiusuario."
   },
   "phases": {
     "completed": [
@@ -176,18 +209,23 @@
       {
         "phase": "fase_12c",
         "label": "Guardados y controles del player",
-        "result": "Scroll horizontal Safari-safe, guardados locales, /account/saved funcional, Space play/pause y barra de progreso seekable/clickeable. Commit 5daddf3."
+        "result": "Scroll horizontal Safari-safe, guardados locales, /account/saved funcional, Space play/pause y barra de progreso seekable/clickeable."
+      },
+      {
+        "phase": "fase_12_closed_commercial_base",
+        "label": "Fase 12 comercial base",
+        "result": "Descarga protegida MP3, descarga protegida de licencia, commercial_activity, paneles admin comerciales, pagos manuales, prevencion de duplicados y tipos de licencia basic/premium/exclusive."
       }
     ],
     "current": {
-      "phase": "fase_12d_checkpoint_comercial",
-      "label": "Fase 12D en progreso / checkpoint comercial y continuidad",
-      "status": "in_progress"
+      "phase": "fase_12_closed_commercial_base",
+      "label": "Fase 12 cerrada / comercial base completada",
+      "status": "implemented"
     },
     "next": {
-      "phase": "fase_12e_descargas_controladas",
-      "label": "Descargas controladas por acceso/licencia",
-      "goal": "Permitir descarga solo si el usuario tiene acceso valido al beat y preparar la base para licencias descargables."
+      "phase": "fase_13_preview_real_ux_player",
+      "label": "Fase 13 - preview real de 15 segundos + UX premium del player",
+      "goal": "Separar un preview real de 15 segundos del audio full, mejorar la experiencia premium del player y preparar la base para pagos iniciales/licencias sin expandir todavia a marketplace multiusuario."
     }
   },
   "execution": {
@@ -224,22 +262,33 @@
       "/account/saved conectado a guardados reales",
       "Space play/pause agregado al player",
       "Barra de progreso clickeable/seekable agregada al player",
-      "Supabase schema actualizado para Fase 11F-C",
+      "Descarga protegida de MP3 por sesion y beat_access",
+      "Descarga protegida de licencia por sesion y beat_access",
+      "Registro server-side de actividad comercial en commercial_activity",
+      "Panel admin de actividad comercial",
+      "Panel admin de usuarios comerciales",
+      "Registro de pagos manuales por usuario + beat",
+      "Prevencion de pago manual duplicado por usuario + beat",
+      "Tipos de licencia basic, premium y exclusive",
+      "Checkpoint de Fase 12 en docs/phase-12-commercial-checkpoint.md",
+      "Supabase schema actualizado para Fase 11F-C y Fase 12 comercial",
       "Deploy en Vercel funcionando",
       "GitHub conectado",
       "APP_STATE.json creado para BR.autocarmation",
       "B.R registrada en Core v3 registry"
     ],
     "pending": [
-      "Preview real de 15 segundos",
-      "Pagos",
-      "Licencias descargables",
-      "Descargas controladas por tipo de licencia",
+      "Fase 13: preview real de 15 segundos + UX premium del player",
+      "Evaluar bucket privado y signed URLs",
+      "Preparar pagos iniciales sin Stripe hasta definir alcance",
+      "Mejorar modelo formal de licencias despues del preview real",
+      "Terminos y condiciones",
+      "Suscripciones / freemium / watermark",
       "Marketplace multiusuario",
       "Perfiles publicos de productores/artistas",
       "Servicios musicales",
       "Escrow o pago protegido",
-      "Terminos y condiciones"
+      "Chat / rooms de colaboracion"
     ],
     "blocked": []
   },
@@ -273,19 +322,30 @@
     "/account/saved conectado a guardados reales",
     "Space play/pause agregado al player",
     "Barra de progreso clickeable/seekable agregada al player",
+    "Descarga protegida de MP3 por sesion y beat_access",
+    "Descarga protegida de licencia por sesion y beat_access",
+    "Registro server-side de actividad comercial en commercial_activity",
+    "Panel admin de actividad comercial",
+    "Panel admin de usuarios comerciales",
+    "Registro de pagos manuales por usuario + beat",
+    "Prevencion de pago manual duplicado por usuario + beat",
+    "Tipos de licencia basic, premium y exclusive",
+    "Checkpoint de Fase 12 en docs/phase-12-commercial-checkpoint.md",
     "Deploy en Vercel funcionando",
     "GitHub conectado"
   ],
   "pending": [
-    "Preview real de 15 segundos",
-    "Pagos",
-    "Licencias descargables",
-    "Descargas controladas por tipo de licencia",
+    "Fase 13: preview real de 15 segundos + UX premium del player",
+    "Evaluar bucket privado y signed URLs",
+    "Preparar pagos iniciales sin Stripe hasta definir alcance",
+    "Mejorar modelo formal de licencias despues del preview real",
+    "Terminos y condiciones",
+    "Suscripciones / freemium / watermark",
     "Marketplace multiusuario",
     "Perfiles publicos de productores/artistas",
     "Servicios musicales",
     "Escrow o pago protegido",
-    "Terminos y condiciones"
+    "Chat / rooms de colaboracion"
   ],
   "blocked": [],
   "risks": [
@@ -293,9 +353,10 @@
     "Mantener B.RCEO como unico admin real",
     "No permitir acciones protegidas con fallback admin",
     "No mezclar BR.autocarmation con la logica principal de B.R",
-    "Evitar expandir a marketplace antes de consolidar el flujo comercial base",
     "No volver a filtrar el catalogo por beat_access: usuarios nuevos, existentes y admin deben recibir beats activos nuevos sin depender de sus accesos",
-    "No reproducir preview por error cuando el usuario ya tiene acceso full"
+    "No romper player full/preview por acceso durante preview real, descargas, licencias o pagos",
+    "No habilitar descarga sin acceso/licencia valida",
+    "No avanzar a marketplace antes de consolidar preview real, pagos iniciales y licencias"
   ],
   "pros": [
     "Base funcional ya publicada",
@@ -306,14 +367,18 @@
     "Player ya respeta acceso full/preview",
     "Guardados locales ya funcionan como base de favoritos",
     "Controles de player mejorados con teclado y seek",
-    "Arquitectura lista para pagos y licencias",
+    "Descarga MP3 protegida ya funciona",
+    "Descarga de licencia protegida ya funciona",
+    "Actividad comercial registrada server-side",
+    "Pagos manuales por usuario + beat ya funcionan",
+    "Tipos de licencia basic/premium/exclusive ya soportados",
+    "Arquitectura lista para preview real, pagos iniciales y licencias formales",
     "Marca B.R puede evolucionar a marketplace musical"
   ],
   "cons": [
-    "Aun falta preview real",
-    "Aun falta pagos automaticos",
-    "Aun falta sistema formal de licencias",
-    "Aun falta descarga controlada",
+    "Aun falta preview real separado de 15 segundos",
+    "Aun falta pagos automaticos completos",
+    "Aun falta sistema formal/legal avanzado de licencias",
     "El marketplace multiusuario requiere roles, permisos y moderacion adicionales"
   ],
   "architecture": {
@@ -323,7 +388,13 @@
     "database": true,
     "auth": true,
     "payments": false,
-    "storage": true
+    "manual_payments": true,
+    "storage": true,
+    "license_types": [
+      "basic",
+      "premium",
+      "exclusive"
+    ]
   },
   "documentation": {
     "files": [
@@ -333,8 +404,11 @@
       "CHATGPT_CONTEXT.md",
       "CODEX_CONTEXT.md",
       "PROJECT_STATUS.md",
+      "docs/phase-12-commercial-checkpoint.md",
+      "docs/phase-12m1-continuity-sync.md",
       "docs/SETUP_SUPABASE.md",
       "docs/supabase/schema.sql",
+      "docs/supabase/phase-12-commercial.sql",
       ".env.local.example"
     ]
   },
@@ -346,8 +420,9 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Completar Fase 12D como checkpoint comercial antes de iniciar descargas, licencias y diseno visual premium.",
-    "next_action": "Actualizar documentacion de continuidad, definir Fase 12E de descargas controladas por acceso/licencia y preparar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
-    "context": "B.R esta publicada en Vercel, conectada a Supabase real, registrada en BR.autocarmation y con Fase 12C cerrada en commit 5daddf3. El player respeta acceso full/preview, guardados locales funcionan y el siguiente foco es consolidacion comercial."
+    "priority": "Iniciar Fase 13 con preview real de 15 segundos + UX premium del player.",
+    "next_action": "Separar preview real de audio full, mejorar player, evaluar bucket privado/signed URLs y preparar pagos iniciales/licencias sin Stripe completo.",
+    "context": "B.R esta publicada en Vercel, conectada a Supabase real, registrada en BR.autocarmation y con Fase 12 comercial cerrada en commit be3d8cb. El player respeta acceso full/preview, las descargas MP3/licencia estan protegidas por sesion y beat_access, los pagos manuales por usuario + beat estan registrados, y el siguiente foco es Fase 13.",
+    "catalog_rule": "beat_access no filtra catalogo; solo controla preview/full, descarga, licencia, badges y acciones protegidas."
   }
 }

@@ -1,6 +1,6 @@
 # B.R / br-platform
 
-B.R es una plataforma musical privada/premium para administrar beats, previews, solicitudes, accesos, descargas controladas y futuras licencias.
+B.R es una plataforma musical privada/premium para administrar beats, previews, solicitudes, accesos, descargas controladas y licencias.
 
 ## Meta principal
 
@@ -13,11 +13,11 @@ Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia
 ## Estado actual
 
 ```text
-Fase actual: Fase 12D en progreso / checkpoint comercial y continuidad
-Estado: in_progress
+Fase actual: Fase 12 cerrada / comercial base completada
+Estado: implemented / estable
 Progreso aproximado: 85%
-Ultimo commit funcional: 5daddf3 Complete phase 12C saved beats and player controls
-Siguiente fase: Fase 12E - descargas controladas por acceso/licencia
+Último commit funcional: be3d8cb feat:add license type support and phase 12 checkpoint
+Siguiente fase: Fase 13 - preview real de 15 segundos + UX premium del player
 ```
 
 ## Stack
@@ -46,7 +46,7 @@ Siguiente/anterior del player respeta acceso por beat
 Space play/pause en player
 Barra del player clickeable/seekable
 Registro/login con Supabase Auth
-Perfiles con telefono
+Perfiles con teléfono
 Panel admin B.RCEO
 Subida de MP3 reales a Supabase Storage
 Solicitudes de acceso
@@ -58,14 +58,23 @@ Usuarios admin expandibles
 Eliminar usuario/cuenta
 Catalogo activo visible para visitantes, usuarios nuevos, usuarios existentes y admin
 Scroll horizontal Safari-safe en BeatRow
+Descarga protegida de MP3 por sesión y beat_access
+Descarga protegida de licencia por sesión y beat_access
+Registro server-side de actividad comercial en commercial_activity
+Panel admin de actividad comercial
+Panel admin de usuarios comerciales
+Registro de pagos manuales por usuario + beat
+Prevención de pago manual duplicado por usuario + beat
+Tipos de licencia basic, premium y exclusive
+Checkpoint de Fase 12 en docs/phase-12-commercial-checkpoint.md
 ```
 
-## Regla permanente de catalogo
+## Regla permanente de catálogo
 
 ```text
-Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO, segun la visibilidad publica prevista.
+Todo beat activo debe aparecer en el catálogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO, según la visibilidad publica prevista.
 
-beat_access NO debe filtrar la visibilidad del catalogo.
+beat_access NO debe filtrar la visibilidad del catálogo.
 
 beat_access solo controla:
 - preview vs full
@@ -79,7 +88,7 @@ beat_access solo controla:
 ```text
 Si el usuario tiene acceso al beat -> reproducir full audio.
 Si no tiene acceso -> reproducir preview.
-Si no hay sesion -> reproducir preview.
+Si no hay sesión -> reproducir preview.
 Siguiente/anterior deben resolver acceso por beat, no reutilizar la URL anterior.
 No romper esta regla al implementar descargas, licencias, pagos o rediseño visual.
 ```
@@ -89,48 +98,48 @@ No romper esta regla al implementar descargas, licencias, pagos o rediseño visu
 ```text
 Si un usuario elimina su cuenta, se eliminaran sus datos/accesos.
 Si vuelve a crear una cuenta con el mismo correo, B.R no garantiza recuperar accesos anteriores.
-Esto debe aclararse despues en terminos y condiciones.
+Esto debe aclararse después en términos y condiciones.
 ```
 
 ## Pendientes principales
 
 ```text
-Fase 12E: descargas controladas por acceso/licencia
-Preview real de 15 segundos
-Licencias descargables
-Pagos automaticos
+Fase 13: preview real de 15 segundos + UX premium del player
+Evaluar bucket privado y signed URLs
+Preparar pagos iniciales sin Stripe hasta definir alcance
+Mejorar modelo formal de licencias despues del preview real
+Términos y condiciones
 Suscripciones / freemium / watermark
-Terminos y condiciones
 Marketplace multiusuario
-Perfiles publicos de productores/artistas
+Perfiles públicos de productores/artistas
 Servicios musicales
 Escrow o pago protegido
 Chat / rooms de colaboracion
-Diseño visual premium despues del flujo comercial base
 ```
 
-## Fase 12E propuesta - Descargas controladas
+## Fase 13 propuesta - Preview real y UX premium
 
-Meta: permitir descarga solo cuando el usuario tiene acceso valido al beat y preparar la base para licencias descargables.
+Meta: separar un preview real de 15 segundos del audio full, mejorar la experiencia premium del player y preparar la base para pagos iniciales/licencias sin expandir todavía a marketplace multiusuario.
 
 Alcance inicial:
 
 ```text
-Boton Descargar visible solo si el usuario tiene acceso valido.
-Validacion de acceso antes de habilitar descarga.
-No usar beat_access para filtrar catalogo.
-Mantener preview/full playback separado de descarga.
-Preparar modelo para licencia futura sin implementar pagos aun.
+Crear preview real separado de 15 segundos.
+Mantener full audio solo para usuarios con acceso.
+Mejorar UX premium del player sin romper preview/full actual.
+Evaluar bucket privado y signed URLs.
+Mantener descarga MP3/licencia protegida por sesión y beat_access.
+No usar beat_access para filtrar catálogo.
 ```
 
 Fuera de alcance inicial:
 
 ```text
-Pagos automaticos.
+Stripe o pagos automáticos completos.
 Marketplace multiusuario.
-Licencias PDF avanzadas.
+Perfiles públicos de productores/artistas.
 Escrow o pago protegido.
-Rediseño visual premium.
+Licencias legales avanzadas.
 ```
 
 ## Comandos
@@ -141,7 +150,7 @@ npm run build
 npm run dev
 ```
 
-Validar estado:
+Validar estado local:
 
 ```bash
 python3 -m json.tool APP_STATE.json >/dev/null
@@ -149,7 +158,7 @@ python3 -m json.tool APP_STATE.json >/dev/null
 
 ## Supabase
 
-La app usa Supabase real para:
+La app usa Supabase real para estas áreas:
 
 ```text
 Auth
@@ -157,6 +166,8 @@ profiles
 beats
 beat_access
 access_requests
+commercial_activity
+manual_payments
 Storage bucket beats
 ```
 
@@ -166,7 +177,7 @@ El schema vive en:
 docs/supabase/schema.sql
 ```
 
-La guia de setup vive en:
+La guía de setup vive en:
 
 ```text
 docs/SETUP_SUPABASE.md
@@ -178,7 +189,7 @@ B.R ya esta registrada en BR.autocarmation Core v3 como app administrada.
 
 BR.autocarmation es infraestructura de continuidad; no debe reemplazar el foco principal del producto B.R.
 
-## Documentacion de continuidad
+## Documentación de continuidad
 
 Archivos principales:
 
@@ -189,11 +200,13 @@ CHATGPT_CONTEXT.md
 CODEX_CONTEXT.md
 AGENTS.md
 README.md
+docs/phase-12-commercial-checkpoint.md
+docs/phase-12m1-continuity-sync.md
 ```
 
 Antes de cerrar una fase, revisar si estos archivos deben actualizarse para evitar estados viejos o duplicados.
 
-## Validaciones minimas
+## Validaciones mínimas
 
 ```bash
 python3 -m json.tool APP_STATE.json >/dev/null
@@ -201,4 +214,4 @@ npm run lint
 npm run build
 ```
 
-Ultima actualizacion: Fase 12D en progreso / checkpoint comercial y continuidad
+Última actualizacion: Fase 12 cerrada / comercial base completada
