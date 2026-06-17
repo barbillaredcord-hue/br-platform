@@ -1,5 +1,6 @@
 "use client";
 
+
 import Link from "next/link";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
@@ -9,9 +10,17 @@ import DownloadLicenseButton from "./DownloadLicenseButton";
 import { PlayButton } from "./PlayButton";
 import { RequestAccessButton } from "./RequestAccessButton";
 
+function getPreviewSeconds(beat: Beat) {
+  const previewMeta = beat as Beat & { previewDurationSeconds?: number | null };
+  const seconds = previewMeta.previewDurationSeconds ?? 15;
+
+  return Math.min(30, Math.max(15, Math.round(seconds)));
+}
+
 export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }) {
   const { currentUser, isAuthenticated } = useUser();
   const hasAccess = userCanAccessBeat(currentUser, beat);
+  const previewSeconds = getPreviewSeconds(beat);
 
   return (
     <div className="space-y-4">
@@ -39,7 +48,7 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
         ) : !isAuthenticated ? (
           <>
             <PlayButton beat={beat} mode="preview" queue={queue} showPauseState>
-              Escuchar Preview 15s
+              Escuchar Preview {previewSeconds}s
             </PlayButton>
             <Link href="/login" className="inline-flex h-11 items-center rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
               Iniciar sesión
@@ -51,7 +60,7 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
         ) : (
           <>
             <PlayButton beat={beat} mode="preview" queue={queue} showPauseState>
-              Escuchar Preview 15s
+              Escuchar Preview {previewSeconds}s
             </PlayButton>
             <RequestAccessButton beatId={beat.dbId ?? beat.id} />
           </>

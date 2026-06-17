@@ -15,9 +15,32 @@ function formatTime(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
+function getPreviewSeconds(beat: NonNullable<ReturnType<typeof usePlayer>["currentBeat"]>) {
+  const previewMeta = beat as typeof beat & { previewDurationSeconds?: number | null };
+  const seconds = previewMeta.previewDurationSeconds ?? 15;
+
+  return Math.min(30, Math.max(15, Math.round(seconds)));
+}
+
 export function PlayerBar() {
-  const { audioUrl, closePlayer, currentBeat, isPlaying, mode, duration, currentTime, queue, currentIndex, playNext, playPrevious, seekTo, togglePlayback } = usePlayer();
-  const status = mode === "full" ? "Acceso completo" : "Preview 15s";
+  const {
+    audioUrl,
+    closePlayer,
+    currentBeat,
+    isPlaying,
+    mode,
+    duration,
+    currentTime,
+    queue,
+    currentIndex,
+    playNext,
+    playPrevious,
+    seekTo,
+    togglePlayback,
+  } = usePlayer();
+
+  const previewSeconds = currentBeat ? getPreviewSeconds(currentBeat) : 15;
+  const status = mode === "full" ? "Acceso completo" : `Preview ${previewSeconds}s`;
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < queue.length - 1;
 
@@ -56,9 +79,9 @@ export function PlayerBar() {
     <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#090b0d] px-4 py-3 md:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <p className="truncate font-semibold">{currentBeat?.name ?? "Selecciona un beat"}</p>
+          <p className="truncate font-semibold">{currentBeat.name}</p>
           <p className="text-sm text-zinc-400">
-            {currentBeat ? `${currentBeat.genre} · ${status}` : "Preview 15s"}
+            {currentBeat.genre} · {status}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -108,7 +131,12 @@ export function PlayerBar() {
           />
           <span className="text-xs text-zinc-500">{formatTime(duration)}</span>
         </div>
-        <button type="button" onClick={closePlayer} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-300 transition hover:border-cyan-300 hover:text-cyan-200" aria-label="Ocultar player">
+        <button
+          type="button"
+          onClick={closePlayer}
+          className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-zinc-300 transition hover:border-cyan-300 hover:text-cyan-200"
+          aria-label="Ocultar player"
+        >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>

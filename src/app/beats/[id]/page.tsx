@@ -20,6 +20,13 @@ const licenses = [
   { name: "Exclusive", detail: "Reserva privada y retiro del catálogo público." },
 ];
 
+function getPreviewSeconds(beat: NonNullable<Awaited<ReturnType<typeof getBeatBySlug>>>) {
+  const previewMeta = beat as typeof beat & { previewDurationSeconds?: number | null };
+  const seconds = previewMeta.previewDurationSeconds ?? 15;
+
+  return Math.min(30, Math.max(15, Math.round(seconds)));
+}
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -35,6 +42,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
   const relatedBeats = beats.length > 0 ? beats.filter((item) => item.genre === beat.genre && item.id !== beat.id).slice(0, 4) : getRelatedBeats(beat);
   const detailQueue = [beat, ...relatedBeats];
   const usersWithAccess = await getUsersWithAccessToBeat(beat.dbId ?? beat.id);
+  const previewSeconds = getPreviewSeconds(beat);
 
   return (
     <main className="min-h-screen bg-[#050607] px-4 py-6 pb-32 text-white md:px-8">
@@ -140,7 +148,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
               <h2 className="text-xl font-bold">Acceso privado</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
                 Pagos coordinados directamente con B.R. El acceso completo se habilita manualmente después de confirmar la compra,
-                manteniendo previews cortos de 15 segundos para exploración inicial.
+                manteniendo previews cortos de {previewSeconds} segundos para exploración inicial.
               </p>
             </div>
           </div>

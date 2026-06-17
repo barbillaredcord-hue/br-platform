@@ -87,10 +87,15 @@ export function PreviewEditorForm({
       await ffmpeg.writeFile("input.mp3", await fetchFile(fullAudioUrl));
 
       setStatus(`Generando preview desde ${safeStart}s por ${safeDuration}s...`);
-      await ffmpeg.exec(["-ss", String(safeStart), "-i", "input.mp3", "-t", String(safeDuration), "-c", "copy", "preview.mp3"]);
+      await ffmpeg.exec(["-ss", String(safeStart), "-i", "input.mp3", "-t", String(safeDuration), "-vn", "-acodec", "libmp3lame", "-b:a", "192k", "preview.mp3"]);
 
       const output = await ffmpeg.readFile("preview.mp3");
       const outputBytes = typeof output === "string" ? new TextEncoder().encode(output) : output;
+
+      if (outputBytes.byteLength === 0) {
+        throw new Error("Preview output is empty");
+      }
+
       const audioBuffer = new ArrayBuffer(outputBytes.byteLength);
       new Uint8Array(audioBuffer).set(outputBytes);
       const blob = new Blob([audioBuffer], { type: "audio/mpeg" });
@@ -124,7 +129,7 @@ export function PreviewEditorForm({
       durationSeconds,
     });
 
-    setStatus(result.ok ? "Preview generado guardado correctamente." : result.message || "No se pudo guardar el preview generado.");
+    setStatus(result.ok ? `Preview publicado correctamente: ${result.durationSeconds}s.` : result.message || "No se pudo guardar el preview generado.");
     setIsSaving(false);
 
     if (result.ok) {

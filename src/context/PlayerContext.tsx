@@ -29,6 +29,16 @@ type PlayerContextValue = {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
+function getPreviewLimit(beat: Beat) {
+  const previewDurationSeconds = (beat as Beat & { previewDurationSeconds?: number }).previewDurationSeconds;
+
+  if (!previewDurationSeconds) {
+    return 15;
+  }
+
+  return Math.min(30, Math.max(15, Math.round(previewDurationSeconds)));
+}
+
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const { currentUser } = useUser();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -54,9 +64,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const startAudio = useCallback((beat: Beat, nextMode: PlayerMode) => {
-    const nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl;
-
-    const previewLimit = 15;
+    const previewLimit = getPreviewLimit(beat);
+    const nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl || beat.fullAudioUrl;
 
     audioRef.current?.pause();
 
@@ -184,13 +193,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const previewLimit = 15;
+    const previewLimit = currentBeat ? getPreviewLimit(currentBeat) : 15;
     const maxTime = mode === "preview" ? Math.min(duration || previewLimit, previewLimit) : duration || audio.duration || 0;
     const nextTime = Math.max(0, Math.min(seconds, maxTime));
 
     audio.currentTime = nextTime;
     setCurrentTime(nextTime);
-  }, [duration, mode]);
+  }, [currentBeat, duration, mode]);
 
   const pause = useCallback(() => {
     audioRef.current?.pause();

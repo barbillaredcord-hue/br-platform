@@ -1044,19 +1044,34 @@ export async function updateBeatPreviewWithUpload(input: { beatId: string; slug:
 
   diagnostics.payload = payload;
 
-  const { error: updateError } = await supabase
+  const matchColumn = uuidPattern.test(input.beatId) ? "id" : "slug";
+  let { data: updatedBeat, error: updateError } = await supabase
     .from("beats")
     .update(payload)
-    .eq(uuidPattern.test(input.beatId) ? "id" : "slug", input.beatId);
+    .eq(matchColumn, input.beatId)
+    .select("id,slug,preview_url,preview_duration_seconds,preview_updated_at")
+    .maybeSingle<{ id: string; slug: string; preview_url: string; preview_duration_seconds: number | null; preview_updated_at: string | null }>();
 
-  if (updateError) {
+  if (!updateError && !updatedBeat && input.slug && input.slug !== input.beatId) {
+    const fallbackResult = await supabase
+      .from("beats")
+      .update(payload)
+      .eq("slug", input.slug)
+      .select("id,slug,preview_url,preview_duration_seconds,preview_updated_at")
+      .maybeSingle<{ id: string; slug: string; preview_url: string; preview_duration_seconds: number | null; preview_updated_at: string | null }>();
+
+    updatedBeat = fallbackResult.data;
+    updateError = fallbackResult.error;
+  }
+
+  if (updateError || !updatedBeat) {
     await supabase.storage.from("beats").remove([path]);
 
     diagnostics.error = {
-      message: updateError.message,
-      code: updateError.code,
-      details: updateError.details,
-      hint: updateError.hint,
+      message: updateError?.message ?? "No rows updated",
+      code: updateError?.code,
+      details: updateError?.details,
+      hint: updateError?.hint,
     };
 
     if (process.env.NODE_ENV === "development") {
@@ -1066,5 +1081,5 @@ export async function updateBeatPreviewWithUpload(input: { beatId: string; slug:
     return { ok: false, message: "No se pudo actualizar el preview del beat.", diagnostics };
   }
 
-  return { ok: true, message: "Preview actualizado correctamente.", previewUrl: publicUrl, durationSeconds, diagnostics };
+  return { ok: true, message: "Preview actualizado correctamente.", previewUrl: updatedBeat.preview_url, durationSeconds: updatedBeat.preview_duration_seconds ?? durationSeconds, previewUpdatedAt: updatedBeat.preview_updated_at, diagnostics };
 }
