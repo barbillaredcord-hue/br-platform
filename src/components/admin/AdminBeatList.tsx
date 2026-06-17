@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { SlidersHorizontal } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getProfilesResult } from "@/lib/supabase/queries";
+import { deleteBeatAsAdmin, getProfilesResult } from "@/lib/supabase/queries";
 import { AdminBeatStatus } from "./AdminBeatStatus";
 
 function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
@@ -16,8 +16,11 @@ function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
 
 export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: User[] }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [localUsers, setLocalUsers] = useState(users);
+  const [deletingBeatId, setDeletingBeatId] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const filteredBeats = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) {
@@ -39,6 +42,28 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     return () => window.clearTimeout(loadId);
   }, [pathname]);
 
+  async function deleteBeat(beat: Beat) {
+    const beatKey = beat.dbId ?? beat.id;
+    const confirmed = window.confirm(`Eliminar "${beat.name}" del catálogo? Esta acción ocultará el beat, no borrará el archivo del bucket.`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingBeatId(beatKey);
+    setActionMessage("");
+
+    const result = await deleteBeatAsAdmin(beatKey);
+
+    setActionMessage(result.message);
+
+    if (result.ok) {
+      router.refresh();
+    }
+
+    setDeletingBeatId("");
+  }
+
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -50,6 +75,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         />
         <span className="text-sm font-semibold text-cyan-200">{filteredBeats.length} / {beats.length} beats</span>
       </div>
+      {actionMessage ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{actionMessage}</p> : null}
       <div className="hidden overflow-hidden rounded-lg border border-white/10 md:block">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase text-zinc-500">
@@ -82,13 +108,24 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                     {usersWithAccess.length > 0 ? usersWithAccess.map((user) => user.name).join(", ") : "Sin usuarios"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/beats/${beat.id}/preview-editor`}
-                      className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200"
-                    >
-                      <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
-                      Editar Preview
-                    </Link>
+                    <div className="flex justify-end gap-2">
+                      <Link
+                        href={`/admin/beats/${beat.id}/preview-editor`}
+                        className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200"
+                      >
+                        <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
+                        Editar Preview
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={deletingBeatId === (beat.dbId ?? beat.id)}
+                        onClick={() => void deleteBeat(beat)}
+                        className="inline-flex items-center gap-2 rounded-md border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3 w-3" aria-hidden="true" />
+                        {deletingBeatId === (beat.dbId ?? beat.id) ? "Eliminando..." : "Eliminar"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -116,13 +153,24 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                 </p>
               </div>
             </div>
-            <Link
-              href={`/admin/beats/${beat.id}/preview-editor`}
-              className="mt-4 flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200"
-            >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-              Editar Preview
-            </Link>
+            <div className="mt-4 grid gap-2">
+              <Link
+                href={`/admin/beats/${beat.id}/preview-editor`}
+                className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200"
+              >
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                Editar Preview
+              </Link>
+              <button
+                type="button"
+                disabled={deletingBeatId === (beat.dbId ?? beat.id)}
+                onClick={() => void deleteBeat(beat)}
+                className="flex h-10 items-center justify-center gap-2 rounded-md border border-red-300/30 text-sm font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                {deletingBeatId === (beat.dbId ?? beat.id) ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
           </article>
         ))}
       </div>
