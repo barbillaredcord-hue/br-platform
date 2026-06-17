@@ -200,6 +200,7 @@ CHATGPT_CONTEXT.md
 CODEX_CONTEXT.md
 AGENTS.md
 README.md
+CHANGELOG.md
 docs/phase-12-commercial-checkpoint.md
 docs/phase-12m1-continuity-sync.md
 ```
