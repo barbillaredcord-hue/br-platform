@@ -5,6 +5,7 @@ import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { userCanAccessBeat } from "@/lib/access";
 import DownloadBeatButton from "./DownloadBeatButton";
+import DownloadLicenseButton from "./DownloadLicenseButton";
 import { PlayButton } from "./PlayButton";
 import { RequestAccessButton } from "./RequestAccessButton";
 
@@ -27,6 +28,13 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
             >
               Descargar MP3
             </DownloadBeatButton>
+            <DownloadLicenseButton
+              beatId={beat.dbId ?? beat.id}
+              fileName={beat.name}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-white/10 px-5 text-sm font-bold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Descargar licencia
+            </DownloadLicenseButton>
           </>
         ) : !isAuthenticated ? (
           <>

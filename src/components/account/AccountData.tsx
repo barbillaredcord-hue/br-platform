@@ -10,6 +10,7 @@ import { PlayButton } from "@/components/PlayButton";
 import { BeatCard } from "@/components/BeatCard";
 import { ProductUpdatesPanel } from "@/components/ProductUpdatesPanel";
 import DownloadBeatButton from "@/components/DownloadBeatButton";
+import DownloadLicenseButton from "@/components/DownloadLicenseButton";
 import { deleteOwnAccount, getBeats, getAccessRequestsForUser, updateProfile, type AccessRequestRow } from "@/lib/supabase/queries";
 import { userCanAccessBeat } from "@/lib/access";
 import { getSavedBeatIds, SAVED_BEATS_EVENT } from "@/lib/saved-beats";
@@ -120,6 +121,13 @@ export function AccountBeats() {
               >
                 Descargar MP3
               </DownloadBeatButton>
+              <DownloadLicenseButton
+                beatId={beat.dbId ?? beat.id}
+                fileName={beat.name}
+                className="inline-flex h-11 items-center gap-2 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Licencia
+              </DownloadLicenseButton>
             </div>
           </div>
         </article>
