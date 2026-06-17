@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Download, Heart, Settings } from "lucide-react";
+import { ArrowLeft, Heart, Settings } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { PlayButton } from "@/components/PlayButton";
 import { BeatCard } from "@/components/BeatCard";
+import DownloadBeatButton from "@/components/DownloadBeatButton";
 import { deleteOwnAccount, getBeats, getAccessRequestsForUser, updateProfile, type AccessRequestRow } from "@/lib/supabase/queries";
 import { userCanAccessBeat } from "@/lib/access";
 import { getSavedBeatIds, SAVED_BEATS_EVENT } from "@/lib/saved-beats";
@@ -111,10 +112,13 @@ export function AccountBeats() {
             </div>
             <div className="flex flex-wrap gap-2">
               <PlayButton beat={beat} mode="full" queue={accessibleBeats} showPauseState>Full</PlayButton>
-              <a href={beat.fullAudioUrl} download className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 hover:bg-cyan-300/10">
-                <Download className="h-4 w-4" aria-hidden="true" />
+              <DownloadBeatButton
+                beatId={beat.dbId ?? beat.id}
+                fileName={beat.name}
+                className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 Descargar MP3
-              </a>
+              </DownloadBeatButton>
             </div>
           </div>
         </article>

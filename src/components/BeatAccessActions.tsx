@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Download } from "lucide-react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { userCanAccessBeat } from "@/lib/access";
+import DownloadBeatButton from "./DownloadBeatButton";
 import { PlayButton } from "./PlayButton";
 import { RequestAccessButton } from "./RequestAccessButton";
 
@@ -20,14 +20,13 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
             <PlayButton beat={beat} mode="full" queue={queue} showPauseState>
               Escuchar Beat Completo
             </PlayButton>
-            <a
-              href={beat.fullAudioUrl}
-              download
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10"
+            <DownloadBeatButton
+              beatId={beat.dbId ?? beat.id}
+              fileName={beat.name}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Download className="h-4 w-4" aria-hidden="true" />
               Descargar MP3
-            </a>
+            </DownloadBeatButton>
           </>
         ) : !isAuthenticated ? (
           <>
