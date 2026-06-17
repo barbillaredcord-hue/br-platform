@@ -7,6 +7,7 @@ type ManualPaymentPayload = {
   currency?: string;
   payment_method?: string;
   note?: string;
+  license_type?: string;
 };
 
 type BeatPaymentRow = {
@@ -26,6 +27,11 @@ function normalizeCurrency(value: unknown) {
   return currency || "MXN";
 }
 
+function normalizeLicenseType(value: unknown) {
+  const licenseType = cleanText(value).toLowerCase();
+  return licenseType === "premium" || licenseType === "exclusive" ? licenseType : "basic";
+}
+
 export async function POST(request: Request) {
   const admin = await validateAdminRequest(request);
 
@@ -40,6 +46,7 @@ export async function POST(request: Request) {
   const currency = normalizeCurrency(payload?.currency);
   const paymentMethod = cleanText(payload?.payment_method);
   const note = cleanText(payload?.note);
+  const licenseType = normalizeLicenseType(payload?.license_type);
 
   if (!uuidPattern.test(userId)) {
     return Response.json({ ok: false, message: "Usuario inválido." }, { status: 400 });
@@ -138,9 +145,26 @@ export async function POST(request: Request) {
     payment_method: paymentMethod || null,
     note: note || null,
     created_by_admin: admin.requester.id,
+    license_type: licenseType,
   };
 
-  const { error: paymentError } = await admin.supabase.from("manual_payments").insert(paymentRow);
+  let { error: paymentError } = await admin.supabase.from("manual_payments").insert(paymentRow);
+
+  if (paymentError?.message.toLowerCase().includes("license_type")) {
+    const legacyPaymentRow: Omit<typeof paymentRow, "license_type"> = {
+      user_id: paymentRow.user_id,
+      user_email: paymentRow.user_email,
+      beat_id: paymentRow.beat_id,
+      beat_title: paymentRow.beat_title,
+      amount: paymentRow.amount,
+      currency: paymentRow.currency,
+      payment_method: paymentRow.payment_method,
+      note: paymentRow.note,
+      created_by_admin: paymentRow.created_by_admin,
+    };
+    const retryResult = await admin.supabase.from("manual_payments").insert(legacyPaymentRow);
+    paymentError = retryResult.error;
+  }
 
   if (paymentError) {
     console.error("B.R manual payment insert error", paymentError);
@@ -160,6 +184,7 @@ export async function POST(request: Request) {
       payment_method: paymentMethod || null,
       note: note || null,
       created_by_admin: admin.requester.id,
+      license_type: licenseType,
     },
   });
 

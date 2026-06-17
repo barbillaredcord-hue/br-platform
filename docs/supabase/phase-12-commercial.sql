@@ -71,3 +71,23 @@ using (private.is_br_admin());
 create unique index if not exists manual_payments_user_beat_unique_idx
 on public.manual_payments (user_id, beat_id)
 where user_id is not null and beat_id is not null;
+
+-- 12K - Tipo minimo de licencia asociado a pagos manuales.
+alter table public.manual_payments
+add column if not exists license_type text not null default 'basic';
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'manual_payments_license_type_check'
+      and conrelid = 'public.manual_payments'::regclass
+  ) then
+    alter table public.manual_payments
+    add constraint manual_payments_license_type_check
+    check (license_type in ('basic', 'premium', 'exclusive'));
+  end if;
+end $$;
+
+create index if not exists manual_payments_license_type_idx on public.manual_payments (license_type);
