@@ -24,9 +24,17 @@ const coverGradients = [
   "bg-[linear-gradient(135deg,#0f172a,#0891b2)]",
 ];
 
+function getPreviewSeconds(beat: Beat) {
+  const previewMeta = beat as Beat & { previewDurationSeconds?: number | null };
+  const seconds = previewMeta.previewDurationSeconds ?? 15;
+
+  return Math.min(30, Math.max(15, Math.round(seconds)));
+}
+
 export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   const { currentUser } = useUser();
   const hasAccess = userCanAccessBeat(currentUser, beat);
+  const previewSeconds = getPreviewSeconds(beat);
 
   const savedBeatId = beat.dbId ?? beat.id;
   const [isSaved, setIsSaved] = useState(false);
@@ -86,7 +94,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
       </Link>
       <div className="mt-4 grid gap-2">
         <PlayButton variant="light" beat={beat} mode={hasAccess ? "full" : "preview"} queue={queue} showPauseState>
-          Play
+          {hasAccess ? "Full" : `Preview ${previewSeconds}s`}
         </PlayButton>
         <button
           type="button"
