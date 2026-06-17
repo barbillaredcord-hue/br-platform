@@ -8,6 +8,7 @@ import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { PlayButton } from "@/components/PlayButton";
 import { BeatCard } from "@/components/BeatCard";
+import { ProductUpdatesPanel } from "@/components/ProductUpdatesPanel";
 import DownloadBeatButton from "@/components/DownloadBeatButton";
 import { deleteOwnAccount, getBeats, getAccessRequestsForUser, updateProfile, type AccessRequestRow } from "@/lib/supabase/queries";
 import { userCanAccessBeat } from "@/lib/access";
@@ -261,6 +262,7 @@ export function AccountSettings() {
   return (
     <div className="grid gap-3">
       <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
+      <ProductUpdatesPanel audience="user" />
       <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
         <div className="mb-5 flex items-center gap-2">
           <Settings className="h-5 w-5 text-cyan-200" aria-hidden="true" />

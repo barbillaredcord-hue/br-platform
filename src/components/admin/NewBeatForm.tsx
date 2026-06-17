@@ -4,34 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
+import { detectBeatMetadata } from "@/lib/beat-metadata";
 import { createBeatWithUpload } from "@/lib/supabase/queries";
-
-const keys = [
-  "C Minor",
-  "D Minor",
-  "E Minor",
-  "F Minor",
-  "G Minor",
-  "A Minor",
-  "B Minor",
-  "C Major",
-  "D Major",
-  "E Major",
-  "F Major",
-  "G Major",
-  "A Major",
-  "B Major",
-];
-
-function estimateBpm(filename: string) {
-  const total = Array.from(filename).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return 80 + (total % 81);
-}
-
-function estimateKey(filename: string) {
-  const total = Array.from(filename).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return keys[total % keys.length];
-}
 
 function formatFileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
@@ -57,6 +31,7 @@ export function NewBeatForm() {
   const [saveStatus, setSaveStatus] = useState("");
   const [createdSlug, setCreatedSlug] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [metadataEdited, setMetadataEdited] = useState({ genre: false, bpm: false, key: false });
 
   const fileInfo = useMemo(() => {
     if (!file) {
@@ -70,6 +45,26 @@ export function NewBeatForm() {
     };
   }, [file]);
 
+  function applySuggestedMetadata(nextName: string, nextFile: File | null) {
+    if (!nextName.trim() && !nextFile?.name) {
+      return;
+    }
+
+    const suggested = detectBeatMetadata({ title: nextName, fileName: nextFile?.name });
+
+    if (!metadataEdited.genre) {
+      setGenre(suggested.genre);
+    }
+
+    if (!metadataEdited.bpm && suggested.bpm) {
+      setBpm(String(suggested.bpm));
+    }
+
+    if (!metadataEdited.key && suggested.key) {
+      setKey(suggested.key);
+    }
+  }
+
   return (
     <form className="grid gap-6 rounded-lg border border-white/10 bg-[#101317] p-5 md:grid-cols-2" onSubmit={(event) => event.preventDefault()}>
       <label className="grid gap-2">
@@ -77,8 +72,10 @@ export function NewBeatForm() {
         <input
           value={name}
           onChange={(event) => {
-            setName(event.target.value);
-            setSlug((current) => current || slugify(event.target.value));
+            const nextName = event.target.value;
+            setName(nextName);
+            setSlug((current) => current || slugify(nextName));
+            applySuggestedMetadata(nextName, file);
           }}
           placeholder="Ej. Metro Aqua"
           className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
@@ -99,33 +96,41 @@ export function NewBeatForm() {
         <span className="text-sm font-semibold text-zinc-300">Género</span>
         <input
           value={genre}
-          onChange={(event) => setGenre(event.target.value)}
+          onChange={(event) => {
+            setMetadataEdited((current) => ({ ...current, genre: true }));
+            setGenre(event.target.value);
+          }}
           placeholder="Trap, Drill, Reggaeton..."
           className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
         />
+        <span className="text-xs text-cyan-200">Metadatos sugeridos automáticamente. Puedes cambiarlos antes de guardar.</span>
       </label>
 
       <label className="grid gap-2">
         <span className="text-sm font-semibold text-zinc-300">BPM</span>
         <input
           value={bpm}
-          onChange={(event) => setBpm(event.target.value)}
+          onChange={(event) => {
+            setMetadataEdited((current) => ({ ...current, bpm: true }));
+            setBpm(event.target.value);
+          }}
           type="number"
           placeholder="144"
           className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
         />
-        {file ? <span className="text-xs text-cyan-200">BPM detectado automáticamente (demo)</span> : null}
       </label>
 
       <label className="grid gap-2">
         <span className="text-sm font-semibold text-zinc-300">Tonalidad</span>
         <input
           value={key}
-          onChange={(event) => setKey(event.target.value)}
+          onChange={(event) => {
+            setMetadataEdited((current) => ({ ...current, key: true }));
+            setKey(event.target.value);
+          }}
           placeholder="F Minor"
           className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
         />
-        {file ? <span className="text-xs text-cyan-200">Tonalidad detectada automáticamente (demo)</span> : null}
       </label>
 
       <label className="grid gap-2">
@@ -143,8 +148,7 @@ export function NewBeatForm() {
               const beatName = selectedFile.name.replace(/\.mp3$/i, "");
               setName(beatName);
               setSlug(slugify(beatName));
-              setBpm(String(estimateBpm(selectedFile.name)));
-              setKey(estimateKey(selectedFile.name));
+              applySuggestedMetadata(beatName, selectedFile);
             }
           }}
           className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-md file:border-0 file:bg-cyan-300 file:px-3 file:py-2 file:text-sm file:font-bold file:text-black"
@@ -178,7 +182,7 @@ export function NewBeatForm() {
       <div className="rounded-lg border border-cyan-300/20 bg-white/5 p-4 md:col-span-2">
         <p className="font-bold">Preview temporal</p>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
-          Preview real se implementará en Fase 12. Actualmente preview_url utiliza temporalmente el mismo MP3.
+          Preview real separado se implementará en una fase posterior. Actualmente preview_url utiliza temporalmente el mismo MP3.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button
@@ -192,15 +196,30 @@ export function NewBeatForm() {
               setIsSaving(true);
               setSaveStatus("Subiendo MP3...");
               const generatedSlug = slugify(name);
+              const parsedBpm = Number(bpm);
+              const metadata = detectBeatMetadata({
+                title: name,
+                fileName: file.name,
+                currentGenre: genre,
+                currentBpm: bpm && Number.isFinite(parsedBpm) ? parsedBpm : null,
+                currentKey: key,
+              });
               setSlug(generatedSlug);
-              const result = await createBeatWithUpload({ file, title: name, slug: generatedSlug, genre, bpm, musicalKey: key });
+              const result = await createBeatWithUpload({
+                file,
+                title: name,
+                slug: generatedSlug,
+                genre: genre || metadata.genre,
+                bpm: bpm || (metadata.bpm ? String(metadata.bpm) : ""),
+                musicalKey: key || metadata.key || "",
+              });
               setSaveStatus(result.ok ? "Beat creado correctamente." : result.message || "No se pudo crear el beat.");
               setCreatedSlug(result.slug ?? "");
               router.refresh();
               setIsSaving(false);
             }}
             disabled={isSaving}
-            className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 hover:border-cyan-300 hover:bg-cyan-300/10"
+            className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 hover:border-cyan-300 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save className="h-4 w-4" aria-hidden="true" />
             {isSaving ? "Guardando..." : "Guardar Beat"}

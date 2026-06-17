@@ -2,6 +2,7 @@ import { Inbox, KeyRound, ListMusic, PlugZap, Plus, Users } from "lucide-react";
 import { AdminDashboardStats } from "@/components/admin/AdminDashboardStats";
 import { AdminQuickLink } from "@/components/admin/AdminQuickLink";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { ProductUpdatesPanel } from "@/components/ProductUpdatesPanel";
 import { getAccessRequests, getBeats, getProfiles } from "@/lib/supabase/queries";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ export default async function AdminPage() {
       subtitle="Vista demo para operar el catálogo privado, revisar solicitudes y preparar previews antes de liberar accesos."
     >
       <AdminDashboardStats initialBeats={beats} initialUsers={users} initialRequests={requests} />
+      <ProductUpdatesPanel audience="admin" />
 
       <section>
         <h2 className="mb-4 text-xl font-bold">Accesos rápidos</h2>
