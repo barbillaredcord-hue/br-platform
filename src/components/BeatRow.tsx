@@ -29,8 +29,8 @@ export function BeatRow({ title, beats, rowIndex }: BeatRowProps) {
 
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-xl font-bold">{title}</h2>
+      <div className="mb-4 flex min-w-0 items-center justify-between gap-3">
+        <h2 className="min-w-0 truncate text-lg font-bold md:text-xl">{title}</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -48,10 +48,10 @@ export function BeatRow({ title, beats, rowIndex }: BeatRowProps) {
           >
             →
           </button>
-          <Link href="/explore" className="text-sm font-semibold text-cyan-200 hover:text-cyan-100">Ver todo</Link>
+          <Link href="/explore" className="whitespace-nowrap text-sm font-semibold text-cyan-200 hover:text-cyan-100">Ver todo</Link>
         </div>
       </div>
-      <div ref={scrollRef} className="flex snap-x gap-4 overflow-x-auto scroll-smooth pb-3 [-webkit-overflow-scrolling:touch]">
+      <div ref={scrollRef} className="flex snap-x gap-3 overflow-x-auto scroll-smooth pb-3 [-webkit-overflow-scrolling:touch] sm:gap-4">
         {beats.map((beat, beatIndex) => (
           <BeatCard key={beat.id} beat={beat} gradientIndex={rowIndex + beatIndex} queue={beats} />
         ))}

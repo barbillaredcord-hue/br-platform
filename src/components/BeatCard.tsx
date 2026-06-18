@@ -61,7 +61,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   };
 
   return (
-    <article className="relative w-56 shrink-0 snap-start rounded-lg bg-[#15181c] p-3 transition hover:bg-[#1c2127]">
+    <article className="relative w-48 shrink-0 snap-start rounded-lg bg-[#15181c] p-3 transition hover:bg-[#1c2127] sm:w-56">
       <button
         type="button"
         aria-label={isSaved ? `Quitar ${beat.name} de guardados` : `Guardar ${beat.name}`}

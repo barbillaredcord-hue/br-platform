@@ -45,8 +45,8 @@ export default async function BeatPage({ params }: BeatPageProps) {
   const previewSeconds = getPreviewSeconds(beat);
 
   return (
-    <main className="min-h-screen bg-[#050607] px-4 py-6 pb-32 text-white md:px-8">
-      <div className="mx-auto max-w-7xl space-y-8">
+    <main className="min-h-screen overflow-x-hidden bg-[#050607] px-3 py-5 pb-28 text-white sm:px-4 md:px-8 md:py-6 md:pb-32">
+      <div className="mx-auto max-w-7xl min-w-0 space-y-8">
         <Link
           href="/"
           className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200"
@@ -55,12 +55,12 @@ export default async function BeatPage({ params }: BeatPageProps) {
           Volver
         </Link>
 
-        <section className="grid gap-8 lg:grid-cols-[minmax(280px,420px)_1fr]">
+        <section className="grid min-w-0 gap-6 lg:grid-cols-[minmax(280px,420px)_1fr] lg:gap-8">
           <div className="grid aspect-square place-items-center rounded-lg border border-cyan-300/20 bg-[radial-gradient(circle_at_25%_20%,rgba(103,232,249,0.35),transparent_30%),linear-gradient(135deg,#155e75,#0f172a_70%)]">
             <span className="text-6xl font-black text-white/85 md:text-7xl">B.R</span>
           </div>
 
-          <div className="flex flex-col justify-center rounded-lg border border-white/10 bg-[#101317] p-6 md:p-8">
+          <div className="min-w-0 rounded-lg border border-white/10 bg-[#101317] p-5 md:p-8">
             <div className="mb-4 flex flex-wrap items-center gap-3">
               {beat.locked ? <AccessBadge /> : (
                 <span className="inline-flex items-center gap-1 rounded-md border border-cyan-300/30 px-2 py-1 text-xs text-cyan-200">
@@ -70,7 +70,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
               )}
             </div>
 
-            <h1 className="text-4xl font-black leading-tight md:text-6xl">{beat.name}</h1>
+            <h1 className="break-words text-3xl font-black leading-tight md:text-6xl">{beat.name}</h1>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <div className="rounded-md border border-white/10 bg-white/5 p-4">
@@ -160,7 +160,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
               <h2 className="text-xl font-bold">Beats relacionados</h2>
               <span className="text-sm text-cyan-200">{beat.genre}</span>
             </div>
-            <div className="flex snap-x gap-4 overflow-x-auto pb-3">
+            <div className="flex snap-x gap-3 overflow-x-auto pb-3 [-webkit-overflow-scrolling:touch] sm:gap-4">
               {relatedBeats.map((relatedBeat, index) => (
                 <BeatCard key={relatedBeat.id} beat={relatedBeat} gradientIndex={index} queue={detailQueue} />
               ))}

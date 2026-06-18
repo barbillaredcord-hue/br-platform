@@ -15,13 +15,13 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-[#050607] text-white">
-      <div className="flex min-h-screen pb-28">
+      <div className="flex min-h-screen w-full overflow-x-hidden pb-24 md:pb-28">
         <Sidebar />
 
         <section className="min-w-0 flex-1">
           <Header />
 
-          <div className="space-y-10 px-4 py-6 md:px-8">
+          <div className="min-w-0 space-y-8 px-3 py-5 sm:px-4 md:space-y-10 md:px-8 md:py-6">
             {usingFallback ? <SupabaseFallbackNotice /> : null}
             {featuredBeat ? <HeroBeat beat={featuredBeat} /> : null}
 

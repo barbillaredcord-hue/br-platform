@@ -12,14 +12,14 @@ export default async function ExplorePage() {
 
   return (
     <main className="min-h-screen bg-[#050607] text-white">
-      <div className="flex min-h-screen pb-28">
+      <div className="flex min-h-screen w-full overflow-x-hidden pb-24 md:pb-28">
         <Sidebar />
         <section className="min-w-0 flex-1">
           <Header />
-          <div className="px-4 py-6 md:px-8">
+          <div className="min-w-0 px-3 py-5 sm:px-4 md:px-8 md:py-6">
             {usingFallback ? <SupabaseFallbackNotice /> : null}
-            <div className="mb-6 flex items-end justify-between gap-4">
-              <div>
+            <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+              <div className="min-w-0">
                 <p className="text-sm font-bold uppercase text-cyan-200">Explorar</p>
                 <h1 className="mt-2 text-3xl font-black md:text-5xl">Todos los beats</h1>
               </div>

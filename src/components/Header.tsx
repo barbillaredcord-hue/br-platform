@@ -37,8 +37,8 @@ export function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-white/10 bg-[#050607]/90 px-4 py-4 backdrop-blur md:px-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <header className="sticky top-0 z-20 border-b border-white/10 bg-[#050607]/90 px-3 py-3 backdrop-blur sm:px-4 md:px-8 md:py-4">
+      <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 lg:hidden">
             <LogoMark compact />
@@ -47,7 +47,7 @@ export function Header() {
           <div className="hidden text-2xl font-black lg:block">B.R</div>
         </div>
 
-        <div className="flex flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-end">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-end">
           {isAdmin ? (
             <div className="inline-flex h-11 shrink-0 items-center rounded-md border border-white/10 bg-white/5 px-3 text-xs font-bold text-zinc-200">
               {statusLabel}
@@ -62,7 +62,9 @@ export function Header() {
             placeholder="Buscar beats, género o BPM"
             className="h-11 w-full rounded-md border border-white/10 bg-white/10 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-cyan-300"
           />
-          <AuthControls />
+          <div className="min-w-0">
+            <AuthControls />
+          </div>
         </div>
       </div>
     </header>
