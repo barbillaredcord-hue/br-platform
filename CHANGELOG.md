@@ -2,7 +2,49 @@
 
 Registro manual de cambios relevantes de B.R / br-platform.
 
-Este archivo resume hitos funcionales y de continuidad. Mantenerlo alineado con `APP_STATE.json`, `PROJECT_STATUS.md`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, `CHATGPT_CONTEXT.md` y `CODEX_CONTEXT.md`.
+Este archivo resume hitos funcionales y de continuidad. Mantenerlo alineado con `APP_STATE.json`, `PROJECT_STATUS.md`, `README.md`, `AGENTS.md`, `CHATGPT_CONTEXT.md` y `CODEX_CONTEXT.md`.
+
+## pending - feat: close phase 13 playback visibility and updates modal
+
+Fecha: 2026-06-18
+
+Estado: Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado.
+
+Cambios:
+
+- Cierre funcional de Fase 13.
+- `ProductUpdatesPanel` ahora es compacto y abre un modal mediano de actualizaciones.
+- El modal de actualizaciones se puede cerrar con X, boton Cerrar, overlay y Escape.
+- Actualizaciones visibles dentro de la app sincronizadas con Fase 13 cerrada.
+- Preview real generado desde beat completo con FFmpeg WASM.
+- Duraciones de preview soportadas: 15, 20, 25 y 30 segundos.
+- PlayerBar premium con modo Preview / Acceso completo.
+- Responsive movil critico corregido.
+- Dominio `brstudios.org` funcionando con Cloudflare DNS y Vercel.
+- Resend verificado y Supabase SMTP funcionando para confirmacion real de correo.
+- `playback_visibility` agregado a `public.beats` para controlar reproduccion publica/privada.
+- Admin puede cambiar un beat entre Publico/Privado desde Gestionar Beats.
+- Beat publico reproduce full sin acceso.
+- Beat privado reproduce preview sin acceso y full con acceso.
+- Admin/B.RCEO reproduce full en cualquier beat sin requerir `beat_access`.
+- Descarga MP3 y licencia siguen protegidas por sesion y `beat_access`.
+- Documentacion actualizada en `APP_STATE.json`, `README.md`, `AGENTS.md`, `CHANGELOG.md`, `docs/supabase/schema.sql` y `docs/supabase/phase-13f-playback-visibility.sql`.
+
+Validacion:
+
+```text
+npm run lint: OK
+npm run build: OK
+SQL playback_visibility ejecutado en Supabase: OK
+Prueba manual de actualizaciones/modal: OK
+Prueba manual publico/privado/admin full: OK
+```
+
+Siguiente foco:
+
+```text
+Fase 14 - ordenes y pagos controlados
+```
 
 ## d9c7fb2 - docs: sync phase 12 commercial continuity
 
@@ -84,14 +126,14 @@ Cambios:
 
 ## Regla actual
 
-El estado activo ya no es Fase 12D ni Fase 12E. El estado activo es:
+El estado activo ya no es Fase 12. El estado activo es:
 
 ```text
-Fase 12 cerrada / comercial base completada
+Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado
 ```
 
 Siguiente fase:
 
 ```text
-Fase 13 - preview real de 15 segundos + UX premium del player
+Fase 14 - ordenes y pagos controlados
 ```

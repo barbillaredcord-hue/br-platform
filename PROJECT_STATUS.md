@@ -4,10 +4,11 @@ Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.js
 
 ## Foco principal del producto
 
-- Foco: Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
+- Foco: Consolidar el flujo Beat -> preview real -> solicitud/orden -> pago/acceso -> descarga/licencia.
 - Regla: El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.
 - Rol de BR.autocarmation dentro de esta app: objetivo secundario e infraestructura de continuidad.
-- La base comercial de Fase 12 ya quedó cerrada. El siguiente foco es Fase 13: preview real de 15 segundos + UX premium del player.
+- Fase 13 ya quedo cerrada: preview real, player premium, responsive movil, dominio, SMTP y playback publico/privado.
+- Siguiente foco: Fase 14 - ordenes y pagos controlados desde admin.
 
 ## Estado actual
 
@@ -16,59 +17,67 @@ Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.js
 - Tipo: marketplace musical / plataforma privada de beats
 - Owner: Fabian
 - Visibilidad: private
-- Fase: Fase 12 cerrada / comercial base completada
+- Fase: Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado
 - Estado: implemented / estable
-- Avance: 85%
-- Nivel: App Next.js publicada en Vercel con Supabase Auth, Storage, beats reales, catálogo visible, player full/preview por acceso, guardados locales, Mis Beats, solicitudes, acceso manual, descargas protegidas, licencias protegidas, pagos manuales, actividad comercial, admin B.RCEO y controles de player con Space/seek.
+- Avance: 92%
+- Nivel: App Next.js publicada en Vercel con dominio brstudios.org, Supabase Auth, Storage, beats reales, preview real generado desde beat completo, duraciones 15/20/25/30, catalogo visible, player premium full/preview por acceso y playback_visibility, admin B.RCEO con full global, guardados, Mis Beats, solicitudes, acceso manual, descargas protegidas, licencias protegidas, pagos manuales, actividad comercial, actualizaciones compactas con modal y Supabase SMTP con Resend.
 - Backend: Supabase real
 - Deploy: Vercel
+- DNS: Cloudflare
+- SMTP: Resend + Supabase SMTP
+- Dominio: brstudios.org
 - BR.autocarmation: B.R ya registrada en Core v3
-- Último commit funcional: be3d8cb feat:add license type support and phase 12 checkpoint
-- Checkpoint principal: docs/phase-12-commercial-checkpoint.md
+- Ultimo commit funcional: pending_phase_13_commit
+- Checkpoint principal: docs/phase-13-preview-player-auth-checkpoint.md
 - SQL comercial: docs/supabase/phase-12-commercial.sql
+- SQL playback visibility: docs/supabase/phase-13f-playback-visibility.sql
 
 ## Siguiente fase
 
-- Fase: Fase 13 - preview real de 15 segundos + UX premium del player
-- Objetivo: Separar un preview real de 15 segundos del audio full, mejorar la experiencia premium del player y preparar la base para pagos iniciales/licencias sin expandir todavía a marketplace multiusuario.
+- Fase: Fase 14 - ordenes y pagos controlados
+- Objetivo: Crear ordenes/pagos controlados por admin para liberar acceso, descarga y licencia sin automatizar marketplace ni pagos completos todavia.
 
 ## Objetivo principal
 
-Consolidar primero el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia antes de expandir a marketplace multiusuario.
+Consolidar primero el flujo Beat -> preview real -> solicitud/orden -> pago/acceso -> descarga/licencia antes de expandir a marketplace multiusuario.
 
 ## Objetivos secundarios
 
-- Player por acceso: 100% (completed) - Reproducir full audio cuando el usuario tiene acceso y preview cuando no tiene acceso o no ha iniciado sesión.
-- Descargas protegidas: 100% (completed) - Descargar MP3 solo con sesión y beat_access válido.
-- Licencias protegidas: 100% (completed) - Descargar licencia solo con sesión y beat_access válido.
+- Player por acceso: 100% (completed) - Reproducir full audio cuando corresponde y preview cuando no hay acceso.
+- Descargas protegidas: 100% (completed) - Descargar MP3 solo con sesion y beat_access valido.
+- Licencias protegidas: 100% (completed) - Descargar licencia solo con sesion y beat_access valido.
 - Actividad comercial: 100% (completed) - Registrar actividad server-side en commercial_activity.
-- Pagos manuales: 100% (completed) - Registrar pagos manuales por usuario + beat, con prevención de duplicados.
+- Pagos manuales: 100% (completed) - Registrar pagos manuales por usuario + beat, con prevencion de duplicados.
 - Tipos de licencia: 100% (completed) - Soporte basic, premium y exclusive.
-- Preview real: 0% (planned) - Generar y administrar previews reales de 15 segundos.
-- Pagos iniciales automatizados: 0% (planned) - Preparar flujo de pagos iniciales sin Stripe completo hasta definir alcance.
-- Licencias formales: 0% (planned) - Mejorar modelo legal y descargable de licencias después del preview real.
-- Marketplace musical: 0% (future) - Expandir B.R a marketplace para productores, músicos, beatmakers, DJs y servicios musicales.
+- Preview real: 100% (completed) - Generar y administrar previews reales desde el beat completo con duraciones 15, 20, 25 o 30 segundos.
+- Player premium y responsive: 100% (completed) - Mejorar PlayerBar, preview/full visual y experiencia movil compacta.
+- Auth SMTP y dominio: 100% (completed) - Configurar brstudios.org, Cloudflare, Vercel, Resend y Supabase SMTP para confirmacion real de correo.
+- Playback publico/privado: 100% (completed) - Permitir beats publicos con full playback abierto y beats privados con preview/full por acceso, manteniendo descarga/licencia protegidas.
+- Ordenes y pagos controlados: 0% (planned) - Implementar ordenes/pagos controlados desde admin antes de automatizar pagos completos.
+- Licencias formales: 0% (planned) - Mejorar modelo legal y descargable de licencias despues del preview real.
+- Marketplace musical: 0% (future) - Expandir B.R a marketplace para productores, musicos, beatmakers, DJs y servicios musicales.
 
 ## Fases completadas
 
 - Base inicial: Proyecto Next.js creado y estructura inicial preparada.
-- Diseño visual inicial: Home y experiencia visual tipo Spotify/Netflix con identidad B.R.
-- Beats y player: Catálogo de beats, página dinámica y player funcional.
-- Admin inicial: Panel admin, gestión de beats y solicitudes iniciales.
+- Diseno visual inicial: Home y experiencia visual tipo Spotify/Netflix con identidad B.R.
+- Beats y player: Catalogo de beats, pagina dinamica y player funcional.
+- Admin inicial: Panel admin, gestion de beats y solicitudes iniciales.
 - Supabase y Storage: Supabase Auth, Storage, bucket beats, upload MP3 y flujos funcionales conectados.
-- Producción inicial: Deploy en Vercel, acceso manual, B.RCEO admin, eliminación de usuarios y app lista para consolidación comercial.
-- Consistencia y duplicados: Control de slugs duplicados, mensajes claros, limpieza defensiva de MP3 huérfanos y refresh de accesos.
-- UX de solicitudes y dashboard: Dashboard admin vivo, solicitudes más claras, contacto por WhatsApp, rutas dinámicas y datos reales desde Supabase.
-- Accesos, usuarios y navegación: Access Manager centrado en beat, solicitudes con historial, usuarios expandibles, Explore, Favoritos y Mis Beats funcionales.
-- Estabilidad de catálogo, usuarios y accesos: Usuarios existentes reciben beats nuevos, regla permanente de catálogo activo agregada, UserContext valida cuenta eliminada y Supabase schema actualizado.
+- Produccion inicial: Deploy en Vercel, acceso manual, B.RCEO admin, eliminacion de usuarios y app lista para consolidacion comercial.
+- Consistencia y duplicados: Control de slugs duplicados, mensajes claros, limpieza defensiva de MP3 huerfanos y refresh de accesos.
+- UX de solicitudes y dashboard: Dashboard admin vivo, solicitudes mas claras, contacto por WhatsApp, rutas dinamicas y datos reales desde Supabase.
+- Accesos, usuarios y navegacion: Access Manager centrado en beat, solicitudes con historial, usuarios expandibles, Explore, Favoritos y Mis Beats funcionales.
+- Estabilidad de catalogo, usuarios y accesos: Usuarios existentes reciben beats nuevos, regla permanente de catalogo activo agregada, UserContext valida cuenta eliminada y Supabase schema actualizado.
 - Player por acceso: Player full/preview resuelto por acceso real; siguiente/anterior selecciona full si el usuario tiene acceso y preview si no lo tiene.
 - Guardados y controles del player: Scroll horizontal Safari-safe, guardados locales, /account/saved funcional, Space play/pause y barra de progreso seekable/clickeable.
-- Fase 12 comercial base: Descarga protegida MP3, descarga protegida de licencia, commercial_activity, paneles admin comerciales, pagos manuales, prevención de duplicados y tipos de licencia basic/premium/exclusive.
+- Fase 12 comercial base: Descarga protegida MP3, descarga protegida de licencia, commercial_activity, paneles admin comerciales, pagos manuales, prevencion de duplicados y tipos de licencia basic/premium/exclusive.
+- Fase 13 preview/player/auth/playback: Preview real generado desde beat completo, duraciones 15/20/25/30, PlayerBar premium, responsive movil, dominio brstudios.org, Cloudflare, Vercel, Resend + Supabase SMTP, actualizaciones compactas con modal, playback_visibility publico/privado por beat y admin full global sin beat_access.
 
 ## Completado
 
 - Proyecto Next.js creado
-- Diseño inicial tipo Spotify/Netflix
+- Diseno inicial tipo Spotify/Netflix
 - Supabase Auth conectado
 - Supabase Storage conectado
 - Bucket beats funcional
@@ -86,13 +95,13 @@ Consolidar primero el flujo Beat -> preview -> solicitud -> pago/acceso -> desca
 - Admin Access centrado en beat
 - Usuarios visibles para admin
 - Usuarios admin expandibles
-- Teléfono en perfil
+- Telefono en perfil
 - Cambio de username
 - Ocultar Supabase conectado a usuarios normales
 - Eliminar usuarios implementado
 - UserContext valida cuenta eliminada
-- Usuarios nuevos, existentes y admin reciben beats activos nuevos
-- Regla permanente de catálogo activo agregada
+- Usuarios nuevos, existentes, visitantes y admin reciben beats activos nuevos
+- Regla permanente de catalogo activo agregada
 - Supabase schema actualizado para Fase 11F-C
 - Player full/preview por acceso completado
 - Siguiente/anterior del player respeta acceso real
@@ -101,45 +110,83 @@ Consolidar primero el flujo Beat -> preview -> solicitud -> pago/acceso -> desca
 - /account/saved conectado a guardados reales
 - Space play/pause agregado al player
 - Barra de progreso clickeable/seekable agregada al player
-- Descarga protegida de MP3 por sesión y beat_access
-- Descarga protegida de licencia por sesión y beat_access
+- Descarga protegida de MP3 por sesion y beat_access
+- Descarga protegida de licencia por sesion y beat_access
 - Registro server-side de actividad comercial en commercial_activity
 - Panel admin de actividad comercial
 - Panel admin de usuarios comerciales
 - Registro de pagos manuales por usuario + beat
-- Prevención de pago manual duplicado por usuario + beat
+- Prevencion de pago manual duplicado por usuario + beat
 - Tipos de licencia basic, premium y exclusive
 - Checkpoint de Fase 12 en docs/phase-12-commercial-checkpoint.md
 - Deploy en Vercel funcionando
 - GitHub conectado
 - APP_STATE.json creado para BR.autocarmation
 - B.R registrada en Core v3 registry
+- Preview real generado desde beat completo
+- Duraciones de preview 15, 20, 25 y 30 segundos
+- Preview Editor funcional con FFmpeg WASM
+- PlayerBar premium con modo Preview / Acceso completo
+- Responsive movil critico corregido
+- Dominio brstudios.org conectado a Vercel
+- Cloudflare DNS configurado
+- Resend verificado
+- Supabase SMTP funcionando
+- Confirmacion de correo funcionando
+- ProductUpdatesPanel compacto con modal
+- playback_visibility agregado a beats
+- Admin puede cambiar beat publico/privado desde Gestionar Beats
+- Beat publico reproduce full sin acceso
+- Beat privado respeta preview/full por acceso
+- Admin B.RCEO reproduce full sin beat_access
 
-## Regla permanente de catálogo
+## Regla permanente de catalogo
 
-- Todo beat activo debe aparecer en el catálogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO, según la visibilidad pública prevista.
-- beat_access no debe filtrar la visibilidad del catálogo.
-- beat_access solo controla preview/full, descarga, licencia, badges y acciones protegidas.
+- Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO.
+- beat_access no debe filtrar la visibilidad del catalogo.
+- beat_access solo controla descarga, licencia, badges y acciones protegidas.
+- playback_visibility controla si la reproduccion full es publica o privada.
+- is_active controla si el beat aparece o no aparece en catalogo.
 
 ## Regla permanente del player
 
-- Si el usuario tiene acceso al beat, reproducir full audio.
-- Si no tiene acceso, reproducir preview.
-- Si no hay sesión, reproducir preview.
-- Siguiente/anterior deben resolver acceso por beat, no reutilizar la URL anterior.
-- No romper esta regla al implementar preview real, descargas, licencias, pagos o rediseño visual.
+- Si playback_visibility = public, visitantes y usuarios pueden reproducir full audio.
+- Si playback_visibility = private y el usuario tiene acceso, reproducir full audio.
+- Si playback_visibility = private y el usuario no tiene acceso, reproducir preview.
+- Si no hay sesion y playback_visibility = private, reproducir preview.
+- Admin/B.RCEO puede reproducir full en cualquier beat sin requerir beat_access.
+- Preview explicito debe seguir reproduciendo preview.
+- Siguiente/anterior deben resolver acceso y visibilidad por beat, no reutilizar la URL anterior.
+- No romper esta regla al implementar descargas, licencias, pagos o rediseño visual.
 
-## Regla de cuenta eliminada
+## Reproduccion publica/privada
 
-- Si un usuario elimina su cuenta, se eliminan sus datos y accesos.
-- Si vuelve a crear una cuenta con el mismo correo, B.R no garantiza recuperar accesos anteriores.
-- Esta regla debe incluirse después en términos y condiciones.
+```text
+is_active = aparece/no aparece en catalogo.
+playback_visibility = full publico o preview/full por acceso.
+beat_access = descarga, licencia, badges y acciones protegidas.
+```
+
+Modos:
+
+```text
+Beat privado:
+- Visitante/usuario sin acceso: Preview
+- Usuario con acceso: Full
+- Admin/B.RCEO: Full
+
+Beat publico:
+- Visitante/usuario sin acceso: Full
+- Usuario con acceso: Full
+- Admin/B.RCEO: Full
+- Descarga/licencia: siguen protegidas por acceso aprobado
+```
 
 ## Fase 12 cerrada - Comercial base
 
 Completado:
 
-- Preview/full por acceso.
+- Preview/full por acceso base.
 - Saved beats.
 - Descarga protegida MP3.
 - Descarga protegida licencia.
@@ -147,7 +194,7 @@ Completado:
 - Panel admin de actividad comercial.
 - Panel admin de usuarios comerciales.
 - Pagos manuales por usuario + beat.
-- Prevención de pago duplicado por usuario + beat.
+- Prevencion de pago duplicado por usuario + beat.
 - Tipos de licencia basic, premium y exclusive.
 - Checkpoint de cierre de Fase 12.
 
@@ -168,32 +215,63 @@ SQL asociado:
 docs/supabase/phase-12-commercial.sql
 ```
 
-El SQL debe estar ejecutado o re-ejecutado en Supabase. Incluye `commercial_activity`, `manual_payments`, `manual_payments_user_beat_unique_idx`, `manual_payments.license_type`, constraint basic/premium/exclusive y `manual_payments_license_type_idx`.
+## Fase 13 cerrada - Preview real, player premium, auth SMTP y playback publico/privado
+
+Completado:
+
+- Preview Editor funcional.
+- FFmpeg WASM para generar preview desde beat completo.
+- Duraciones de preview 15, 20, 25 y 30 segundos.
+- preview_url, preview_duration_seconds y preview_updated_at.
+- PlayerBar premium.
+- Responsive movil critico.
+- ProductUpdatesPanel compacto con modal.
+- Dominio brstudios.org.
+- Cloudflare DNS.
+- Vercel conectado al dominio.
+- Resend verificado.
+- Supabase SMTP funcionando.
+- Confirmacion de correo funcionando.
+- playback_visibility en public.beats.
+- Admin puede cambiar beat publico/privado desde Gestionar Beats.
+- Beat publico reproduce full sin acceso.
+- Beat privado respeta preview/full por acceso.
+- Admin/B.RCEO reproduce full sin beat_access.
+- Descarga/licencia siguen protegidas aunque el beat sea publico.
+
+SQL asociado:
+
+```text
+docs/supabase/phase-13-preview-editor.sql
+docs/supabase/phase-13f-playback-visibility.sql
+```
 
 ## Pendiente
 
-- Fase 13: preview real de 15 segundos + UX premium del player
+- Fase 14: ordenes y pagos controlados
 - Evaluar bucket privado y signed URLs
-- Preparar pagos iniciales sin Stripe hasta definir alcance
-- Mejorar modelo formal de licencias después del preview real
-- Términos y condiciones
+- Mejorar modelo formal de licencias despues del preview real
+- Terminos y condiciones
 - Suscripciones / freemium / watermark
 - Marketplace multiusuario
-- Perfiles públicos de productores/artistas
+- Perfiles publicos de productores/artistas
 - Servicios musicales
 - Escrow o pago protegido
-- Chat / rooms de colaboración
+- Chat / rooms de colaboracion
 
 ## Riesgos
 
 - No exponer SUPABASE_SERVICE_ROLE_KEY
-- Mantener B.RCEO como único admin real
+- Mantener B.RCEO como unico admin real
 - No permitir acciones protegidas con fallback admin
-- No mezclar BR.autocarmation con la lógica principal de B.R
-- No volver a filtrar el catálogo por beat_access: usuarios nuevos, existentes y admin deben recibir beats activos nuevos sin depender de sus accesos
+- No mezclar BR.autocarmation con la logica principal de B.R
+- No volver a filtrar el catalogo por beat_access: usuarios nuevos, existentes y admin deben recibir beats activos nuevos sin depender de sus accesos
 - No romper player full/preview por acceso durante preview real, descargas, licencias o pagos
-- No habilitar descarga sin acceso/licencia válida
-- No avanzar a marketplace antes de consolidar preview real, pagos iniciales y licencias
+- No habilitar descarga sin acceso/licencia valida
+- No avanzar a marketplace antes de consolidar ordenes/pagos controlados y licencias
+- No confundir is_active con playback_visibility: is_active controla catalogo y playback_visibility controla full publico/privado
+- No liberar descarga/licencia solo porque un beat sea publico
+- No hacer depender al admin/B.RCEO de beat_access para reproducir full
 
 ## Pros
 
@@ -201,7 +279,7 @@ El SQL debe estar ejecutado o re-ejecutado en Supabase. Incluye `commercial_acti
 - Supabase Auth y Storage operativos
 - Flujo de acceso manual ya probado
 - Favoritos y Mis Beats ya funcionan
-- Catálogo activo ya funciona para usuarios nuevos, existentes y admin
+- Catalogo activo ya funciona para usuarios nuevos, existentes, visitantes y admin
 - Player ya respeta acceso full/preview
 - Guardados locales ya funcionan como base de favoritos
 - Controles de player mejorados con teclado y seek
@@ -210,41 +288,47 @@ El SQL debe estar ejecutado o re-ejecutado en Supabase. Incluye `commercial_acti
 - Actividad comercial registrada server-side
 - Pagos manuales por usuario + beat ya funcionan
 - Tipos de licencia basic/premium/exclusive ya soportados
-- Arquitectura lista para preview real, pagos iniciales y licencias formales
+- Arquitectura lista para ordenes/pagos controlados y licencias formales
 - Marca B.R puede evolucionar a marketplace musical
+- Preview real ya funciona con duraciones configurables
+- Dominio propio y SMTP real ya funcionan
+- Playback publico/privado por beat ya funciona
+- Admin B.RCEO tiene full global sin beat_access
+- Actualizaciones compactas con modal ya funcionan
 
 ## Contras
 
-- Aún falta preview real separado de 15 segundos
-- Aún falta pagos automáticos completos
-- Aún falta sistema formal/legal avanzado de licencias
-- El marketplace multiusuario requiere roles, permisos y moderación adicionales
+- Aun falta Fase 14 de ordenes y pagos controlados
+- Aun falta sistema formal/legal avanzado de licencias
+- El marketplace multiusuario requiere roles, permisos y moderacion adicionales
 
 ## Continuidad
 
-- Prioridad: Iniciar Fase 13 con preview real de 15 segundos + UX premium del player.
-- Próxima acción: Separar preview real de audio full, mejorar player, evaluar bucket privado/signed URLs y preparar pagos iniciales/licencias sin Stripe completo.
-- Contexto: B.R está publicada en Vercel, conectada a Supabase real, registrada en BR.autocarmation y con Fase 12 comercial cerrada en commit be3d8cb.
-- Regla crítica: beat_access no filtra catálogo; solo controla preview/full, descarga, licencia, badges y acciones protegidas.
+- Prioridad: Preparar Fase 14: ordenes y pagos controlados desde admin.
+- Proxima accion: Crear flujo de orden/pago controlado: solicitud de compra, estado pendiente/aprobado/rechazado, confirmacion admin y liberacion de acceso, descarga y licencia.
+- Contexto: B.R esta publicada en Vercel con dominio brstudios.org, conectada a Supabase real, registrada en BR.autocarmation y con Fase 13 cerrada. El sistema ya tiene preview real generado desde el beat completo, player premium, full/preview por acceso y playback_visibility, admin full global, SMTP real con Resend/Supabase, actualizaciones compactas, descargas/licencias protegidas y pagos manuales base.
+- Regla critica: beat_access no filtra catalogo; solo controla descarga, licencia, badges y acciones protegidas. playback_visibility controla si el beat reproduce full publicamente o solo preview/full por acceso.
 
-## Fase 13 propuesta - Preview real y UX premium
+## Fase 14 propuesta - Ordenes y pagos controlados
 
-Meta: separar un preview real de 15 segundos del audio full, mejorar la experiencia premium del player y preparar la base para pagos iniciales/licencias sin expandir todavía a marketplace multiusuario.
+Meta: crear un flujo controlado de orden/pago desde admin para liberar acceso, descarga y licencia sin automatizar marketplace ni pagos completos todavia.
 
 Alcance inicial:
 
-- Crear preview real separado de 15 segundos.
-- Mantener full audio solo para usuarios con acceso.
-- Mejorar UX premium del player sin romper preview/full actual.
-- Evaluar bucket privado y signed URLs.
-- Mantener descarga MP3/licencia protegida por sesión y beat_access.
-- No usar beat_access para filtrar catálogo.
+- Crear solicitud/intencion de compra.
+- Crear estado de orden: pending / approved / rejected / cancelled.
+- Permitir que admin confirme pago manualmente.
+- Al aprobar pago, liberar beat_access y license_type.
+- Mostrar al usuario el estado de su compra.
+- Mantener descarga MP3/licencia protegida por sesion y beat_access.
+- No usar beat_access para filtrar catalogo.
+- No romper playback_visibility publico/privado.
 
 Fuera de alcance inicial:
 
-- Stripe o pagos automáticos completos.
+- Stripe o pagos automaticos completos.
 - Marketplace multiusuario.
-- Perfiles públicos de productores/artistas.
+- Perfiles publicos de productores/artistas.
 - Licencias legales avanzadas.
 - Escrow o pago protegido.
 
@@ -258,7 +342,7 @@ Fuera de alcance inicial:
 - Template version: app-state-schema-v3
 - Future sync target: BR.autocar Admin Web
 
-## Documentación de continuidad
+## Documentacion de continuidad
 
 Archivos principales:
 
@@ -272,9 +356,11 @@ CHATGPT_CONTEXT.md
 CODEX_CONTEXT.md
 docs/phase-12-commercial-checkpoint.md
 docs/phase-12m1-continuity-sync.md
+docs/supabase/phase-13-preview-editor.sql
+docs/supabase/phase-13f-playback-visibility.sql
 ```
 
-## Validaciones mínimas
+## Validaciones minimas
 
 ```bash
 python3 -m json.tool APP_STATE.json >/dev/null
@@ -282,4 +368,4 @@ npm run lint
 npm run build
 ```
 
-Última generación: Fase 12 cerrada / comercial base completada
+Ultima generacion: Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado
