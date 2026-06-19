@@ -29,8 +29,11 @@ type BeatRowDb = {
   full_audio_url: string;
   preview_duration_seconds?: number | null;
   preview_updated_at?: string | null;
+  playback_visibility?: string | null;
   is_active: boolean | null;
 };
+
+type PlaybackVisibilityInput = "private" | "public";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -152,6 +155,7 @@ export function mapSupabaseBeat(row: BeatRowDb): Beat {
     locked: true,
     key: row.musical_key ?? undefined,
     status: "Privado",
+    playbackVisibility: row.playback_visibility === "public" ? "public" : "private",
     previewUrl: row.preview_url,
     fullAudioUrl: row.full_audio_url,
     isDemoAudio: false,
@@ -296,7 +300,7 @@ export async function getBeats() {
 
   const { data, error } = await supabase
     .from("beats")
-    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,is_active")
+    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active")
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -318,7 +322,7 @@ export async function getBeatBySlug(slug: string) {
 
   const { data, error } = await supabase
     .from("beats")
-    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,is_active")
+    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active")
     .eq("slug", slug)
     .maybeSingle<BeatRowDb>();
 
@@ -891,6 +895,32 @@ export async function deleteBeatAsAdmin(beatId: string) {
   return { ok: true, message: result.message ?? "Beat eliminado del catálogo." };
 }
 
+export async function updateBeatPlaybackVisibilityAsAdmin(beatId: string, playbackVisibility: PlaybackVisibilityInput) {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+
+  if (!supabase) {
+    return { ok: false, message: authClient.message };
+  }
+
+  const safePlaybackVisibility: PlaybackVisibilityInput = playbackVisibility === "public" ? "public" : "private";
+  const matchColumn = uuidPattern.test(beatId) ? "id" : "slug";
+  const { error } = await supabase
+    .from("beats")
+    .update({ playback_visibility: safePlaybackVisibility })
+    .eq(matchColumn, beatId);
+
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R update beat playback visibility error", error);
+    }
+
+    return { ok: false, message: "No se pudo actualizar la visibilidad." };
+  }
+
+  return { ok: true, message: "Visibilidad de reproducción actualizada." };
+}
+
 function slugify(value: string) {
   return value
     .trim()
@@ -899,7 +929,7 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export async function createBeatWithUpload(input: { file: File; title: string; slug: string; genre: string; bpm: string; musicalKey: string }) {
+export async function createBeatWithUpload(input: { file: File; title: string; slug: string; genre: string; bpm: string; musicalKey: string; playbackVisibility?: PlaybackVisibilityInput }) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const slug = slugify(input.title);
@@ -957,6 +987,7 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     preview_url: publicUrl,
     preview_duration_seconds: 15,
     preview_updated_at: null,
+    playback_visibility: input.playbackVisibility === "public" ? "public" : "private",
     is_active: true,
   };
   diagnostics.payload = payload;

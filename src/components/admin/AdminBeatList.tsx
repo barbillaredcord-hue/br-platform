@@ -7,11 +7,21 @@ import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { deleteBeatAsAdmin, getProfilesResult } from "@/lib/supabase/queries";
+import { deleteBeatAsAdmin, getProfilesResult, updateBeatPlaybackVisibilityAsAdmin } from "@/lib/supabase/queries";
 import { AdminBeatStatus } from "./AdminBeatStatus";
 
 function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
   return users.filter((user) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
+}
+
+function PlaybackVisibilityBadge({ beat }: { beat: Beat }) {
+  const isPublicPlayback = beat.playbackVisibility === "public";
+
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${isPublicPlayback ? "border-cyan-300/40 bg-cyan-300/10 text-cyan-100" : "border-white/10 bg-white/5 text-zinc-300"}`}>
+      {isPublicPlayback ? "Público" : "Privado"}
+    </span>
+  );
 }
 
 export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: User[] }) {
@@ -20,6 +30,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const [search, setSearch] = useState("");
   const [localUsers, setLocalUsers] = useState(users);
   const [deletingBeatId, setDeletingBeatId] = useState("");
+  const [updatingVisibilityBeatId, setUpdatingVisibilityBeatId] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const filteredBeats = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -64,6 +75,27 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setDeletingBeatId("");
   }
 
+  async function updatePlaybackVisibility(beat: Beat, playbackVisibility: "private" | "public") {
+    const beatKey = beat.dbId ?? beat.id;
+
+    if ((beat.playbackVisibility ?? "private") === playbackVisibility) {
+      return;
+    }
+
+    setUpdatingVisibilityBeatId(beatKey);
+    setActionMessage("");
+
+    const result = await updateBeatPlaybackVisibilityAsAdmin(beatKey, playbackVisibility);
+
+    setActionMessage(result.message);
+
+    if (result.ok) {
+      router.refresh();
+    }
+
+    setUpdatingVisibilityBeatId("");
+  }
+
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -85,6 +117,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               <th className="px-4 py-3">Género</th>
               <th className="px-4 py-3">BPM</th>
               <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Reproducción</th>
               <th className="px-4 py-3">Usuarios con acceso</th>
               <th className="px-4 py-3 text-right">Acción</th>
             </tr>
@@ -103,6 +136,28 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                   <td className="px-4 py-3 text-zinc-400">{beat.bpm}</td>
                   <td className="px-4 py-3">
                     <AdminBeatStatus status={beat.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="grid gap-2">
+                      <PlaybackVisibilityBadge beat={beat} />
+                      <label className="sr-only" htmlFor={`playback-visibility-${beat.id}`}>
+                        Cambiar reproducción de {beat.name}
+                      </label>
+                      <select
+                        id={`playback-visibility-${beat.id}`}
+                        value={beat.playbackVisibility ?? "private"}
+                        disabled={updatingVisibilityBeatId === (beat.dbId ?? beat.id)}
+                        onChange={(event) => void updatePlaybackVisibility(beat, event.target.value === "public" ? "public" : "private")}
+                        className="h-9 rounded-md border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white outline-none transition focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="private" className="bg-[#101317] text-white">
+                          Privado
+                        </option>
+                        <option value="public" className="bg-[#101317] text-white">
+                          Público
+                        </option>
+                      </select>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-zinc-400">
                     {usersWithAccess.length > 0 ? usersWithAccess.map((user) => user.name).join(", ") : "Sin usuarios"}
@@ -146,6 +201,26 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                 </p>
                 <div className="mt-3">
                   <AdminBeatStatus status={beat.status} />
+                </div>
+                <div className="mt-2 grid gap-2">
+                  <PlaybackVisibilityBadge beat={beat} />
+                  <label className="sr-only" htmlFor={`mobile-playback-visibility-${beat.id}`}>
+                    Cambiar reproducción de {beat.name}
+                  </label>
+                  <select
+                    id={`mobile-playback-visibility-${beat.id}`}
+                    value={beat.playbackVisibility ?? "private"}
+                    disabled={updatingVisibilityBeatId === (beat.dbId ?? beat.id)}
+                    onChange={(event) => void updatePlaybackVisibility(beat, event.target.value === "public" ? "public" : "private")}
+                    className="h-10 rounded-md border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="private" className="bg-[#101317] text-white">
+                      Privado
+                    </option>
+                    <option value="public" className="bg-[#101317] text-white">
+                      Público
+                    </option>
+                  </select>
                 </div>
                 <p className="mt-2 text-xs text-zinc-500">
                   Usuarios con acceso:{" "}

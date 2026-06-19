@@ -29,11 +29,13 @@ create table if not exists public.beats (
   full_audio_url text not null,
   preview_duration_seconds integer not null default 15,
   preview_updated_at timestamptz,
+  playback_visibility text not null default 'private',
   is_active boolean default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   constraint beats_bpm_check check (bpm is null or bpm between 40 and 240),
-  constraint beats_preview_duration_seconds_check check (preview_duration_seconds between 15 and 30)
+  constraint beats_preview_duration_seconds_check check (preview_duration_seconds between 15 and 30),
+  constraint beats_playback_visibility_check check (playback_visibility in ('private', 'public'))
 );
 
 create table if not exists public.beat_access (
@@ -74,6 +76,7 @@ create table if not exists public.account_access_recovery (
 );
 
 create index if not exists beats_slug_idx on public.beats (slug);
+create index if not exists beats_playback_visibility_idx on public.beats (playback_visibility);
 create index if not exists beat_access_user_id_idx on public.beat_access (user_id);
 create index if not exists beat_access_beat_id_idx on public.beat_access (beat_id);
 create index if not exists access_requests_status_idx on public.access_requests (status);

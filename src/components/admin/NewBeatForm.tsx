@@ -26,6 +26,7 @@ export function NewBeatForm() {
   const [genre, setGenre] = useState("");
   const [bpm, setBpm] = useState("");
   const [key, setKey] = useState("");
+  const [playbackVisibility, setPlaybackVisibility] = useState<"private" | "public">("private");
   const [file, setFile] = useState<File | null>(null);
   const [previewStatus, setPreviewStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
@@ -134,6 +135,18 @@ export function NewBeatForm() {
       </label>
 
       <label className="grid gap-2">
+        <span className="text-sm font-semibold text-zinc-300">Reproducción</span>
+        <select
+          value={playbackVisibility}
+          onChange={(event) => setPlaybackVisibility(event.target.value === "public" ? "public" : "private")}
+          className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:border-cyan-300"
+        >
+          <option value="private">Privado: requiere acceso para full</option>
+          <option value="public">Público: full abierto, descarga protegida</option>
+        </select>
+      </label>
+
+      <label className="grid gap-2">
         <span className="text-sm font-semibold text-zinc-300">Archivo Beat Completo</span>
         <input
           type="file"
@@ -212,6 +225,7 @@ export function NewBeatForm() {
                 genre: genre || metadata.genre,
                 bpm: bpm || (metadata.bpm ? String(metadata.bpm) : ""),
                 musicalKey: key || metadata.key || "",
+                playbackVisibility,
               });
               setSaveStatus(result.ok ? "Beat creado correctamente." : result.message || "No se pudo crear el beat.");
               setCreatedSlug(result.slug ?? "");

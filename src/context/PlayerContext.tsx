@@ -112,7 +112,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const resolvePlaybackMode = useCallback((beat: Beat, requestedMode: PlaybackRequestMode) => {
     // Do not use access to filter catalog visibility. Access only controls playback/download/protected actions.
-    const hasAccess = userCanAccessBeat(currentUserRef.current, beat);
+    const currentUser = currentUserRef.current;
+
+    if (requestedMode === "preview") {
+      return "preview";
+    }
+
+    if (currentUser?.role === "admin") {
+      return "full";
+    }
+
+    if (beat.playbackVisibility === "public") {
+      return "full";
+    }
+
+    const hasAccess = userCanAccessBeat(currentUser, beat);
 
     if (requestedMode === "auto") {
       return hasAccess ? "full" : "preview";

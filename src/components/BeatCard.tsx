@@ -33,8 +33,13 @@ function getPreviewSeconds(beat: Beat) {
 
 export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   const { currentUser } = useUser();
-  const hasAccess = userCanAccessBeat(currentUser, beat);
+  const isAdmin = currentUser?.role === "admin";
+  const hasBeatAccess = userCanAccessBeat(currentUser, beat);
+  const hasPlaybackAccess = isAdmin || hasBeatAccess;
+  const isPublicPlayback = beat.playbackVisibility === "public";
   const previewSeconds = getPreviewSeconds(beat);
+  const playbackMode = isAdmin || isPublicPlayback || hasBeatAccess ? "full" : "preview";
+  const playbackLabel = isAdmin || isPublicPlayback || hasBeatAccess ? "Full" : `Preview ${previewSeconds}s`;
 
   const savedBeatId = beat.dbId ?? beat.id;
   const [isSaved, setIsSaved] = useState(false);
@@ -88,13 +93,21 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
           {beat.locked ? <AccessBadge /> : null}
         </div>
         <div className="mt-3">
-          <AccessStatusBadge hasAccess={hasAccess} />
+          <AccessStatusBadge hasAccess={hasPlaybackAccess} />
         </div>
-        <p className="mt-2 truncate text-xs font-semibold text-zinc-500">{hasAccess ? "Acceso completo activo" : "Acceso privado disponible"}</p>
+        <p className="mt-2 truncate text-xs font-semibold text-zinc-500">
+          {isAdmin
+            ? "Admin: reproducción full disponible"
+            : isPublicPlayback
+              ? "Full público, descarga protegida"
+              : hasBeatAccess
+                ? "Acceso completo activo"
+                : "Acceso privado disponible"}
+        </p>
       </Link>
       <div className="mt-4 grid gap-2">
-        <PlayButton variant="light" beat={beat} mode={hasAccess ? "full" : "preview"} queue={queue} showPauseState>
-          {hasAccess ? "Full" : `Preview ${previewSeconds}s`}
+        <PlayButton variant="light" beat={beat} mode={playbackMode} queue={queue} showPauseState>
+          {playbackLabel}
         </PlayButton>
         <button
           type="button"

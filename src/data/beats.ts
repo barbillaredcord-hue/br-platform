@@ -1,4 +1,5 @@
 export type BeatStatus = "Público Preview" | "Privado" | "Exclusivo";
+export type BeatPlaybackVisibility = "private" | "public";
 
 export type Beat = {
   id: string;
@@ -9,6 +10,7 @@ export type Beat = {
   locked: boolean;
   key?: string;
   status: BeatStatus;
+  playbackVisibility?: BeatPlaybackVisibility;
   previewUrl: string;
   fullAudioUrl: string;
   isDemoAudio: false;
