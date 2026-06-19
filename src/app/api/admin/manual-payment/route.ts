@@ -103,22 +103,6 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, message: "Beat no encontrado." }, { status: 404 });
   }
 
-  const { data: accessRow, error: accessError } = await admin.supabase
-    .from("beat_access")
-    .select("beat_id")
-    .eq("user_id", profile.id)
-    .eq("beat_id", beat.id)
-    .maybeSingle<{ beat_id: string }>();
-
-  if (accessError) {
-    console.error("B.R manual payment access lookup error", accessError);
-    return Response.json({ ok: false, message: "No se pudo validar el acceso del usuario al beat." }, { status: 500 });
-  }
-
-  if (!accessRow) {
-    return Response.json({ ok: false, message: "Ese usuario todavía no tiene acceso a este beat." }, { status: 400 });
-  }
-
   const { data: existingPayment, error: existingPaymentError } = await admin.supabase
     .from("manual_payments")
     .select("id")
@@ -133,6 +117,20 @@ export async function POST(request: Request) {
 
   if (existingPayment) {
     return Response.json({ ok: false, message: "Ese beat ya tiene pago registrado para este usuario." }, { status: 409 });
+  }
+
+  const { error: accessUpsertError } = await admin.supabase.from("beat_access").upsert(
+    {
+      user_id: profile.id,
+      beat_id: beat.id,
+      granted_by: admin.requester.id,
+    },
+    { onConflict: "user_id,beat_id" },
+  );
+
+  if (accessUpsertError) {
+    console.error("B.R manual payment access upsert error", accessUpsertError);
+    return Response.json({ ok: false, message: "No se pudo liberar el acceso del usuario al beat." }, { status: 500 });
   }
 
   const paymentRow = {
@@ -171,6 +169,17 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, message: "No se pudo registrar el pago." }, { status: 500 });
   }
 
+  const { error: requestUpdateError } = await admin.supabase
+    .from("access_requests")
+    .update({ status: "approved" })
+    .eq("user_id", profile.id)
+    .eq("beat_id", beat.id)
+    .eq("status", "pending");
+
+  if (requestUpdateError) {
+    console.error("B.R manual payment access request update error", requestUpdateError);
+  }
+
   const { error: activityError } = await admin.supabase.from("commercial_activity").insert({
     event_type: "manual_payment",
     user_id: profile.id,
@@ -185,6 +194,7 @@ export async function POST(request: Request) {
       note: note || null,
       created_by_admin: admin.requester.id,
       license_type: licenseType,
+      access_granted: true,
     },
   });
 
@@ -192,5 +202,5 @@ export async function POST(request: Request) {
     console.error("B.R commercial activity manual_payment log error", activityError);
   }
 
-  return Response.json({ ok: true, message: "Pago registrado." });
+  return Response.json({ ok: true, message: "Pago confirmado, acceso liberado y licencia registrada." });
 }
