@@ -17,9 +17,9 @@ Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.js
 - Tipo: marketplace musical / plataforma privada de beats
 - Owner: Fabian
 - Visibilidad: private
-- Fase: Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado
+- Fase: Fase 14A validada / flujo comercial controlado inicial
 - Estado: implemented / estable
-- Avance: 92%
+- Avance: 94%
 - Nivel: App Next.js publicada en Vercel con dominio brstudios.org, Supabase Auth, Storage, beats reales, preview real generado desde beat completo, duraciones 15/20/25/30, catalogo visible, player premium full/preview por acceso y playback_visibility, admin B.RCEO con full global, guardados, Mis Beats, solicitudes, acceso manual, descargas protegidas, licencias protegidas, pagos manuales, actividad comercial, actualizaciones compactas con modal y Supabase SMTP con Resend.
 - Backend: Supabase real
 - Deploy: Vercel
@@ -27,15 +27,15 @@ Generado por BR.autocar Documentation Engine. Mantener alineado con APP_STATE.js
 - SMTP: Resend + Supabase SMTP
 - Dominio: brstudios.org
 - BR.autocarmation: B.R ya registrada en Core v3
-- Ultimo commit funcional: pending_phase_13_commit
+- Ultimo commit funcional: pending_phase_14a_commit
 - Checkpoint principal: docs/phase-13-preview-player-auth-checkpoint.md
 - SQL comercial: docs/supabase/phase-12-commercial.sql
 - SQL playback visibility: docs/supabase/phase-13f-playback-visibility.sql
 
 ## Siguiente fase
 
-- Fase: Fase 14 - ordenes y pagos controlados
-- Objetivo: Crear ordenes/pagos controlados por admin para liberar acceso, descarga y licencia sin automatizar marketplace ni pagos completos todavia.
+- Fase: Fase 14B - ordenes comerciales
+- Objetivo: Implementar estados de orden pending / approved / rejected / cancelled y seguimiento comercial visible para usuario y admin.
 
 ## Objetivo principal
 
@@ -53,7 +53,7 @@ Consolidar primero el flujo Beat -> preview real -> solicitud/orden -> pago/acce
 - Player premium y responsive: 100% (completed) - Mejorar PlayerBar, preview/full visual y experiencia movil compacta.
 - Auth SMTP y dominio: 100% (completed) - Configurar brstudios.org, Cloudflare, Vercel, Resend y Supabase SMTP para confirmacion real de correo.
 - Playback publico/privado: 100% (completed) - Permitir beats publicos con full playback abierto y beats privados con preview/full por acceso, manteniendo descarga/licencia protegidas.
-- Ordenes y pagos controlados: 0% (planned) - Implementar ordenes/pagos controlados desde admin antes de automatizar pagos completos.
+- Ordenes y pagos controlados: 25% (in_progress) - Pago manual validado, actividad comercial registrada y flujo comercial inicial completado.
 - Licencias formales: 0% (planned) - Mejorar modelo legal y descargable de licencias despues del preview real.
 - Marketplace musical: 0% (future) - Expandir B.R a marketplace para productores, musicos, beatmakers, DJs y servicios musicales.
 
@@ -139,6 +139,12 @@ Consolidar primero el flujo Beat -> preview real -> solicitud/orden -> pago/acce
 - Beat publico reproduce full sin acceso
 - Beat privado respeta preview/full por acceso
 - Admin B.RCEO reproduce full sin beat_access
+- Pago manual conectado a acceso real del usuario
+- Validacion de usuario, beat, acceso y pagos duplicados
+- Registro automatico de actividad comercial al registrar pagos
+- Metadata comercial con amount, currency, license_type y access_granted
+- AccessRequestsTable adaptada para flujo comercial Fase 14A
+- Flujo validado: Solicitud -> Acceso -> Pago manual -> Actividad comercial
 
 ## Regla permanente de catalogo
 
@@ -304,8 +310,8 @@ docs/supabase/phase-13f-playback-visibility.sql
 
 ## Continuidad
 
-- Prioridad: Preparar Fase 14: ordenes y pagos controlados desde admin.
-- Proxima accion: Crear flujo de orden/pago controlado: solicitud de compra, estado pendiente/aprobado/rechazado, confirmacion admin y liberacion de acceso, descarga y licencia.
+- Prioridad: Ejecutar Fase 14B de ordenes comerciales.
+- Proxima accion: Crear tabla de ordenes comerciales y estados pending, approved, rejected y cancelled vinculados a usuarios, beats y pagos.
 - Contexto: B.R esta publicada en Vercel con dominio brstudios.org, conectada a Supabase real, registrada en BR.autocarmation y con Fase 13 cerrada. El sistema ya tiene preview real generado desde el beat completo, player premium, full/preview por acceso y playback_visibility, admin full global, SMTP real con Resend/Supabase, actualizaciones compactas, descargas/licencias protegidas y pagos manuales base.
 - Regla critica: beat_access no filtra catalogo; solo controla descarga, licencia, badges y acciones protegidas. playback_visibility controla si el beat reproduce full publicamente o solo preview/full por acceso.
 
@@ -368,4 +374,4 @@ npm run lint
 npm run build
 ```
 
-Ultima generacion: Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado
+Ultima generacion: Fase 14A validada / flujo comercial controlado inicial

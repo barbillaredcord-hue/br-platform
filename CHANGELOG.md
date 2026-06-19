@@ -4,6 +4,40 @@ Registro manual de cambios relevantes de B.R / br-platform.
 
 Este archivo resume hitos funcionales y de continuidad. Mantenerlo alineado con `APP_STATE.json`, `PROJECT_STATUS.md`, `README.md`, `AGENTS.md`, `CHATGPT_CONTEXT.md` y `CODEX_CONTEXT.md`.
 
+
+## pending - feat: phase 14A controlled manual payment flow
+
+Fecha: 2026-06-19
+
+Estado: Fase 14A en validación.
+
+Cambios:
+
+- Registro de pago manual conectado directamente con acceso real del usuario.
+- `/api/admin/manual-payment` ahora valida usuario, beat, acceso existente y pagos duplicados.
+- Registro automático de actividad comercial cuando se crea un pago.
+- `commercial_activity.metadata` registra `access_granted`, `license_type`, monto, moneda y método de pago.
+- Tabla de solicitudes de acceso mejorada para soportar flujo comercial de Fase 14.
+- Correcciones TypeScript en `AccessRequestsTable.tsx`.
+- Validado flujo completo: Solicitud → Acceso → Pago manual → Actividad comercial.
+- Validado con datos reales en Supabase.
+
+Validación:
+
+```text
+npm run lint: OK
+npm run build: OK
+Inserción manual_payments: OK
+Inserción commercial_activity: OK
+Acceso real en beat_access: OK
+```
+
+Siguiente foco:
+
+```text
+Fase 14B - ordenes comerciales y estados pending / approved / rejected / cancelled
+```
+
 ## pending - feat: close phase 13 playback visibility and updates modal
 
 Fecha: 2026-06-18

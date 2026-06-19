@@ -48,7 +48,10 @@
       "Correos de confirmacion con Resend + Supabase SMTP",
       "Actualizaciones compactas con modal",
       "Reproduccion publica/privada por beat",
-      "Admin B.RCEO con reproduccion full global"
+      "Admin B.RCEO con reproduccion full global",
+      "Confirmacion manual de pago desde solicitudes",
+      "Liberacion automatica de beat_access al confirmar pago",
+      "Registro comercial de pago confirmado con licencia"
     ],
     "target_users": [
       "B.RCEO",
@@ -65,7 +68,7 @@
       "Marketplace multiusuario pendiente",
       "Perfiles publicos de productores/artistas pendientes",
       "Chat interno pendiente",
-      "Ordenes y pagos controlados pendientes"
+      "Ordenes formales avanzadas pendientes"
     ]
   },
   "objectives": {
@@ -134,8 +137,8 @@
       {
         "name": "Ordenes y pagos controlados",
         "goal": "Implementar ordenes/pagos controlados desde admin antes de automatizar pagos completos.",
-        "progress_percent": 0,
-        "status": "planned"
+        "progress_percent": 35,
+        "status": "in_progress"
       },
       {
         "name": "Licencias formales",
@@ -161,17 +164,17 @@
     ]
   },
   "status": {
-    "current_phase": "fase_13_closed_preview_player_auth_playback",
-    "current_phase_label": "Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado",
-    "current_phase_status": "implemented",
-    "progress_percent": 92,
-    "current_level": "App Next.js publicada en Vercel con dominio brstudios.org, Supabase Auth, Storage, beats reales, preview real generado desde beat completo, duraciones 15/20/25/30, catalogo visible, player premium full/preview por acceso y playback_visibility, admin B.RCEO con full global, guardados, Mis Beats, solicitudes, acceso manual, descargas protegidas, licencias protegidas, pagos manuales, actividad comercial, actualizaciones compactas con modal y Supabase SMTP con Resend.",
-    "last_stable_commit": "pending_phase_13_commit",
-    "checkpoint_doc": "docs/phase-13-preview-player-auth-checkpoint.md",
+    "current_phase": "fase_14_orders_payments_controlled_m1",
+    "current_phase_label": "Fase 14 M1 - confirmacion manual de pago y liberacion de acceso",
+    "current_phase_status": "in_progress",
+    "progress_percent": 94,
+    "current_level": "App Next.js publicada en Vercel con dominio brstudios.org, Supabase Auth, Storage, beats reales, preview real generado desde beat completo, duraciones 15/20/25/30, catalogo visible, player premium full/preview por acceso y playback_visibility, admin B.RCEO con full global, guardados, Mis Beats, solicitudes, confirmacion manual de pago desde admin, liberacion automatica de beat_access al confirmar pago, registro en manual_payments, registro en commercial_activity, descargas protegidas, licencias protegidas, actualizaciones compactas con modal y Supabase SMTP con Resend.",
+    "last_stable_commit": "pending_phase_14_m1_commit",
+    "checkpoint_doc": "docs/phase-14-controlled-orders-checkpoint.md",
     "commercial_sql": "docs/supabase/phase-12-commercial.sql",
-    "next_phase": "fase_14_orders_payments_controlled",
-    "next_phase_label": "Fase 14 - ordenes y pagos controlados",
-    "next_phase_goal": "Crear ordenes/pagos controlados por admin para liberar acceso, descarga y licencia sin automatizar marketplace ni pagos completos todavia."
+    "next_phase": "fase_14_m2_order_status_model",
+    "next_phase_label": "Fase 14 M2 - estados formales de orden",
+    "next_phase_goal": "Separar solicitud, contacto, pago pendiente, pago confirmado, acceso liberado y cierre de orden mediante estados formales sin automatizar pagos completos todavia."
   },
   "phases": {
     "completed": [
@@ -244,17 +247,22 @@
         "phase": "fase_13_closed_preview_player_auth_playback",
         "label": "Fase 13 preview real, player premium, auth SMTP y playback publico-privado",
         "result": "Preview real generado desde beat completo con duraciones 15/20/25/30, PlayerBar premium, responsive movil, dominio brstudios.org, Cloudflare, Vercel, Resend + Supabase SMTP, actualizaciones compactas con modal, playback_visibility publico/privado por beat y admin full global sin beat_access."
+      },
+      {
+        "phase": "fase_14_m1_manual_payment_approval",
+        "label": "Fase 14 M1 - pago manual confirmado y acceso liberado",
+        "result": "El admin puede confirmar pago desde solicitudes pendientes, registrar manual_payments, registrar commercial_activity con license_type y access_granted, liberar beat_access automaticamente y marcar la solicitud como approved. Validado con lint, build y datos reales en Supabase."
       }
     ],
     "current": {
-      "phase": "fase_13_closed_preview_player_auth_playback",
-      "label": "Fase 13 cerrada / preview real, player premium, auth SMTP y playback publico-privado",
-      "status": "implemented"
+      "phase": "fase_14_orders_payments_controlled_m1",
+      "label": "Fase 14 M1 - confirmacion manual de pago y liberacion de acceso",
+      "status": "in_progress"
     },
     "next": {
-      "phase": "fase_14_orders_payments_controlled",
-      "label": "Fase 14 - ordenes y pagos controlados",
-      "goal": "Crear ordenes/pagos controlados por admin para liberar acceso, descarga y licencia sin automatizar marketplace ni pagos completos todavia."
+      "phase": "fase_14_m2_order_status_model",
+      "label": "Fase 14 M2 - estados formales de orden",
+      "goal": "Separar solicitud, contacto, pago pendiente, pago confirmado, acceso liberado y cierre de orden sin automatizar pagos completos todavia."
     }
   },
   "execution": {
@@ -320,10 +328,16 @@
       "Admin puede cambiar beat publico/privado desde Gestionar Beats",
       "Beat publico reproduce full sin acceso",
       "Beat privado respeta preview/full por acceso",
-      "Admin B.RCEO reproduce full sin beat_access"
+      "Admin B.RCEO reproduce full sin beat_access",
+      "Fase 14 M1: admin confirma pago desde solicitudes pendientes",
+      "Fase 14 M1: confirmacion de pago crea beat_access automaticamente",
+      "Fase 14 M1: confirmacion de pago registra manual_payments con license_type",
+      "Fase 14 M1: confirmacion de pago registra commercial_activity con access_granted",
+      "Fase 14 M1: solicitud pendiente cambia a approved al confirmar pago",
+      "Fase 14 M1 validada con npm run lint, npm run build y datos reales en Supabase"
     ],
     "pending": [
-      "Fase 14: ordenes y pagos controlados",
+      "Fase 14 M2: estados formales de orden y pago",
       "Evaluar bucket privado y signed URLs",
       "Mejorar modelo formal de licencias despues del preview real",
       "Terminos y condiciones",
@@ -392,10 +406,16 @@
     "Admin puede cambiar beat publico/privado desde Gestionar Beats",
     "Beat publico reproduce full sin acceso",
     "Beat privado respeta preview/full por acceso",
-    "Admin B.RCEO reproduce full sin beat_access"
+    "Admin B.RCEO reproduce full sin beat_access",
+    "Fase 14 M1: admin confirma pago desde solicitudes pendientes",
+    "Fase 14 M1: confirmacion de pago crea beat_access automaticamente",
+    "Fase 14 M1: confirmacion de pago registra manual_payments con license_type",
+    "Fase 14 M1: confirmacion de pago registra commercial_activity con access_granted",
+    "Fase 14 M1: solicitud pendiente cambia a approved al confirmar pago",
+    "Fase 14 M1 validada con npm run lint, npm run build y datos reales en Supabase"
   ],
   "pending": [
-    "Fase 14: ordenes y pagos controlados",
+    "Fase 14 M2: estados formales de orden y pago",
     "Evaluar bucket privado y signed URLs",
     "Mejorar modelo formal de licencias despues del preview real",
     "Terminos y condiciones",
@@ -440,10 +460,11 @@
     "Dominio propio y SMTP real ya funcionan",
     "Playback publico/privado por beat ya funciona",
     "Admin B.RCEO tiene full global sin beat_access",
-    "Actualizaciones compactas con modal ya funcionan"
+    "Actualizaciones compactas con modal ya funcionan",
+    "Fase 14 M1 ya conecta solicitud, confirmacion manual de pago, beat_access, manual_payments y commercial_activity"
   ],
   "cons": [
-    "Aun falta Fase 14 de ordenes y pagos controlados",
+    "Aun falta formalizar estados avanzados de orden en Fase 14 M2",
     "Aun falta sistema formal/legal avanzado de licencias",
     "El marketplace multiusuario requiere roles, permisos y moderacion adicionales"
   ],
@@ -484,7 +505,8 @@
       ".env.local.example",
       "docs/supabase/phase-13-preview-editor.sql",
       "docs/supabase/phase-13f-playback-visibility.sql",
-      "docs/phase-13-preview-player-auth-checkpoint.md"
+      "docs/phase-13-preview-player-auth-checkpoint.md",
+      "docs/phase-14-controlled-orders-checkpoint.md"
     ]
   },
   "br_autocar": {
@@ -495,9 +517,9 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Preparar Fase 14: ordenes y pagos controlados desde admin.",
-    "next_action": "Crear flujo de orden/pago controlado: solicitud de compra, estado pendiente/aprobado/rechazado, confirmacion admin y liberacion de acceso, descarga y licencia.",
-    "context": "B.R esta publicada en Vercel con dominio brstudios.org, conectada a Supabase real, registrada en BR.autocarmation y con Fase 13 cerrada. El sistema ya tiene preview real generado desde el beat completo, player premium, full/preview por acceso y playback_visibility, admin full global, SMTP real con Resend/Supabase, actualizaciones compactas, descargas/licencias protegidas y pagos manuales base. El siguiente foco es Fase 14: ordenes y pagos controlados.",
+    "priority": "Continuar Fase 14 despues de M1: formalizar estados de orden y pago sin romper el flujo manual validado.",
+    "next_action": "Diseñar Fase 14 M2: estados formales de orden como contacted, payment_pending, paid, rejected, cancelled y fulfilled, manteniendo beat_access solo como permiso real de descarga/licencia.",
+    "context": "B.R esta publicada en Vercel con dominio brstudios.org, conectada a Supabase real, registrada en BR.autocarmation y con Fase 14 M1 validada. El sistema ya tiene preview real generado desde el beat completo, player premium, full/preview por acceso y playback_visibility, admin full global, SMTP real con Resend/Supabase, actualizaciones compactas, descargas/licencias protegidas, pagos manuales base y flujo solicitud -> confirmacion manual de pago -> manual_payments -> beat_access -> commercial_activity. El siguiente foco es Fase 14 M2: estados formales de orden y pago.",
     "catalog_rule": "beat_access no filtra catalogo; solo controla descarga, licencia, badges y acciones protegidas. playback_visibility controla si el beat reproduce full publicamente o solo preview/full por acceso."
   }
 }
