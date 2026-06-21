@@ -104,6 +104,22 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "No tienes acceso para descargar este beat." }, { status: 403 });
   }
 
+  const { data: paymentRow, error: paymentError } = await supabase
+    .from("manual_payments")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("beat_id", beat.id)
+    .maybeSingle();
+
+  if (paymentError) {
+    console.error("B.R download payment lookup error", paymentError);
+    return Response.json({ ok: false, message: "No se pudo validar el pago." }, { status: 500 });
+  }
+
+  if (!paymentRow) {
+    return Response.json({ ok: false, message: "El pago todavía no ha sido liberado para este beat." }, { status: 403 });
+  }
+
   const audioResponse = await fetch(beat.full_audio_url);
 
   if (!audioResponse.ok || !audioResponse.body) {

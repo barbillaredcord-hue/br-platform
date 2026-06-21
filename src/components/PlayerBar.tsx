@@ -1,6 +1,7 @@
 "use client";
 
 import { Pause, Play, SkipBack, SkipForward, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect } from "react";
 import type { Beat } from "@/data/beats";
 import { usePlayer } from "@/context/PlayerContext";
@@ -82,7 +83,12 @@ export function PlayerBar() {
       <div className="relative mx-auto grid max-w-7xl gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2 ring-1 ring-cyan-300/10 md:grid-cols-[minmax(0,1fr)_auto_minmax(280px,1fr)_auto] md:items-center md:gap-3 md:p-4">
         <div className="min-w-0 pr-9 md:pr-0">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate text-sm font-black md:text-base">{currentBeat.name}</p>
+            <Link
+              href={`/beats/${currentBeat.id}`}
+              className="min-w-0 truncate text-sm font-black transition hover:text-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-300 md:text-base"
+            >
+              {currentBeat.name}
+            </Link>
             <span
               className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase md:px-2.5 md:py-1 md:text-[11px] ${
                 mode === "full"

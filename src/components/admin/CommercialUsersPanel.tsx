@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CreditCard, RefreshCw, UserRound } from "lucide-react";
+import { CreditCard, Download, RefreshCw, UserRound, X } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type CommercialUser = {
@@ -25,6 +25,16 @@ type PaymentBeatOption = {
   bpm: number | null;
 };
 
+type EarningsSummary = {
+  total: number;
+  current_month: number;
+  current_month_key: string;
+  history: Array<{
+    month: string;
+    amount: number;
+  }>;
+};
+
 const initialForm = {
   beat_id: "",
   amount: "",
@@ -44,9 +54,35 @@ function money(value: number) {
   }).format(value);
 }
 
+function formatMonthLabel(monthKey: string) {
+  if (monthKey === "unknown") {
+    return "Sin fecha";
+  }
+
+  const [year, month] = monthKey.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+
+  if (Number.isNaN(date.getTime())) {
+    return monthKey;
+  }
+
+  return date.toLocaleDateString("es-MX", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export function CommercialUsersPanel() {
   const [users, setUsers] = useState<CommercialUser[]>([]);
+  const [earnings, setEarnings] = useState<EarningsSummary>({
+    total: 0,
+    current_month: 0,
+    current_month_key: "",
+    history: [],
+  });
+  const [isEarningsHistoryOpen, setIsEarningsHistoryOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<CommercialUser | null>(null);
+  const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const [beatOptions, setBeatOptions] = useState<PaymentBeatOption[]>([]);
   const [form, setForm] = useState(initialForm);
   const [message, setMessage] = useState("");
@@ -94,6 +130,7 @@ export function CommercialUsersPanel() {
       }
 
       setUsers(payload.users ?? []);
+      setEarnings(payload.earnings ?? { total: 0, current_month: 0, current_month_key: "", history: [] });
     } catch {
       setMessage("No se pudieron cargar los usuarios comerciales.");
     } finally {
@@ -137,7 +174,10 @@ export function CommercialUsersPanel() {
   }, []);
 
   function selectUser(user: CommercialUser) {
+    const isSameUser = selectedUser?.id === user.id;
+
     setSelectedUser(user);
+    setIsPaymentFormOpen(!isSameUser || !isPaymentFormOpen);
     setBeatOptions([]);
     setForm(initialForm);
     void loadBeatOptions(user.id);
@@ -201,6 +241,12 @@ export function CommercialUsersPanel() {
     }
   }
 
+function downloadMonthlyStatement(month: string, amount: number) {
+  window.location.assign(
+    `/admin/reports/earnings/${encodeURIComponent(month)}?amount=${encodeURIComponent(String(amount))}`
+  );
+}
+
   useEffect(() => {
     const loadId = window.setTimeout(() => {
       void loadUsers();
@@ -222,9 +268,78 @@ export function CommercialUsersPanel() {
         </button>
       </div>
 
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
+          <p className="text-xs font-bold uppercase text-cyan-200">Ganancias este mes</p>
+          <p className="mt-2 text-2xl font-black text-cyan-100">{money(earnings.current_month)}</p>
+          <p className="mt-1 text-xs text-zinc-500">{earnings.current_month_key ? formatMonthLabel(earnings.current_month_key) : "Mes actual"}</p>
+        </div>
+
+        <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+          <p className="text-xs font-bold uppercase text-emerald-200">Ganancias totales</p>
+          <p className="mt-2 text-2xl font-black text-emerald-100">{money(earnings.total)}</p>
+          <p className="mt-1 text-xs text-zinc-500">Pagos manuales registrados</p>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 md:col-span-2 xl:col-span-1">
+          <p className="text-xs font-bold uppercase text-zinc-500">Historial de ganancias</p>
+          <p className="mt-2 text-2xl font-black text-zinc-100">{earnings.history.length}</p>
+          <p className="mt-1 text-xs text-zinc-500">Meses con pagos registrados</p>
+          <button
+            type="button"
+            onClick={() => setIsEarningsHistoryOpen(true)}
+            className="mt-3 inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200"
+          >
+            Ver historial
+          </button>
+        </div>
+      </div>
+
+      {isEarningsHistoryOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-2xl rounded-xl border border-white/10 bg-[#101317] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase text-cyan-200">Finanzas B.R</p>
+                <h3 className="mt-2 text-xl font-black">Historial de ganancias</h3>
+                <p className="mt-1 text-sm text-zinc-500">Estados de cuenta mensuales basados en pagos manuales registrados.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEarningsHistoryOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:border-cyan-300 hover:text-cyan-200"
+                aria-label="Cerrar historial de ganancias"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-2">
+              {earnings.history.length === 0 ? <p className="rounded-md border border-white/10 p-4 text-sm text-zinc-400">Sin pagos registrados.</p> : null}
+              {earnings.history.map((item) => (
+                <div key={item.month} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-zinc-100">{formatMonthLabel(item.month)}</p>
+                    <p className="mt-1 text-xs text-zinc-500">Total mensual: {money(item.amount)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => downloadMonthlyStatement(item.month, item.amount)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-cyan-300/20 px-4 text-xs font-bold text-cyan-100 hover:border-cyan-300 hover:bg-cyan-300/10"
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    Descargar PDF
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {message ? <p className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-950/20 p-3 text-sm font-semibold text-cyan-100">{message}</p> : null}
 
-      <div className="mt-5 grid gap-3">
+      <div className="mt-5 grid max-h-[520px] gap-3 overflow-y-auto pr-2">
         {users.length === 0 ? <p className="rounded-md border border-white/10 p-4 text-sm text-zinc-400">Sin usuarios comerciales todavía.</p> : null}
 
         {users.map((user) => (
@@ -259,15 +374,24 @@ export function CommercialUsersPanel() {
         ))}
       </div>
 
-      {selectedUser ? (
-        <div className="mt-6 rounded-lg border border-white/10 bg-black/20 p-4">
+      {selectedUser && isPaymentFormOpen ? (
+        <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase text-zinc-500">Registro manual</p>
               <h3 className="mt-1 font-bold">{userLabel(selectedUser)}</h3>
               <p className="text-xs text-zinc-500">{selectedUser.email}</p>
             </div>
-            {isLoadingOptions ? <p className="text-sm text-zinc-400">Cargando beats...</p> : null}
+            <div className="flex items-center gap-3">
+              {isLoadingOptions ? <p className="text-sm text-zinc-400">Cargando beats...</p> : null}
+              <button
+                type="button"
+                onClick={() => setIsPaymentFormOpen(false)}
+                className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-300 hover:border-cyan-300 hover:text-cyan-200"
+              >
+                Ocultar
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">

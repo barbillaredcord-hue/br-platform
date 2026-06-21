@@ -7,8 +7,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { deleteBeatAsAdmin, getProfilesResult, updateBeatPlaybackVisibilityAsAdmin } from "@/lib/supabase/queries";
+import { deleteBeatAsAdmin, getProfilesResult, updateBeatMetadataAsAdmin, updateBeatPlaybackVisibilityAsAdmin } from "@/lib/supabase/queries";
+import { PlayButton } from "../PlayButton";
 import { AdminBeatStatus } from "./AdminBeatStatus";
+
+type AdminBeat = Beat & { isActive?: boolean | null };
+type MetadataField = "genre" | "bpm" | "musicalKey";
 
 function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
   return users.filter((user) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
@@ -24,6 +28,18 @@ function PlaybackVisibilityBadge({ beat }: { beat: Beat }) {
   );
 }
 
+function editableValue(beat: AdminBeat, field: MetadataField) {
+  if (field === "genre") {
+    return beat.genre;
+  }
+
+  if (field === "bpm") {
+    return String(beat.bpm || "");
+  }
+
+  return beat.key ?? "";
+}
+
 export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: User[] }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -31,6 +47,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const [localUsers, setLocalUsers] = useState(users);
   const [deletingBeatId, setDeletingBeatId] = useState("");
   const [updatingVisibilityBeatId, setUpdatingVisibilityBeatId] = useState("");
+  const [editingCell, setEditingCell] = useState("");
+  const [editingValue, setEditingValue] = useState("");
+  const [savingBeatId, setSavingBeatId] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const filteredBeats = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -96,6 +115,96 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setUpdatingVisibilityBeatId("");
   }
 
+  async function saveMetadata(beat: AdminBeat, field: MetadataField, value: string) {
+    const beatKey = beat.dbId ?? beat.id;
+    const currentValue = editableValue(beat, field);
+
+    setEditingCell("");
+
+    if (value.trim() === currentValue.trim()) {
+      return;
+    }
+
+    setSavingBeatId(beatKey);
+    setActionMessage("");
+
+    const result = await updateBeatMetadataAsAdmin(beatKey, {
+      ...(field === "genre" ? { genre: value } : {}),
+      ...(field === "bpm" ? { bpm: value } : {}),
+      ...(field === "musicalKey" ? { musicalKey: value } : {}),
+    });
+
+    setActionMessage(result.message ?? (result.ok ? "Metadata actualizada." : "No se pudo actualizar la metadata."));
+
+    if (result.ok) {
+      router.refresh();
+    }
+
+    setSavingBeatId("");
+  }
+
+  async function toggleActive(beat: AdminBeat) {
+    const beatKey = beat.dbId ?? beat.id;
+    const isActive = beat.isActive ?? true;
+
+    setSavingBeatId(beatKey);
+    setActionMessage("");
+
+    const result = await updateBeatMetadataAsAdmin(beatKey, { isActive: !isActive });
+
+    setActionMessage(result.message ?? (result.ok ? "Metadata actualizada." : "No se pudo actualizar la metadata."));
+
+    if (result.ok) {
+      router.refresh();
+    }
+
+    setSavingBeatId("");
+  }
+
+  function renderEditable(beat: AdminBeat, field: MetadataField, label: string) {
+    const cellKey = `${beat.id}-${field}`;
+    const isEditing = editingCell === cellKey;
+    const value = editableValue(beat, field);
+
+    if (isEditing) {
+      return (
+        <input
+          autoFocus
+          type={field === "bpm" ? "number" : "text"}
+          min={field === "bpm" ? 40 : undefined}
+          max={field === "bpm" ? 240 : undefined}
+          value={editingValue}
+          onChange={(event) => setEditingValue(event.target.value)}
+          onBlur={() => void saveMetadata(beat, field, editingValue)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            }
+            if (event.key === "Escape") {
+              setEditingCell("");
+            }
+          }}
+          className="h-9 w-full min-w-20 rounded-md border border-cyan-300/40 bg-white/10 px-2 text-sm text-white outline-none"
+          aria-label={label}
+        />
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        disabled={savingBeatId === (beat.dbId ?? beat.id)}
+        onClick={() => {
+          setEditingCell(cellKey);
+          setEditingValue(value);
+        }}
+        className="max-w-36 truncate rounded-md px-2 py-1 text-left text-zinc-300 hover:bg-white/10 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {value || "Sin dato"}
+      </button>
+    );
+  }
+
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -108,14 +217,15 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         <span className="text-sm font-semibold text-cyan-200">{filteredBeats.length} / {beats.length} beats</span>
       </div>
       {actionMessage ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{actionMessage}</p> : null}
-      <div className="hidden overflow-hidden rounded-lg border border-white/10 md:block">
+      <div className="hidden max-h-[58vh] overflow-auto rounded-lg border border-white/10 md:block">
         <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-white/5 text-xs uppercase text-zinc-500">
+          <thead className="sticky top-0 z-10 bg-[#171a1f] text-xs uppercase text-zinc-500">
             <tr>
               <th className="px-4 py-3">Portada</th>
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Género</th>
               <th className="px-4 py-3">BPM</th>
+              <th className="px-4 py-3">Tonalidad</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Reproducción</th>
               <th className="px-4 py-3">Usuarios con acceso</th>
@@ -125,17 +235,41 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
           <tbody>
             {filteredBeats.map((beat) => {
               const usersWithAccess = getUsersWithBeatAccess(beat, localUsers);
+              const adminBeat = beat as AdminBeat;
+              const isActive = adminBeat.isActive ?? true;
 
               return (
-                <tr key={beat.id} className="border-t border-white/10">
+                <tr key={beat.id} className={`border-t border-white/10 ${isActive ? "" : "bg-red-950/10 opacity-65"}`}>
                   <td className="px-4 py-3">
-                    <div className="grid h-12 w-12 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">B.R</div>
+                    <div className="relative grid h-12 w-12 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">
+                      B.R
+                      <PlayButton
+                        variant="circle"
+                        beat={beat}
+                        mode="preview"
+                        queue={filteredBeats}
+                        showPauseState
+                        ariaLabel={`Reproducir preview de ${beat.name}`}
+                        className="absolute inset-0 h-full w-full bg-black/45 text-cyan-100 hover:bg-black/65"
+                      />
+                    </div>
                   </td>
                   <td className="px-4 py-3 font-semibold">{beat.name}</td>
-                  <td className="px-4 py-3 text-zinc-400">{beat.genre}</td>
-                  <td className="px-4 py-3 text-zinc-400">{beat.bpm}</td>
+                  <td className="px-4 py-3">{renderEditable(adminBeat, "genre", `Editar género de ${beat.name}`)}</td>
+                  <td className="px-4 py-3">{renderEditable(adminBeat, "bpm", `Editar BPM de ${beat.name}`)}</td>
+                  <td className="px-4 py-3">{renderEditable(adminBeat, "musicalKey", `Editar tonalidad de ${beat.name}`)}</td>
                   <td className="px-4 py-3">
-                    <AdminBeatStatus status={beat.status} />
+                    <div className="grid gap-2">
+                      <AdminBeatStatus status={beat.status} />
+                      <button
+                        type="button"
+                        disabled={savingBeatId === (beat.dbId ?? beat.id)}
+                        onClick={() => void toggleActive(adminBeat)}
+                        className={`w-fit rounded-full border px-2 py-1 text-xs font-bold ${isActive ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-red-300/30 bg-red-300/10 text-red-100"}`}
+                      >
+                        {isActive ? "Activo" : "Inactivo"}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="grid gap-2">
@@ -189,16 +323,41 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         </table>
       </div>
 
-      <div className="grid gap-3 md:hidden">
-        {filteredBeats.map((beat) => (
-          <article key={beat.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
+      <div className="grid max-h-[62vh] gap-3 overflow-y-auto pr-1 md:hidden">
+        {filteredBeats.map((beat) => {
+          const adminBeat = beat as AdminBeat;
+          const isActive = adminBeat.isActive ?? true;
+
+          return (
+          <article key={beat.id} className={`rounded-lg border border-white/10 bg-[#15181c] p-4 ${isActive ? "" : "opacity-65"}`}>
             <div className="flex items-start gap-3">
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">B.R</div>
+              <div className="relative grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">
+                B.R
+                <PlayButton
+                  variant="circle"
+                  beat={beat}
+                  mode="preview"
+                  queue={filteredBeats}
+                  showPauseState
+                  ariaLabel={`Reproducir preview de ${beat.name}`}
+                  className="absolute inset-0 h-full w-full bg-black/45 text-cyan-100 hover:bg-black/65"
+                />
+              </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{beat.name}</p>
-                <p className="mt-1 text-sm text-zinc-400">
-                  {beat.genre} · {beat.bpm} BPM
-                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  {renderEditable(adminBeat, "genre", `Editar género de ${beat.name}`)}
+                  {renderEditable(adminBeat, "bpm", `Editar BPM de ${beat.name}`)}
+                  {renderEditable(adminBeat, "musicalKey", `Editar tonalidad de ${beat.name}`)}
+                  <button
+                    type="button"
+                    disabled={savingBeatId === (beat.dbId ?? beat.id)}
+                    onClick={() => void toggleActive(adminBeat)}
+                    className={`rounded-md border px-2 py-1 text-xs font-bold ${isActive ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-red-300/30 bg-red-300/10 text-red-100"}`}
+                  >
+                    {isActive ? "Activo" : "Inactivo"}
+                  </button>
+                </div>
                 <div className="mt-3">
                   <AdminBeatStatus status={beat.status} />
                 </div>
@@ -247,7 +406,8 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               </button>
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

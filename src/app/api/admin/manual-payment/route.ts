@@ -115,9 +115,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, message: "No se pudo validar si el pago ya existe." }, { status: 500 });
   }
 
-  if (existingPayment) {
-    return Response.json({ ok: false, message: "Ese beat ya tiene pago registrado para este usuario." }, { status: 409 });
-  }
+  const shouldInsertPayment = !existingPayment;
 
   const { error: accessUpsertError } = await admin.supabase.from("beat_access").upsert(
     {
@@ -146,35 +144,40 @@ export async function POST(request: Request) {
     license_type: licenseType,
   };
 
-  let { error: paymentError } = await admin.supabase.from("manual_payments").insert(paymentRow);
+  let paymentError = null;
 
-  if (paymentError?.message.toLowerCase().includes("license_type")) {
-    const legacyPaymentRow: Omit<typeof paymentRow, "license_type"> = {
-      user_id: paymentRow.user_id,
-      user_email: paymentRow.user_email,
-      beat_id: paymentRow.beat_id,
-      beat_title: paymentRow.beat_title,
-      amount: paymentRow.amount,
-      currency: paymentRow.currency,
-      payment_method: paymentRow.payment_method,
-      note: paymentRow.note,
-      created_by_admin: paymentRow.created_by_admin,
-    };
-    const retryResult = await admin.supabase.from("manual_payments").insert(legacyPaymentRow);
-    paymentError = retryResult.error;
-  }
+  if (shouldInsertPayment) {
+    const paymentResult = await admin.supabase.from("manual_payments").insert(paymentRow);
+    paymentError = paymentResult.error;
 
-  if (paymentError) {
-    console.error("B.R manual payment insert error", paymentError);
-    return Response.json({ ok: false, message: "No se pudo registrar el pago." }, { status: 500 });
+    if (paymentError?.message.toLowerCase().includes("license_type")) {
+      const legacyPaymentRow: Omit<typeof paymentRow, "license_type"> = {
+        user_id: paymentRow.user_id,
+        user_email: paymentRow.user_email,
+        beat_id: paymentRow.beat_id,
+        beat_title: paymentRow.beat_title,
+        amount: paymentRow.amount,
+        currency: paymentRow.currency,
+        payment_method: paymentRow.payment_method,
+        note: paymentRow.note,
+        created_by_admin: paymentRow.created_by_admin,
+      };
+      const retryResult = await admin.supabase.from("manual_payments").insert(legacyPaymentRow);
+      paymentError = retryResult.error;
+    }
+
+    if (paymentError) {
+      console.error("B.R manual payment insert error", paymentError);
+      return Response.json({ ok: false, message: "No se pudo registrar el pago." }, { status: 500 });
+    }
   }
 
   const { error: requestUpdateError } = await admin.supabase
     .from("access_requests")
-    .update({ status: "approved" })
+    .update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("user_id", profile.id)
     .eq("beat_id", beat.id)
-    .eq("status", "pending");
+    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved"]);
 
   if (requestUpdateError) {
     console.error("B.R manual payment access request update error", requestUpdateError);
@@ -202,5 +205,8 @@ export async function POST(request: Request) {
     console.error("B.R commercial activity manual_payment log error", activityError);
   }
 
-  return Response.json({ ok: true, message: "Pago confirmado, acceso liberado y licencia registrada." });
+  return Response.json({
+    ok: true,
+    message: existingPayment ? "Pago ya registrado. Acceso liberado y solicitud completada." : "Pago confirmado, acceso liberado y licencia registrada.",
+  });
 }

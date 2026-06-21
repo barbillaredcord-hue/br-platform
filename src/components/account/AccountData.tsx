@@ -11,7 +11,7 @@ import { BeatCard } from "@/components/BeatCard";
 import { ProductUpdatesPanel } from "@/components/ProductUpdatesPanel";
 import DownloadBeatButton from "@/components/DownloadBeatButton";
 import DownloadLicenseButton from "@/components/DownloadLicenseButton";
-import { deleteOwnAccount, getBeats, getAccessRequestsForUser, updateProfile, type AccessRequestRow } from "@/lib/supabase/queries";
+import { deleteOwnAccount, getBeats, getAccessRequestsForUser, getUserAccessRevocations, updateProfile, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
 import { userCanAccessBeat } from "@/lib/access";
 import { getSavedBeatIds, SAVED_BEATS_EVENT } from "@/lib/saved-beats";
 
@@ -20,8 +20,30 @@ function requestBeatName(request: AccessRequestRow) {
   return beat?.title || beat?.slug || request.beat_id;
 }
 
+function revokedBeatName(revocation: AccessRevocationRow) {
+  const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
+  return beat?.title || beat?.slug || revocation.beat_id;
+}
+
+function revocationMatchesRequest(revocation: AccessRevocationRow, request: AccessRequestRow) {
+  const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
+
+  return revocation.beat_id === request.beat_id || beat?.slug === request.beat_id;
+}
+
 function statusLabel(status: string) {
-  return status === "approved" ? "Aprobada" : status === "rejected" ? "Rechazada" : "Pendiente";
+  const labels: Record<string, string> = {
+    pending: "Pendiente",
+    contacted: "Contactado",
+    payment_pending: "Pago pendiente",
+    paid: "Pagado",
+    fulfilled: "Completada",
+    approved: "Aprobada",
+    rejected: "Rechazada",
+    cancelled: "Cancelada",
+  };
+
+  return labels[status] ?? "Pendiente";
 }
 
 function useAccountData() {
@@ -29,12 +51,14 @@ function useAccountData() {
   const { currentUser, refreshCurrentUser } = useUser();
   const [beats, setBeats] = useState<Beat[]>([]);
   const [requests, setRequests] = useState<AccessRequestRow[]>([]);
+  const [revocations, setRevocations] = useState<AccessRevocationRow[]>([]);
 
   useEffect(() => {
     if (!currentUser?.id) {
       const clearId = window.setTimeout(() => {
         setBeats([]);
         setRequests([]);
+        setRevocations([]);
       }, 0);
 
       return () => window.clearTimeout(clearId);
@@ -42,13 +66,14 @@ function useAccountData() {
 
     let cancelled = false;
     const loadId = window.setTimeout(() => {
-      void Promise.all([refreshCurrentUser(), getBeats(), getAccessRequestsForUser(currentUser.id)]).then(([, beatsResult, userRequests]) => {
+      void Promise.all([refreshCurrentUser(), getBeats(), getAccessRequestsForUser(currentUser.id), getUserAccessRevocations(currentUser.id)]).then(([, beatsResult, userRequests, userRevocations]) => {
         if (cancelled) {
           return;
         }
 
         setBeats(beatsResult.beats);
         setRequests(userRequests);
+        setRevocations(userRevocations);
       });
     }, 0);
 
@@ -60,11 +85,11 @@ function useAccountData() {
 
   const accessibleBeats = useMemo(() => beats.filter((beat) => userCanAccessBeat(currentUser, beat)), [beats, currentUser]);
 
-  return { accessibleBeats, beats, currentUser, requests };
+  return { accessibleBeats, beats, currentUser, requests, revocations };
 }
 
 export function AccountOverview() {
-  const { accessibleBeats, currentUser, requests } = useAccountData();
+  const { accessibleBeats, currentUser, requests, revocations } = useAccountData();
 
   return (
     <div className="grid gap-6">
@@ -81,6 +106,7 @@ export function AccountOverview() {
         <article className="rounded-lg border border-white/10 bg-[#101317] p-5">
           <p className="text-sm text-zinc-400">Solicitudes recientes</p>
           <p className="mt-2 text-3xl font-black">{requests.length}</p>
+          {revocations.length ? <p className="mt-2 text-xs font-semibold text-amber-200">{revocations.length} acceso(s) revocado(s)</p> : null}
         </article>
       </section>
 
@@ -99,12 +125,25 @@ export function AccountOverview() {
 }
 
 export function AccountBeats() {
-  const { accessibleBeats } = useAccountData();
+  const { accessibleBeats, revocations } = useAccountData();
 
   return (
     <section className="grid gap-3">
       <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
       {accessibleBeats.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">Aún no tienes beats con acceso completo.</p> : null}
+      {revocations.length ? (
+        <div className="grid gap-3">
+          {revocations.map((revocation) => (
+            <article key={revocation.id} className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
+              <p className="text-xs font-bold uppercase text-amber-200">Acceso revocado</p>
+              <p className="mt-2 font-bold text-amber-50">{revokedBeatName(revocation)}</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">Motivo: {revocation.reason}</p>
+              <p className="mt-1 text-xs text-zinc-500">Fecha: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
+              <p className="mt-3 text-xs leading-5 text-zinc-400">El acceso completo, la descarga MP3 y la licencia quedan bloqueados. Contacta a B.R si necesitas aclarar esta revocación.</p>
+            </article>
+          ))}
+        </div>
+      ) : null}
       {accessibleBeats.map((beat) => (
         <article key={beat.id} className="rounded-lg border border-white/10 bg-[#101317] p-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -137,19 +176,36 @@ export function AccountBeats() {
 }
 
 export function AccountRequests() {
-  const { requests } = useAccountData();
+  const { requests, revocations } = useAccountData();
+
+  function findRevocationForRequest(request: AccessRequestRow) {
+    return revocations.find((revocation) => revocationMatchesRequest(revocation, request)) ?? null;
+  }
 
   return (
     <section className="grid gap-3">
       <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
       {requests.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">No hay solicitudes todavía.</p> : null}
-      {requests.map((request) => (
-        <article key={request.id} className="rounded-lg border border-white/10 bg-[#101317] p-4">
-          <p className="font-bold">{requestBeatName(request)}</p>
-          <p className="mt-1 text-sm text-cyan-200">{statusLabel(request.status)}</p>
-          <p className="mt-1 text-xs text-zinc-500">{request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
-        </article>
-      ))}
+      {requests.map((request) => {
+        const revocation = findRevocationForRequest(request);
+
+        return (
+          <article key={request.id} className={`rounded-lg border p-4 ${revocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#101317]"}`}>
+            <p className="font-bold">{requestBeatName(request)}</p>
+            <p className={`mt-1 text-sm font-semibold ${revocation ? "text-amber-100" : "text-cyan-200"}`}>{revocation ? "Revocada" : statusLabel(request.status)}</p>
+            {revocation ? (
+              <>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">Motivo: {revocation.reason}</p>
+                <p className="mt-1 text-xs text-zinc-500">Revocada: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
+                <Link href={`/beats/${request.beat_id}`} className="mt-3 inline-flex h-10 w-fit items-center justify-center rounded-md border border-amber-300/30 px-4 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
+                  Pedir revisión
+                </Link>
+              </>
+            ) : null}
+            <p className="mt-1 text-xs text-zinc-500">Solicitud: {request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
+          </article>
+        );
+      })}
     </section>
   );
 }

@@ -57,9 +57,27 @@ export default function DownloadLicenseButton({ beatId, fileName, className, chi
       }
 
       const blob = await response.blob();
+      const contentType = response.headers.get("content-type") ?? "";
       const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
 
+      if (contentType.includes("text/html") || contentType.includes("application/pdf")) {
+        const licenseWindow = window.open(url, "_blank", "noopener,noreferrer");
+
+        if (!licenseWindow) {
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = `${safeFileName(fileName)}-license.html`;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+        }
+
+        setMessage("Licencia lista para guardar como PDF.");
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 30000);
+        return;
+      }
+
+      const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = `${safeFileName(fileName)}-license.txt`;
       document.body.appendChild(anchor);

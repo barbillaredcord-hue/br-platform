@@ -1,22 +1,34 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, MessageCircle, Save, X } from "lucide-react";
+import { Check, ChevronDown, MessageCircle, Save, X } from "lucide-react";
 import type { AccessRequestStatus } from "@/data/accessRequests";
-import { getAccessRequests, isRecentAnsweredRequest, markAccessRequestContacted, rejectAccessRequest, type AccessRequestRow } from "@/lib/supabase/queries";
+import { getAccessRequests, getUserAccessRevocations, markAccessRequestContacted, rejectAccessRequest, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
 
 const statusLabels: Record<AccessRequestStatus, string> = {
   pending: "Pendiente",
+  contacted: "Contactado",
+  payment_pending: "Pago pendiente",
+  paid: "Pagado",
+  fulfilled: "Completada",
   approved: "Aprobada",
   rejected: "Rechazada",
+  cancelled: "Cancelada",
 };
 
 const statusStyles: Record<AccessRequestStatus, string> = {
   pending: "border-cyan-300/30 text-cyan-200",
+  contacted: "border-sky-300/30 text-sky-200",
+  payment_pending: "border-amber-300/30 text-amber-200",
+  paid: "border-emerald-300/30 text-emerald-200",
+  fulfilled: "border-emerald-300/30 text-emerald-200",
   approved: "border-emerald-300/30 text-emerald-200",
   rejected: "border-red-300/30 text-red-200",
+  cancelled: "border-zinc-400/30 text-zinc-300",
 };
+
+const revokedStatusStyle = "border-amber-300/30 text-amber-200";
 
 type PaymentDraft = {
   amount: string;
@@ -64,7 +76,7 @@ function getWhatsAppPhone(request: AccessRequestRow) {
 }
 
 function isContacted(request: AccessRequestRow) {
-  return Boolean(request.message?.includes("[contactado]"));
+  return request.status === "contacted" || request.status === "payment_pending" || Boolean(request.message?.includes("[contactado]"));
 }
 
 function getRequestBeat(request: AccessRequestRow) {
@@ -76,22 +88,53 @@ function getRequestDate(request: AccessRequestRow) {
   return request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha";
 }
 
+function getRequestUpdatedDate(request: AccessRequestRow) {
+  return request.updated_at ? new Date(request.updated_at).toLocaleDateString("es-MX") : getRequestDate(request);
+}
+
+function isClosedRequest(request: AccessRequestRow, revocation?: AccessRevocationRow | null) {
+  return Boolean(revocation) || request.status === "fulfilled" || request.status === "approved" || request.status === "rejected" || request.status === "cancelled";
+}
+
+function getRequestMessage(request: AccessRequestRow) {
+  const rawMessage = request.message || "Sin mensaje";
+  return rawMessage.replace("[contactado]", "").trim() || "Sin mensaje";
+}
+
+function revocationMatchesRequest(revocation: AccessRevocationRow, request: AccessRequestRow) {
+  const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
+
+  return revocation.user_id === request.user_id && (revocation.beat_id === request.beat_id || beat?.slug === request.beat_id);
+}
+
+function getRevocationDate(revocation: AccessRevocationRow) {
+  return revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha";
+}
+
 export function AccessRequestsTable() {
   const pathname = usePathname();
   const router = useRouter();
   const [items, setItems] = useState<AccessRequestRow[]>([]);
+  const [revocations, setRevocations] = useState<AccessRevocationRow[]>([]);
   const [message, setMessage] = useState("");
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, PaymentDraft>>({});
   const [processingPaymentId, setProcessingPaymentId] = useState("");
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const [paymentOpenIds, setPaymentOpenIds] = useState<string[]>([]);
 
   async function refresh() {
-    setItems(await getAccessRequests());
+    const requests = await getAccessRequests();
+    const userIds = Array.from(new Set(requests.map((request) => request.user_id).filter(Boolean)));
+    const revocationGroups = await Promise.all(userIds.map((userId) => getUserAccessRevocations(userId)));
+
+    setItems(requests);
+    setRevocations(revocationGroups.flat());
   }
 
   async function rejectRequest(id: string) {
     const result = await rejectAccessRequest(id);
     if (result.ok) {
-      setItems((current) => current.map((item): AccessRequestRow => (item.id === id ? { ...item, status: "rejected", updated_at: new Date().toISOString() } : item)).filter(isRecentAnsweredRequest));
+      setItems((current) => current.map((item): AccessRequestRow => (item.id === id ? { ...item, status: "rejected", updated_at: new Date().toISOString() } : item)));
     }
     setMessage(result.ok ? "Solicitud rechazada." : result.message ?? "No se pudo actualizar la información. Intenta de nuevo.");
     await refresh();
@@ -164,16 +207,38 @@ export function AccessRequestsTable() {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok || !payload?.ok) {
+        const duplicatePaymentMessage = typeof payload?.message === "string" ? payload.message.toLowerCase() : "";
+        const isDuplicatePayment = response.status === 409 ||
+          duplicatePaymentMessage.includes("ya tiene pago") ||
+          duplicatePaymentMessage.includes("pago registrado") ||
+          duplicatePaymentMessage.includes("ya se realizo pago") ||
+          duplicatePaymentMessage.includes("ya se realizó pago");
+
+        if (isDuplicatePayment) {
+          setItems((current) => current.map((item): AccessRequestRow => (item.id === request.id ? { ...item, status: "fulfilled", updated_at: new Date().toISOString() } : item)));
+          setPaymentDrafts((current) => {
+            const next = { ...current };
+            delete next[request.id];
+            return next;
+          });
+          setPaymentOpenIds((current) => current.filter((id) => id !== request.id));
+          setMessage(payload?.message ?? "Pago ya registrado. Solicitud marcada como completada.");
+          await refresh();
+          router.refresh();
+          return;
+        }
+
         setMessage(payload?.message ?? "No se pudo confirmar el pago.");
         return;
       }
 
-      setItems((current) => current.map((item): AccessRequestRow => (item.id === request.id ? { ...item, status: "approved", updated_at: new Date().toISOString() } : item)).filter(isRecentAnsweredRequest));
+      setItems((current) => current.map((item): AccessRequestRow => (item.id === request.id ? { ...item, status: "fulfilled", updated_at: new Date().toISOString() } : item)));
       setPaymentDrafts((current) => {
         const next = { ...current };
         delete next[request.id];
         return next;
       });
+      setPaymentOpenIds((current) => current.filter((id) => id !== request.id));
       setMessage(payload.message ?? "Pago confirmado, acceso liberado y licencia registrada.");
       window.dispatchEvent(new Event("br-commercial-activity-refresh"));
       await refresh();
@@ -200,10 +265,22 @@ export function AccessRequestsTable() {
       return;
     }
 
-    setItems((current) => current.map((item) => (item.id === request.id ? { ...item, message: `${item.message || ""}\n[contactado]`.trim() } : item)));
+    setItems((current) =>
+      current.map((item): AccessRequestRow =>
+        item.id === request.id
+          ? {
+              ...item,
+              status: "payment_pending",
+              message: `${item.message || ""}\n[contactado]`.trim(),
+              updated_at: new Date().toISOString(),
+              contacted_at: new Date().toISOString(),
+            }
+          : item
+      )
+    );
     const text = encodeURIComponent("Hola, te contacto de B.R por tu solicitud de acceso a este beat.");
     window.open(`https://wa.me/${phone}?text=${text}`, "_blank", "noopener,noreferrer");
-    setMessage("Usuario contactado por WhatsApp.");
+    setMessage(result.message ?? "Cliente contactado. Solicitud marcada como pago pendiente.");
     await refresh();
     router.refresh();
   }
@@ -218,177 +295,126 @@ export function AccessRequestsTable() {
     };
   }, [pathname]);
 
-  const pendingItems = items.filter((request) => request.status === "pending");
-  const recentAnsweredItems = items.filter((request) => request.status !== "pending" && isRecentAnsweredRequest(request));
+  function findRevocationForRequest(request: AccessRequestRow) {
+    return revocations.find((revocation) => revocationMatchesRequest(revocation, request)) ?? null;
+  }
 
-  function renderTable(requests: AccessRequestRow[]) {
+  const activeItems = items
+    .filter((request) => !findRevocationForRequest(request) && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid"))
+    .sort((a, b) => new Date(a.created_at ?? a.updated_at ?? 0).getTime() - new Date(b.created_at ?? b.updated_at ?? 0).getTime());
+
+  const closedItems = items
+    .filter((request) => !activeItems.some((activeRequest) => activeRequest.id === request.id))
+    .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  function togglePaymentOpen(id: string) {
+    setPaymentOpenIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  function renderCards(requests: AccessRequestRow[]) {
     if (requests.length === 0) {
       return <p className="rounded-md border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">Sin solicitudes en esta sección.</p>;
     }
 
     return (
-      <div className="overflow-x-auto rounded-lg border border-white/10">
-        <table className="min-w-[1040px] w-full border-collapse text-left text-sm">
-          <thead className="bg-white/5 text-xs uppercase text-zinc-500">
-            <tr>
-              <th className="px-4 py-3">Usuario</th>
-              <th className="px-4 py-3">Email / Username</th>
-              <th className="px-4 py-3">Teléfono</th>
-              <th className="px-4 py-3">Beat solicitado</th>
-              <th className="px-4 py-3">Fecha</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="sticky right-0 bg-[#15181c] px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((request) => {
-              const profile = getRequestProfile(request);
-              return (
-                <React.Fragment key={request.id}>
-                  <tr className="border-t border-white/10">
-                  <td className="px-4 py-3 font-semibold">{getRequestUser(request)} {isContacted(request) ? <span className="ml-2 text-xs text-emerald-200">Contactado</span> : null}</td>
-                  <td className="px-4 py-3 text-zinc-400">{profile?.email || "Sin email"}<br /><span className="text-cyan-200">@{profile?.username || "sin-username"}</span></td>
-                  <td className="px-4 py-3 text-zinc-400">{getRequestPhone(request)}</td>
-                  <td className="px-4 py-3 text-zinc-400">{getRequestBeat(request)}</td>
-                  <td className="px-4 py-3 text-zinc-400">{getRequestDate(request)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>
-                      {statusLabels[request.status]}
-                    </span>
-                  </td>
-                  <td className="sticky right-0 bg-[#15181c] px-4 py-3">
-                    <div className="flex justify-end gap-1.5">
-                      {request.status === "pending" ? (
-                        <button type="button" onClick={() => void confirmPaymentAndGrantAccess(request)} disabled={processingPaymentId === request.id} className="inline-flex items-center gap-1 rounded-full bg-cyan-300 px-2.5 py-1.5 text-xs font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
-                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                          {processingPaymentId === request.id ? "Confirmando..." : "Confirmar pago"}
-                        </button>
-                      ) : null}
-                      <button type="button" onClick={() => void contactRequest(request)} className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-300/10">
-                        <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                        Contactar
-                      </button>
-                      {request.status === "pending" ? (
-                        <button type="button" onClick={() => void rejectRequest(request.id)} className="inline-flex items-center gap-1 rounded-full border border-red-300/30 px-2.5 py-1.5 text-xs font-bold text-red-100 hover:bg-red-300/10">
-                          <X className="h-3.5 w-3.5" aria-hidden="true" />
-                          Rechazar
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-                {request.status === "pending" ? (
-                  <tr className="border-t border-white/10 bg-black/10">
-                    <td colSpan={7} className="px-4 py-4">
-                      <div className="grid gap-3 rounded-md border border-white/10 bg-white/5 p-3 md:grid-cols-[1fr_120px_140px_140px_1.3fr_auto] md:items-end">
-                        <label className="grid gap-1">
-                          <span className="text-xs font-bold uppercase text-zinc-500">Monto</span>
-                          <input value={getPaymentDraft(request.id).amount} onChange={(event) => updatePaymentDraft(request.id, { amount: event.target.value })} type="number" min="0" step="0.01" placeholder="1500.00" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
-                        </label>
-                        <label className="grid gap-1">
-                          <span className="text-xs font-bold uppercase text-zinc-500">Moneda</span>
-                          <input value={getPaymentDraft(request.id).currency} onChange={(event) => updatePaymentDraft(request.id, { currency: event.target.value.toUpperCase() })} placeholder="MXN" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
-                        </label>
-                        <label className="grid gap-1">
-                          <span className="text-xs font-bold uppercase text-zinc-500">Licencia</span>
-                          <select value={getPaymentDraft(request.id).license_type} onChange={(event) => updatePaymentDraft(request.id, { license_type: event.target.value as PaymentDraft["license_type"] })} className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300">
-                            <option value="basic" className="bg-[#101317] text-white">Basic</option>
-                            <option value="premium" className="bg-[#101317] text-white">Premium</option>
-                            <option value="exclusive" className="bg-[#101317] text-white">Exclusive</option>
-                          </select>
-                        </label>
-                        <label className="grid gap-1">
-                          <span className="text-xs font-bold uppercase text-zinc-500">Método</span>
-                          <input value={getPaymentDraft(request.id).payment_method} onChange={(event) => updatePaymentDraft(request.id, { payment_method: event.target.value })} placeholder="Transferencia" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
-                        </label>
-                        <label className="grid gap-1">
-                          <span className="text-xs font-bold uppercase text-zinc-500">Nota</span>
-                          <input value={getPaymentDraft(request.id).note} onChange={(event) => updatePaymentDraft(request.id, { note: event.target.value })} placeholder="Referencia interna" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
-                        </label>
-                        <button type="button" onClick={() => void confirmPaymentAndGrantAccess(request)} disabled={processingPaymentId === request.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-xs font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
-                          <Save className="h-3.5 w-3.5" aria-hidden="true" />
-                          {processingPaymentId === request.id ? "Confirmando..." : "Liberar"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : null}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
+      <div className="grid gap-2">
+        {requests.map((request) => {
+          const profile = getRequestProfile(request);
+          const expanded = expandedIds.includes(request.id);
+          const draft = getPaymentDraft(request.id);
+          const revocation = findRevocationForRequest(request);
+          const canOpenPayment = !revocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid");
+          const showPaymentForm = canOpenPayment && paymentOpenIds.includes(request.id);
+          const showReject = !revocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending");
 
-  return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
-      {message ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
-      <div className="hidden space-y-6 md:block">
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-bold">Pendientes</h2>
-            <span className="text-xs font-semibold text-cyan-200">{pendingItems.length}</span>
-          </div>
-          {renderTable(pendingItems)}
-        </div>
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-bold">Historial reciente</h2>
-            <span className="text-xs font-semibold text-zinc-400">3 días</span>
-          </div>
-          {renderTable(recentAnsweredItems)}
-        </div>
-      </div>
+          return (
+            <article key={request.id} className={`rounded-lg border p-2.5 ${revocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#15181c]"}`}>
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto] md:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-bold text-white">{getRequestUser(request)}</p>
+                    {isContacted(request) && !revocation ? <span className="rounded-full border border-emerald-300/30 px-2 py-0.5 text-[11px] font-bold text-emerald-200">Contactado</span> : null}
+                  </div>
+                  <p className="mt-1 truncate text-xs text-zinc-500">{profile?.email || "Sin email"}</p>
+                </div>
 
-      <div className="grid gap-3 md:hidden">
-        {[...pendingItems, ...recentAnsweredItems].map((request) => (
-          <article key={request.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">{getRequestUser(request)}</p>
-                <p className="mt-1 text-sm text-zinc-400">{getRequestBeat(request)}</p>
-                <p className="mt-1 text-sm text-zinc-400">{getRequestPhone(request)}</p>
-                <p className="mt-1 text-xs text-zinc-500">{getRequestDate(request)}</p>
-                {isContacted(request) ? <p className="mt-1 text-xs font-bold text-emerald-200">Contactado</p> : null}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-zinc-200">{getRequestBeat(request)}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {isClosedRequest(request, revocation) ? getRequestUpdatedDate(request) : getRequestDate(request)} · {getRequestPhone(request)}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                  <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${revocation ? revokedStatusStyle : statusStyles[request.status]}`}>
+                    {revocation ? "Revocada" : statusLabels[request.status]}
+                  </span>
+                  <button type="button" onClick={() => toggleExpanded(request.id)} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1.5 text-xs font-bold text-zinc-200 hover:border-cyan-300/40 hover:text-cyan-200">
+                    Detalle
+                    <ChevronDown className={`h-3.5 w-3.5 transition ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </button>
+                </div>
               </div>
-              <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusStyles[request.status]}`}>
-                {statusLabels[request.status]}
-              </span>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {request.status === "pending" ? (
-                <button type="button" onClick={() => void confirmPaymentAndGrantAccess(request)} disabled={processingPaymentId === request.id} className="inline-flex items-center gap-1 rounded-full bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
-                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  {processingPaymentId === request.id ? "Confirmando..." : "Confirmar pago"}
-                </button>
+
+              {expanded ? (
+                <div className="mt-3 grid gap-3 rounded-md border border-white/10 bg-black/20 p-3 text-xs text-zinc-400 md:grid-cols-2">
+                  <div>
+                    <p><span className="font-bold text-zinc-300">Username:</span> @{profile?.username || "sin-username"}</p>
+                    <p className="mt-1"><span className="font-bold text-zinc-300">Teléfono:</span> {getRequestPhone(request)}</p>
+                    <p className="mt-1 break-all"><span className="font-bold text-zinc-300">User ID:</span> {request.user_id}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-zinc-300">Mensaje</p>
+                    <p className="mt-1 whitespace-pre-wrap leading-5">{getRequestMessage(request)}</p>
+                  </div>
+                  {revocation ? (
+                    <div className="rounded-md border border-amber-300/20 bg-amber-300/10 p-3 md:col-span-2">
+                      <p className="font-bold text-amber-100">Revocación registrada</p>
+                      <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Motivo: {revocation.reason}</p>
+                      <p className="mt-1 text-zinc-500">Fecha: {getRevocationDate(revocation)}</p>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
-              <button type="button" onClick={() => void contactRequest(request)} className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 px-3 py-2 text-xs font-bold text-emerald-200">
-                <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                Contactar
-              </button>
-              {request.status === "pending" ? (
-                <button type="button" onClick={() => void rejectRequest(request.id)} className="inline-flex items-center gap-1 rounded-full border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10">
-                  <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  Rechazar
-                </button>
-              ) : null}
-            </div>
-            {request.status === "pending" ? (
-              <div className="mt-4 grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+
+              <div className="mt-2 flex flex-wrap justify-end gap-2">
+                {!revocation ? (
+                  <button type="button" onClick={() => void contactRequest(request)} className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-300/10">
+                    <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                    Contactar
+                  </button>
+                ) : null}
+                {canOpenPayment ? (
+                  <button type="button" onClick={() => togglePaymentOpen(request.id)} className={showPaymentForm ? "inline-flex items-center gap-1 rounded-full bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200" : "inline-flex items-center gap-1 rounded-full border border-cyan-300/40 px-3 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-300/10"}>
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    {showPaymentForm ? "Cerrar pago" : "Pago"}
+                  </button>
+                ) : null}
+                {showReject ? (
+                  <button type="button" onClick={() => void rejectRequest(request.id)} className="inline-flex items-center gap-1 rounded-full border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10">
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Rechazar
+                  </button>
+                ) : null}
+              </div>
+
+              {showPaymentForm ? (
+                <div className="mt-2 grid gap-2 rounded-md border border-white/10 bg-white/5 p-2.5 lg:grid-cols-[1fr_90px_120px_130px_1.1fr_auto] lg:items-end">
                   <label className="grid gap-1">
                     <span className="text-xs font-bold uppercase text-zinc-500">Monto</span>
-                    <input value={getPaymentDraft(request.id).amount} onChange={(event) => updatePaymentDraft(request.id, { amount: event.target.value })} type="number" min="0" step="0.01" placeholder="1500.00" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
+                    <input value={draft.amount} onChange={(event) => updatePaymentDraft(request.id, { amount: event.target.value })} type="number" min="0" step="0.01" placeholder="1500.00" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
                   </label>
                   <label className="grid gap-1">
                     <span className="text-xs font-bold uppercase text-zinc-500">Moneda</span>
-                    <input value={getPaymentDraft(request.id).currency} onChange={(event) => updatePaymentDraft(request.id, { currency: event.target.value.toUpperCase() })} placeholder="MXN" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
+                    <input value={draft.currency} onChange={(event) => updatePaymentDraft(request.id, { currency: event.target.value.toUpperCase() })} placeholder="MXN" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
                   </label>
                   <label className="grid gap-1">
                     <span className="text-xs font-bold uppercase text-zinc-500">Licencia</span>
-                    <select value={getPaymentDraft(request.id).license_type} onChange={(event) => updatePaymentDraft(request.id, { license_type: event.target.value as PaymentDraft["license_type"] })} className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300">
+                    <select value={draft.license_type} onChange={(event) => updatePaymentDraft(request.id, { license_type: event.target.value as PaymentDraft["license_type"] })} className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300">
                       <option value="basic" className="bg-[#101317] text-white">Basic</option>
                       <option value="premium" className="bg-[#101317] text-white">Premium</option>
                       <option value="exclusive" className="bg-[#101317] text-white">Exclusive</option>
@@ -396,21 +422,68 @@ export function AccessRequestsTable() {
                   </label>
                   <label className="grid gap-1">
                     <span className="text-xs font-bold uppercase text-zinc-500">Método</span>
-                    <input value={getPaymentDraft(request.id).payment_method} onChange={(event) => updatePaymentDraft(request.id, { payment_method: event.target.value })} placeholder="Transferencia" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
+                    <input value={draft.payment_method} onChange={(event) => updatePaymentDraft(request.id, { payment_method: event.target.value })} placeholder="Transferencia" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
                   </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs font-bold uppercase text-zinc-500">Nota</span>
+                    <input value={draft.note} onChange={(event) => updatePaymentDraft(request.id, { note: event.target.value })} placeholder="Referencia interna" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
+                  </label>
+                  <button type="button" onClick={() => void confirmPaymentAndGrantAccess(request)} disabled={processingPaymentId === request.id} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-xs font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Save className="h-3.5 w-3.5" aria-hidden="true" />
+                    {processingPaymentId === request.id ? "Confirmando..." : "Liberar"}
+                  </button>
                 </div>
-                <label className="grid gap-1">
-                  <span className="text-xs font-bold uppercase text-zinc-500">Nota</span>
-                  <input value={getPaymentDraft(request.id).note} onChange={(event) => updatePaymentDraft(request.id, { note: event.target.value })} placeholder="Referencia interna" className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
-                </label>
-                <button type="button" onClick={() => void confirmPaymentAndGrantAccess(request)} disabled={processingPaymentId === request.id} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-xs font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
-                  <Save className="h-3.5 w-3.5" aria-hidden="true" />
-                  {processingPaymentId === request.id ? "Confirmando..." : "Confirmar pago y liberar acceso"}
-                </button>
-              </div>
-            ) : null}
-          </article>
-        ))}
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
+      {message ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
+
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="rounded-md border border-white/10 bg-white/5 p-3">
+          <p className="text-xs font-bold uppercase text-zinc-500">Activas</p>
+          <p className="mt-1 text-2xl font-black text-white">{activeItems.length}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/5 p-3">
+          <p className="text-xs font-bold uppercase text-zinc-500">Pendientes</p>
+          <p className="mt-1 text-2xl font-black text-cyan-200">{activeItems.filter((request) => request.status === "pending").length}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/5 p-3">
+          <p className="text-xs font-bold uppercase text-zinc-500">Pago pendiente</p>
+          <p className="mt-1 text-2xl font-black text-amber-200">{activeItems.filter((request) => request.status === "payment_pending").length}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/5 p-3">
+          <p className="text-xs font-bold uppercase text-zinc-500">Revocadas</p>
+          <p className="mt-1 text-2xl font-black text-amber-200">{items.filter((request) => findRevocationForRequest(request)).length}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/5 p-3">
+          <p className="text-xs font-bold uppercase text-zinc-500">Cerradas</p>
+          <p className="mt-1 text-2xl font-black text-zinc-200">{closedItems.length}</p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold">Activas</h2>
+            <span className="text-xs font-semibold text-cyan-200">{activeItems.length}</span>
+          </div>
+          {renderCards(activeItems)}
+        </div>
+
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold">Cerradas / historial</h2>
+            <span className="text-xs font-semibold text-zinc-400">{closedItems.length}</span>
+          </div>
+          {renderCards(closedItems)}
+        </div>
       </div>
     </section>
   );

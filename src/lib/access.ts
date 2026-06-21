@@ -22,6 +22,10 @@ export function userCanAccessBeat(user: User | null | undefined, beat: Pick<Beat
   return beatIds.some((id) => accessIds.has(id));
 }
 
+export function userCanPreviewPrivateBeat(user: User | null | undefined, isEmailConfirmed: boolean, beat: Pick<Beat, "id" | "dbId"> & { slug?: string | null }) {
+  return Boolean(user?.role === "admin" || (user && isEmailConfirmed && userCanAccessBeat(user, beat)) || (user && isEmailConfirmed));
+}
+
 export function getUsersWithAccessToBeat(beatId: string, users: User[] = demoUsers) {
   return users.filter((user) => user.accessibleBeatIds.includes(beatId));
 }

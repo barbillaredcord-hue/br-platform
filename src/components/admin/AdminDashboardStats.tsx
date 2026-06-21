@@ -41,14 +41,15 @@ export function AdminDashboardStats({ initialBeats, initialUsers, initialRequest
 
   const stats = useMemo(() => {
     const pendingRequests = requests.filter((request) => request.status === "pending");
-    const approvedRequests = requests.filter((request) => request.status === "approved");
-    const rejectedRequests = requests.filter((request) => request.status === "rejected");
-    const contactedRequests = requests.filter((request) => request.message?.includes("[contactado]"));
+    const paymentPendingRequests = requests.filter((request) => request.status === "payment_pending");
+    const completedRequests = requests.filter((request) => request.status === "paid" || request.status === "fulfilled" || request.status === "approved");
+    const rejectedRequests = requests.filter((request) => request.status === "rejected" || request.status === "cancelled");
+    const contactedRequests = requests.filter((request) => request.status === "contacted" || request.message?.includes("[contactado]"));
     const accessCount = users.reduce((total, user) => total + beats.filter((beat) => userHasBeatAccess(user, beat)).length, 0);
     const usersWithAccess = users.filter((user) => beats.some((beat) => userHasBeatAccess(user, beat)));
     const mostPlayedBeat = beats[0];
 
-    return { pendingRequests, approvedRequests, rejectedRequests, contactedRequests, accessCount, usersWithAccess, mostPlayedBeat };
+    return { pendingRequests, paymentPendingRequests, completedRequests, rejectedRequests, contactedRequests, accessCount, usersWithAccess, mostPlayedBeat };
   }, [beats, requests, users]);
 
   return (
@@ -56,9 +57,10 @@ export function AdminDashboardStats({ initialBeats, initialUsers, initialRequest
       <AdminStatCard label="Total de beats" value={String(beats.length)} detail="Catálogo activo" href="/admin/beats" />
       <AdminStatCard label="Accesos activos" value={String(stats.accessCount)} detail={`${stats.usersWithAccess.length} usuarios con acceso`} href="/admin/access" />
       <AdminStatCard label="Usuarios" value={String(users.length)} detail="Profiles reales" href="/admin/users" />
-      <AdminStatCard label="Solicitudes pendientes" value={String(stats.pendingRequests.length)} detail="Por revisar" href="/admin/access-requests" />
-      <AdminStatCard label="Solicitudes aprobadas" value={String(stats.approvedRequests.length)} detail={`${stats.contactedRequests.length} contactadas`} href="/admin/access-requests" />
-      <AdminStatCard label="Solicitudes rechazadas" value={String(stats.rejectedRequests.length)} detail="Historial de rechazo" href="/admin/access-requests" />
+      <AdminStatCard label="Solicitudes pendientes" value={String(stats.pendingRequests.length)} detail={`${stats.contactedRequests.length} contactadas`} href="/admin/access-requests" />
+      <AdminStatCard label="Pago pendiente" value={String(stats.paymentPendingRequests.length)} detail="Órdenes por cobrar" href="/admin/access-requests" />
+      <AdminStatCard label="Órdenes completadas" value={String(stats.completedRequests.length)} detail="Pagadas o liberadas" href="/admin/access-requests" />
+      <AdminStatCard label="Rechazadas/canceladas" value={String(stats.rejectedRequests.length)} detail="Historial comercial" href="/admin/access-requests" />
       <AdminStatCard label="Beat destacado" value={stats.mostPlayedBeat?.name ?? "Sin beats"} detail={stats.mostPlayedBeat ? `${stats.mostPlayedBeat.genre} · ${stats.mostPlayedBeat.bpm} BPM` : "Pendiente"} href={stats.mostPlayedBeat ? `/beats/${stats.mostPlayedBeat.id}` : undefined} />
     </section>
   );

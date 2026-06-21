@@ -1,4 +1,4 @@
-export type AccessRequestStatus = "pending" | "approved" | "rejected";
+export type AccessRequestStatus = "pending" | "contacted" | "payment_pending" | "paid" | "fulfilled" | "approved" | "rejected" | "cancelled";
 
 export type AccessRequest = {
   id: string;

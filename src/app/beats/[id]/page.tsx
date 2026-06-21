@@ -6,7 +6,7 @@ import { BeatCard } from "@/components/BeatCard";
 import { BeatAccessActions } from "@/components/BeatAccessActions";
 import { BeatAccessSummary } from "@/components/BeatAccessSummary";
 import { getRelatedBeats } from "@/data/beats";
-import { getBeatBySlug, getBeats, getUsersWithAccessToBeat } from "@/lib/supabase/queries";
+import { getBeatBySlug, getBeats, getUsersWithAccessToBeat, getAccessRevocationsForBeat } from "@/lib/supabase/queries";
 
 type BeatPageProps = {
   params: Promise<{
@@ -42,6 +42,7 @@ export default async function BeatPage({ params }: BeatPageProps) {
   const relatedBeats = beats.length > 0 ? beats.filter((item) => item.genre === beat.genre && item.id !== beat.id).slice(0, 4) : getRelatedBeats(beat);
   const detailQueue = [beat, ...relatedBeats];
   const usersWithAccess = await getUsersWithAccessToBeat(beat.dbId ?? beat.id);
+  const accessRevocations = await getAccessRevocationsForBeat(beat.dbId ?? beat.id);
   const previewSeconds = getPreviewSeconds(beat);
 
   return (
@@ -95,6 +96,15 @@ export default async function BeatPage({ params }: BeatPageProps) {
             <div className="mt-7 flex flex-wrap gap-3">
               <BeatAccessActions beat={beat} queue={detailQueue} />
             </div>
+
+            {accessRevocations.length > 0 ? (
+              <div className="mt-5 rounded-md border border-amber-300/20 bg-amber-300/10 p-4">
+                <p className="text-xs font-bold uppercase text-amber-200">Revocaciones registradas</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">
+                  Este beat tiene acceso(s) revocado(s) registrados por B.R. Los usuarios afectados solo conservan reproducción preview y las descargas protegidas quedan bloqueadas.
+                </p>
+              </div>
+            ) : null}
           </div>
         </section>
 

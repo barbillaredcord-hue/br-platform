@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { demoUsers, type User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
-import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser, recoverDeletedAccountAccess, updateProfile } from "@/lib/supabase/queries";
+import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser, updateProfile } from "@/lib/supabase/queries";
 
 type AuthResult = {
   ok: boolean;
@@ -25,6 +25,7 @@ type UserContextValue = {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isLoadingSession: boolean;
+  isEmailConfirmed: boolean;
   authEnabled: boolean;
   inactiveAccountMessage: string;
 };
@@ -44,7 +45,11 @@ function isValidPhone(phone: string) {
   return /^[0-9+\-()\s]+$/.test(phone.trim()) && phone.replace(/\D/g, "").length >= 8;
 }
 
-async function getUserFromAuthUser(authUser?: { id: string; email?: string | null } | null, input?: { name?: string; username?: string; phone?: string }): Promise<{ user: User | null; profileRole: string }> {
+function getIsEmailConfirmed(authUser?: { email_confirmed_at?: string | null; confirmed_at?: string | null } | null) {
+  return Boolean(authUser?.email_confirmed_at || authUser?.confirmed_at);
+}
+
+async function getUserFromAuthUser(authUser?: ({ id: string; email?: string | null } & { email_confirmed_at?: string | null; confirmed_at?: string | null }) | null, input?: { name?: string; username?: string; phone?: string }): Promise<{ user: User | null; profileRole: string }> {
   if (!authUser?.email) {
     return { user: null, profileRole: "" };
   }
@@ -90,6 +95,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<User[]>(demoUsers);
   const [authEmail, setAuthEmail] = useState("");
   const [profileRole, setProfileRole] = useState("");
+  const [isEmailConfirmed, setIsEmailConfirmed] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(Boolean(supabase));
   const [inactiveAccountMessage, setInactiveAccountMessage] = useState("");
 
@@ -107,6 +113,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const sessionUser = error ? null : data.user;
       const resolvedUser = await getUserFromAuthUser(sessionUser);
       setAuthEmail(normalizeEmail(sessionUser?.email));
+      setIsEmailConfirmed(getIsEmailConfirmed(sessionUser));
       setProfileRole(resolvedUser.profileRole);
       setCurrentUser(resolvedUser.user);
       if (sessionUser && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
@@ -122,6 +129,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       void getUserFromAuthUser(session?.user).then(async (resolvedUser) => {
         setAuthEmail(normalizeEmail(session?.user.email));
+        setIsEmailConfirmed(getIsEmailConfirmed(session?.user));
         setProfileRole(resolvedUser.profileRole);
         setCurrentUser(resolvedUser.user);
         if (session?.user && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
@@ -161,9 +169,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: "Tu cuenta ya no está activa." };
     }
 
-    await recoverDeletedAccountAccess();
     const resolvedUser = await getUserFromAuthUser(data.user);
     setAuthEmail(normalizeEmail(data.user.email));
+    setIsEmailConfirmed(getIsEmailConfirmed(data.user));
     setProfileRole(resolvedUser.profileRole);
     setCurrentUser(resolvedUser.user);
     setInactiveAccountMessage("");
@@ -202,9 +210,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
 
       await getUserFromAuthUser(data.user, input);
-      await recoverDeletedAccountAccess();
       const resolvedUser = await getUserFromAuthUser(data.user, input);
       setAuthEmail(normalizeEmail(data.user.email));
+      setIsEmailConfirmed(getIsEmailConfirmed(data.user));
       setProfileRole(resolvedUser.profileRole);
       setCurrentUser(resolvedUser.user);
       setInactiveAccountMessage("");
@@ -221,6 +229,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     setCurrentUser(null);
     setAuthEmail("");
+    setIsEmailConfirmed(false);
     setProfileRole("");
     setInactiveAccountMessage("");
   }, []);
@@ -234,6 +243,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const sessionUser = error ? null : data.user;
     const resolvedUser = await getUserFromAuthUser(sessionUser);
     setAuthEmail(normalizeEmail(sessionUser?.email));
+    setIsEmailConfirmed(getIsEmailConfirmed(sessionUser));
     setProfileRole(resolvedUser.profileRole);
     setCurrentUser(resolvedUser.user);
     if (sessionUser && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
@@ -263,10 +273,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: Boolean(currentUser),
       isAdmin,
       isLoadingSession,
+      isEmailConfirmed,
       authEnabled: Boolean(supabase),
       inactiveAccountMessage,
     }),
-    [authEmail, brceoEnvEmail, currentUser, inactiveAccountMessage, isAdmin, isLoadingSession, loginAsUser, logout, profileRole, refreshCurrentUser, registerUser, users],
+    [authEmail, brceoEnvEmail, currentUser, inactiveAccountMessage, isAdmin, isEmailConfirmed, isLoadingSession, loginAsUser, logout, profileRole, refreshCurrentUser, registerUser, users],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

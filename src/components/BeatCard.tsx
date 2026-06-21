@@ -5,9 +5,11 @@ import { Heart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AccessStatusBadge } from "@/components/AccessStatusBadge";
 import { useUser } from "@/context/UserContext";
+import type { AccessRequestStatus } from "@/data/accessRequests";
 import type { Beat } from "@/data/beats";
 import { userCanAccessBeat } from "@/lib/access";
 import { isBeatSaved, SAVED_BEATS_EVENT, toggleSavedBeatId } from "@/lib/saved-beats";
+import { getAccessRequestForBeat, getUserAccessRevocations, type AccessRevocationRow } from "@/lib/supabase/queries";
 import { AccessBadge } from "./AccessBadge";
 import { PlayButton } from "./PlayButton";
 
@@ -24,6 +26,20 @@ const coverGradients = [
   "bg-[linear-gradient(135deg,#0f172a,#0891b2)]",
 ];
 
+const requestStatusLabels: Partial<Record<AccessRequestStatus, string>> = {
+  pending: "Solicitud pendiente",
+  contacted: "B.R te contactó",
+  payment_pending: "Pago pendiente",
+  paid: "Pago recibido",
+};
+
+const requestStatusStyles: Partial<Record<AccessRequestStatus, string>> = {
+  pending: "border-cyan-300/30 bg-cyan-300/10 text-cyan-100",
+  contacted: "border-sky-300/30 bg-sky-300/10 text-sky-100",
+  payment_pending: "border-amber-300/30 bg-amber-300/10 text-amber-100",
+  paid: "border-emerald-300/30 bg-emerald-300/10 text-emerald-100",
+};
+
 function getPreviewSeconds(beat: Beat) {
   const previewMeta = beat as Beat & { previewDurationSeconds?: number | null };
   const seconds = previewMeta.previewDurationSeconds ?? 15;
@@ -31,18 +47,37 @@ function getPreviewSeconds(beat: Beat) {
   return Math.min(30, Math.max(15, Math.round(seconds)));
 }
 
-export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
-  const { currentUser } = useUser();
-  const isAdmin = currentUser?.role === "admin";
-  const hasBeatAccess = userCanAccessBeat(currentUser, beat);
-  const hasPlaybackAccess = isAdmin || hasBeatAccess;
-  const isPublicPlayback = beat.playbackVisibility === "public";
-  const previewSeconds = getPreviewSeconds(beat);
-  const playbackMode = isAdmin || isPublicPlayback || hasBeatAccess ? "full" : "preview";
-  const playbackLabel = isAdmin || isPublicPlayback || hasBeatAccess ? "Full" : `Preview ${previewSeconds}s`;
+function shouldShowRequestStatus(status: AccessRequestStatus | undefined, hasPlaybackAccess: boolean) {
+  if (hasPlaybackAccess || !status) {
+    return false;
+  }
 
+  return status === "pending" || status === "contacted" || status === "payment_pending" || status === "paid";
+}
+
+function revocationMatchesBeat(revocation: AccessRevocationRow, beatId: string) {
+  const revokedBeat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
+
+  return revocation.beat_id === beatId || revokedBeat?.slug === beatId;
+}
+
+export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   const savedBeatId = beat.dbId ?? beat.id;
   const [isSaved, setIsSaved] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<AccessRequestStatus | null>(null);
+  const [revocation, setRevocation] = useState<AccessRevocationRow | null>(null);
+
+  const { currentUser, isEmailConfirmed } = useUser();
+  const isAdmin = currentUser?.role === "admin";
+  const hasBeatAccess = userCanAccessBeat(currentUser, beat);
+  const hasRevocation = Boolean(revocation);
+  const hasPlaybackAccess = (isAdmin || hasBeatAccess) && !hasRevocation;
+  const isPublicPlayback = beat.playbackVisibility === "public" && !hasRevocation;
+  const canPreviewPrivate = Boolean(currentUser && isEmailConfirmed);
+  const previewSeconds = getPreviewSeconds(beat);
+  const canShowPlayButton = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation) || (!hasRevocation && canPreviewPrivate);
+  const playbackMode = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation) ? "full" : "preview";
+  const playbackLabel = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation) ? "Full" : `Preview ${previewSeconds}s`;
 
   useEffect(() => {
     const syncSavedState = () => {
@@ -59,6 +94,36 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
       window.removeEventListener("storage", syncSavedState);
     };
   }, [currentUser?.id, savedBeatId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadRequestStatus() {
+      if (!currentUser) {
+        setRequestStatus(null);
+        setRevocation(null);
+        return;
+      }
+
+      const [request, userRevocations] = await Promise.all([
+        getAccessRequestForBeat(currentUser.id, savedBeatId),
+        getUserAccessRevocations(currentUser.id),
+      ]);
+      const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, savedBeatId)) ?? null;
+      const status = request?.status;
+
+      if (isMounted) {
+        setRevocation(foundRevocation);
+        setRequestStatus(foundRevocation ? null : shouldShowRequestStatus(status, hasPlaybackAccess) ? status ?? null : null);
+      }
+    }
+
+    void loadRequestStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, hasPlaybackAccess, savedBeatId]);
 
   const toggleSaved = () => {
     const nextIds = toggleSavedBeatId(savedBeatId, currentUser?.id);
@@ -90,25 +155,45 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
               {beat.genre} · {beat.bpm} BPM
             </p>
           </div>
-          {beat.locked ? <AccessBadge /> : null}
+          {beat.locked && !hasPlaybackAccess ? <AccessBadge /> : null}
         </div>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap gap-2">
           <AccessStatusBadge hasAccess={hasPlaybackAccess} />
+          {hasRevocation ? (
+            <span className="inline-flex w-fit rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold text-amber-100">
+              Acceso revocado
+            </span>
+          ) : null}
+          {requestStatus ? (
+            <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[11px] font-bold ${requestStatusStyles[requestStatus] ?? "border-white/10 bg-white/5 text-zinc-300"}`}>
+              {requestStatusLabels[requestStatus] ?? "Solicitud en proceso"}
+            </span>
+          ) : null}
         </div>
         <p className="mt-2 truncate text-xs font-semibold text-zinc-500">
-          {isAdmin
-            ? "Admin: reproducción full disponible"
-            : isPublicPlayback
-              ? "Full público, descarga protegida"
-              : hasBeatAccess
-                ? "Acceso completo activo"
-                : "Acceso privado disponible"}
+          {hasRevocation
+            ? "Acceso revocado: solo preview"
+            : isAdmin
+              ? "Admin: reproducción full disponible"
+              : isPublicPlayback
+                ? "Full público, descarga protegida"
+                : hasBeatAccess
+                  ? "Acceso completo activo"
+                  : canPreviewPrivate
+                    ? "Preview privado disponible"
+                    : "Inicia sesión y confirma email"}
         </p>
       </Link>
       <div className="mt-4 grid gap-2">
-        <PlayButton variant="light" beat={beat} mode={playbackMode} queue={queue} showPauseState>
-          {playbackLabel}
-        </PlayButton>
+        {canShowPlayButton ? (
+          <PlayButton variant="light" beat={beat} mode={playbackMode} queue={queue} showPauseState>
+            {playbackLabel}
+          </PlayButton>
+        ) : (
+          <Link href={currentUser ? "/account/settings" : "/login"} className="inline-flex h-10 items-center justify-center rounded-md bg-white text-sm font-bold text-black hover:bg-cyan-200">
+            {currentUser ? "Confirmar email" : "Iniciar sesión"}
+          </Link>
+        )}
         <button
           type="button"
           aria-label={isSaved ? `Quitar ${beat.name} de guardados` : `Guardar ${beat.name}`}

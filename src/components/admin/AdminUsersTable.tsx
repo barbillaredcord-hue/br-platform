@@ -120,8 +120,7 @@ export function AdminUsersTable() {
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Teléfono</th>
               <th className="px-4 py-3">Rol</th>
-              <th className="px-4 py-3">Cantidad</th>
-              <th className="px-4 py-3">Beats autorizados</th>
+              <th className="px-4 py-3">Accesos</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
@@ -140,10 +139,14 @@ export function AdminUsersTable() {
                     <td className="px-4 py-3 text-zinc-400">{user.email}</td>
                     <td className="px-4 py-3 text-zinc-400">{user.phone || "Sin teléfono"}</td>
                     <td className="px-4 py-3 text-zinc-400">{user.role === "admin" ? "Admin" : "Usuario"}</td>
-                    <td className="px-4 py-3 text-zinc-400">{authorizedBeats.length}</td>
                     <td className="px-4 py-3 text-zinc-400">
-                      <button type="button" onClick={() => setExpandedUserId((current) => (current === user.id ? "" : user.id))} className="text-left hover:text-cyan-200">
-                        {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedUserId((current) => (current === user.id ? "" : user.id))}
+                        className="inline-flex h-8 min-w-10 items-center justify-center rounded-md border border-cyan-300/20 px-3 text-xs font-bold text-cyan-100 hover:border-cyan-300 hover:bg-cyan-300/10"
+                        aria-label={`Ver ${authorizedBeats.length} beats autorizados de ${user.name}`}
+                      >
+                        {authorizedBeats.length}
                       </button>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -154,7 +157,7 @@ export function AdminUsersTable() {
                   </tr>
                   {expandedUserId === user.id ? (
                     <tr className="border-t border-cyan-300/20 bg-white/[0.03]">
-                      <td colSpan={8} className="px-4 py-4">
+                      <td colSpan={7} className="px-4 py-4">
                         <div className="grid gap-4 md:grid-cols-3">
                           <div>
                             <p className="text-xs uppercase text-zinc-500">Usuario</p>
@@ -165,8 +168,18 @@ export function AdminUsersTable() {
                           </div>
                           <div>
                             <p className="text-xs uppercase text-zinc-500">Beats con acceso</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {authorizedBeats.length ? authorizedBeats.map((beat) => <span key={beat.id} className="rounded-md border border-cyan-300/30 px-2 py-1 text-xs font-semibold text-cyan-200">{beat.name}</span>) : <span className="text-sm text-zinc-400">Sin accesos</span>}
+                            <div className="mt-2 max-h-36 overflow-y-auto rounded-md border border-white/10 bg-black/20 p-2">
+                              {authorizedBeats.length ? (
+                                <div className="grid gap-2">
+                                  {authorizedBeats.map((beat) => (
+                                    <span key={beat.id} className="rounded-md border border-cyan-300/30 px-2 py-1 text-xs font-semibold text-cyan-200">
+                                      {beat.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-zinc-400">Sin accesos</span>
+                              )}
                             </div>
                             <Link href="/admin/access" className="mt-3 inline-flex text-xs font-bold text-cyan-200 hover:text-cyan-100">Gestionar acceso</Link>
                           </div>
@@ -196,7 +209,13 @@ export function AdminUsersTable() {
               <p className="mt-1 text-sm text-zinc-400">{user.email}</p>
               <p className="mt-1 text-sm text-zinc-400">{user.phone || "Sin teléfono"}</p>
               <p className="mt-1 text-sm text-zinc-400">Rol: {user.role === "admin" ? "Admin" : "Usuario"}</p>
-              <p className="mt-3 text-sm text-zinc-300">Beats: {authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</p>
+              <button
+                type="button"
+                onClick={() => setExpandedUserId((current) => (current === user.id ? "" : user.id))}
+                className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-cyan-300/20 px-3 text-sm font-bold text-cyan-100 hover:border-cyan-300 hover:bg-cyan-300/10"
+              >
+                Accesos: {authorizedBeats.length}
+              </button>
               <div className="mt-3 flex flex-wrap gap-3">
                 <Link href="/admin/access" className="inline-flex text-sm font-bold text-cyan-200">Gestionar acceso</Link>
                 <button type="button" disabled={user.id === currentUser?.id} onClick={() => void deleteUser(user)} className="text-sm font-bold text-red-100 disabled:cursor-not-allowed disabled:opacity-40">Eliminar usuario</button>
@@ -205,7 +224,19 @@ export function AdminUsersTable() {
                 <div className="mt-4 grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
                   <div>
                     <p className="text-xs uppercase text-zinc-500">Beats con acceso</p>
-                    <p className="mt-1 text-sm text-zinc-300">{authorizedBeats.map((beat) => beat.name).join(", ") || "Sin accesos"}</p>
+                    <div className="mt-2 max-h-36 overflow-y-auto rounded-md border border-white/10 bg-black/20 p-2">
+                      {authorizedBeats.length ? (
+                        <div className="grid gap-2">
+                          {authorizedBeats.map((beat) => (
+                            <span key={beat.id} className="rounded-md border border-cyan-300/30 px-2 py-1 text-xs font-semibold text-cyan-200">
+                              {beat.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-zinc-400">Sin accesos</span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <p className="text-xs uppercase text-zinc-500">Solicitudes recientes</p>

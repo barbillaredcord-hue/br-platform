@@ -16,6 +16,7 @@ type ManualPaymentRow = {
   user_id: string | null;
   beat_id: string | null;
   amount: number | string | null;
+  created_at: string | null;
 };
 
 type ActivityRow = {
@@ -32,6 +33,25 @@ function getDownloadCounts(current?: DownloadCounts): DownloadCounts {
   return current ?? { mp3: 0, licenses: 0 };
 }
 
+function getMonthKey(value: string | null) {
+  if (!value) {
+    return "unknown";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "unknown";
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export async function GET(request: Request) {
   const admin = await validateAdminRequest(request);
 
@@ -42,7 +62,7 @@ export async function GET(request: Request) {
   const [profilesResult, accessResult, paymentsResult, activityResult] = await Promise.all([
     admin.supabase.from("profiles").select("id,email,username,display_name").order("created_at", { ascending: false }),
     admin.supabase.from("beat_access").select("user_id,beat_id"),
-    admin.supabase.from("manual_payments").select("user_id,beat_id,amount"),
+    admin.supabase.from("manual_payments").select("user_id,beat_id,amount,created_at"),
     admin.supabase.from("commercial_activity").select("user_id,event_type").in("event_type", ["mp3_download", "license_download"]),
   ]);
 
@@ -77,6 +97,10 @@ export async function GET(request: Request) {
   const totalsByUser = new Map<string, number>();
   const downloadCountsByUser = new Map<string, DownloadCounts>();
   const relevantUserIds = new Set<string>();
+  const currentMonthKey = getCurrentMonthKey();
+  let earningsTotal = 0;
+  let earningsCurrentMonth = 0;
+  const earningsByMonth = new Map<string, number>();
 
   accessRows.forEach((row) => {
     if (!row.user_id || !row.beat_id) {
@@ -105,6 +129,14 @@ export async function GET(request: Request) {
 
     if (Number.isFinite(amount)) {
       totalsByUser.set(row.user_id, (totalsByUser.get(row.user_id) ?? 0) + amount);
+      earningsTotal += amount;
+
+      const monthKey = getMonthKey(row.created_at);
+      earningsByMonth.set(monthKey, (earningsByMonth.get(monthKey) ?? 0) + amount);
+
+      if (monthKey === currentMonthKey) {
+        earningsCurrentMonth += amount;
+      }
     }
   });
 
@@ -161,5 +193,18 @@ export async function GET(request: Request) {
       return a.email.localeCompare(b.email);
     });
 
-  return Response.json({ ok: true, users });
+  const earningsHistory = Array.from(earningsByMonth.entries())
+    .map(([month, amount]) => ({ month, amount }))
+    .sort((a, b) => b.month.localeCompare(a.month));
+
+  return Response.json({
+    ok: true,
+    users,
+    earnings: {
+      total: earningsTotal,
+      current_month: earningsCurrentMonth,
+      current_month_key: currentMonthKey,
+      history: earningsHistory,
+    },
+  });
 }

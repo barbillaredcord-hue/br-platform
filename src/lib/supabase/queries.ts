@@ -34,6 +34,12 @@ type BeatRowDb = {
 };
 
 type PlaybackVisibilityInput = "private" | "public";
+type BeatMetadataInput = {
+  genre?: string | null;
+  bpm?: number | string | null;
+  musicalKey?: string | null;
+  isActive?: boolean;
+};
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -51,7 +57,20 @@ export type AccessRequestRow = {
   message: string | null;
   created_at: string | null;
   updated_at: string | null;
+  contacted_at?: string | null;
+  responded_at?: string | null;
   profiles?: Pick<ProfileRow, "email" | "username" | "display_name" | "phone"> | Pick<ProfileRow, "email" | "username" | "display_name" | "phone">[] | null;
+  beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
+};
+
+export type AccessRevocationRow = {
+  id: string;
+  user_id: string;
+  beat_id: string;
+  reason: string;
+  revoked_by: string | null;
+  revoked_at: string | null;
+  created_at: string | null;
   beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
 };
 
@@ -132,7 +151,7 @@ function getFallbackRows(): BeatRow[] {
 }
 
 export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status" | "updated_at" | "created_at" | "message">) {
-  if (request.status === "pending") {
+  if (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending") {
     return true;
   }
 
@@ -164,6 +183,7 @@ export function mapSupabaseBeat(row: BeatRowDb): Beat {
   return Object.assign(beat, {
     previewDurationSeconds: row.preview_duration_seconds ?? 15,
     previewUpdatedAt: row.preview_updated_at ?? null,
+    isActive: row.is_active ?? true,
   });
 }
 
@@ -387,6 +407,47 @@ export async function getUserBeatAccess(userId: string, supabaseOverride?: Supab
   });
 }
 
+export async function getUserAccessRevocations(userId: string, supabaseOverride?: SupabaseClient | null) {
+  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
+
+  if (!supabase || !userId) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("access_revocations")
+    .select("id,user_id,beat_id,reason,revoked_by,revoked_at,created_at,beats(slug,title)")
+    .eq("user_id", userId)
+    .order("revoked_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data as AccessRevocationRow[];
+}
+
+export async function getAccessRevocationsForBeat(beatId: string, supabaseOverride?: SupabaseClient | null) {
+  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
+  const resolvedBeatId = await resolveBeatId(beatId);
+
+  if (!supabase || !resolvedBeatId) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("access_revocations")
+    .select("id,user_id,beat_id,reason,revoked_by,revoked_at,created_at,beats(slug,title)")
+    .eq("beat_id", resolvedBeatId)
+    .order("revoked_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data as AccessRevocationRow[];
+}
+
 export async function canAccessBeatSupabase(userId: string, beatId: string) {
   const accessIds = await getUserBeatAccess(userId);
   return accessIds.includes(beatId);
@@ -428,6 +489,42 @@ export async function createAccessRequest(userId: string, beatId: string, messag
     return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
   }
 
+  const { data: existingRequest, error: existingError } = await supabase
+    .from("access_requests")
+    .select("id,status")
+    .eq("user_id", userId)
+    .eq("beat_id", resolvedBeatId)
+    .maybeSingle<{ id: string; status: AccessRequestStatus }>();
+
+  if (existingError) {
+    return { ok: false, message: "No se pudo revisar tu solicitud anterior. Intenta de nuevo." };
+  }
+
+  if (existingRequest) {
+    if (existingRequest.status === "rejected" || existingRequest.status === "cancelled") {
+      const { data: reopenedRequest, error: reopenError } = await supabase
+        .from("access_requests")
+        .update({
+          status: "pending",
+          message: message || null,
+          contacted_at: null,
+          responded_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingRequest.id)
+        .select("id,status")
+        .maybeSingle<{ id: string; status: AccessRequestStatus }>();
+
+      if (reopenError || reopenedRequest?.status !== "pending") {
+        return { ok: false, message: "No se pudo reenviar la solicitud. Intenta de nuevo." };
+      }
+
+      return { ok: true, message: "Solicitud reenviada al admin." };
+    }
+
+    return { ok: false, message: "Tu solicitud ya está en proceso. B.R te responderá pronto." };
+  }
+
   const { error } = await supabase.from("access_requests").insert({
     user_id: userId,
     beat_id: resolvedBeatId,
@@ -436,10 +533,6 @@ export async function createAccessRequest(userId: string, beatId: string, messag
 
   if (!error) {
     return { ok: true, message: "Solicitud enviada al admin." };
-  }
-
-  if (error.code === "23505") {
-    return { ok: false, message: "Ya existe una solicitud para este beat." };
   }
 
   return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
@@ -480,14 +573,14 @@ export async function getAccessRequests() {
 
   const { data, error } = await supabase
     .from("access_requests")
-    .select("id,user_id,beat_id,status,message,created_at,updated_at,profiles(email,username,display_name,phone),beats(slug,title)")
-    .order("created_at", { ascending: false });
+    .select("id,user_id,beat_id,status,message,created_at,updated_at,contacted_at,responded_at,profiles(email,username,display_name,phone),beats(slug,title)")
+    .order("created_at", { ascending: true });
 
   if (error || !data) {
     return [];
   }
 
-  return (data as AccessRequestRow[]).filter(isRecentAnsweredRequest);
+  return data as AccessRequestRow[];
 }
 
 export async function getAccessRequestsForUser(userId: string) {
@@ -499,7 +592,7 @@ export async function getAccessRequestsForUser(userId: string) {
 
   const { data, error } = await supabase
     .from("access_requests")
-    .select("id,user_id,beat_id,status,message,created_at,updated_at,beats(slug,title)")
+    .select("id,user_id,beat_id,status,message,created_at,updated_at,contacted_at,responded_at,beats(slug,title)")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
@@ -508,6 +601,28 @@ export async function getAccessRequestsForUser(userId: string) {
   }
 
   return (data as AccessRequestRow[]).filter(isRecentAnsweredRequest);
+}
+
+export async function getAccessRequestForBeat(userId: string, beatId: string) {
+  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
+  const resolvedBeatId = await resolveBeatId(beatId);
+
+  if (!supabase || !userId || !resolvedBeatId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("access_requests")
+    .select("id,user_id,beat_id,status,message,created_at,updated_at,contacted_at,responded_at,beats(slug,title)")
+    .eq("user_id", userId)
+    .eq("beat_id", resolvedBeatId)
+    .maybeSingle<AccessRequestRow>();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data;
 }
 
 export async function approveAccessRequest(requestId: string) {
@@ -541,7 +656,7 @@ export async function approveAccessRequest(requestId: string) {
     return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
   }
 
-  const { error: updateError } = await supabase.from("access_requests").update({ status: "approved" }).eq("id", requestId);
+  const { error: updateError } = await supabase.from("access_requests").update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId);
 
   return updateError ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true };
 }
@@ -554,9 +669,34 @@ export async function rejectAccessRequest(requestId: string) {
     return { ok: false, message: authClient.message };
   }
 
-  const { error } = await supabase.from("access_requests").update({ status: "rejected" }).eq("id", requestId);
+  const { data: request, error: requestError } = await supabase
+    .from("access_requests")
+    .select("id,user_id,beat_id")
+    .eq("id", requestId)
+    .maybeSingle<{ id: string; user_id: string; beat_id: string }>();
 
-  return error ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true };
+  if (requestError || !request) {
+    return { ok: false, message: requestError?.message ?? "Solicitud no encontrada." };
+  }
+
+  await supabase
+    .from("beat_access")
+    .delete()
+    .eq("user_id", request.user_id)
+    .eq("beat_id", request.beat_id);
+
+  const { error } = await supabase
+    .from("access_requests")
+    .update({
+      status: "rejected",
+      responded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
+
+  return error
+    ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." }
+    : { ok: true };
 }
 
 export async function markAccessRequestContacted(requestId: string, currentMessage?: string | null) {
@@ -569,9 +709,9 @@ export async function markAccessRequestContacted(requestId: string, currentMessa
 
   const marker = "[contactado]";
   const message = currentMessage?.includes(marker) ? currentMessage : `${currentMessage || ""}\n${marker}`.trim();
-  const { error } = await supabase.from("access_requests").update({ message }).eq("id", requestId);
+  const { error } = await supabase.from("access_requests").update({ status: "payment_pending", message, contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId);
 
-  return error ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true, message: "Solicitud marcada como contactada." };
+  return error ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true, message: "Cliente contactado. Solicitud marcada como pago pendiente." };
 }
 
 export async function grantBeatAccess(userId: string, beatId: string) {
@@ -600,15 +740,21 @@ export async function grantBeatAccess(userId: string, beatId: string) {
     return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
   }
 
-  await supabase.from("access_requests").update({ status: "approved" }).eq("user_id", userId).eq("beat_id", resolvedBeatId).eq("status", "pending");
+  await supabase
+    .from("access_requests")
+    .update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("beat_id", resolvedBeatId)
+    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved"]);
 
   return { ok: true };
 }
 
-export async function revokeBeatAccess(userId: string, beatId: string) {
+export async function revokeBeatAccess(userId: string, beatId: string, reason = "Acceso revocado por B.R Admin.") {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const resolvedBeatId = await resolveBeatId(beatId);
+  const cleanReason = reason.trim();
 
   if (!supabase) {
     return { ok: false, message: authClient.message };
@@ -618,9 +764,47 @@ export async function revokeBeatAccess(userId: string, beatId: string) {
     return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
   }
 
+  if (!cleanReason) {
+    return { ok: false, message: "Agrega un motivo para revocar el acceso." };
+  }
+
+  const { error: revocationError } = await supabase.from("access_revocations").insert({
+    user_id: userId,
+    beat_id: resolvedBeatId,
+    reason: cleanReason,
+    revoked_by: authClient.sessionInfo.userId,
+  });
+
+  if (revocationError) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R access revocation insert error", revocationError);
+    }
+
+    return {
+      ok: false,
+      message: `No se pudo registrar el motivo de revocación: ${revocationError.message}`,
+    };
+  }
+
   const { error } = await supabase.from("beat_access").delete().eq("user_id", userId).eq("beat_id", resolvedBeatId);
 
-  return error ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true };
+  if (error) {
+    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
+  }
+
+  await supabase
+    .from("access_requests")
+    .update({
+      status: "rejected",
+      message: `Acceso revocado por B.R Admin.\nMotivo: ${cleanReason}`,
+      responded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+    .eq("beat_id", resolvedBeatId)
+    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved", "fulfilled"]);
+
+  return { ok: true };
 }
 
 export async function getProfiles() {
@@ -919,6 +1103,74 @@ export async function updateBeatPlaybackVisibilityAsAdmin(beatId: string, playba
   }
 
   return { ok: true, message: "Visibilidad de reproducción actualizada." };
+}
+
+export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetadataInput) {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+
+  if (!supabase) {
+    return { ok: false, message: authClient.message };
+  }
+
+  if (!beatId) {
+    return { ok: false, message: "Beat inválido." };
+  }
+
+  const resolvedBeatId = await resolveBeatId(beatId);
+
+  if (!resolvedBeatId) {
+    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
+  }
+
+  const payload: {
+    genre?: string | null;
+    bpm?: number | null;
+    musical_key?: string | null;
+    is_active?: boolean;
+  } = {};
+
+  if ("genre" in input) {
+    payload.genre = input.genre?.trim() || null;
+  }
+
+  if ("musicalKey" in input) {
+    payload.musical_key = input.musicalKey?.trim() || null;
+  }
+
+  if ("isActive" in input) {
+    payload.is_active = Boolean(input.isActive);
+  }
+
+  if ("bpm" in input) {
+    if (input.bpm === null || input.bpm === "") {
+      payload.bpm = null;
+    } else {
+      const bpm = Number(input.bpm);
+
+      if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240) {
+        return { ok: false, message: "BPM inválido. Usa un número entre 40 y 240." };
+      }
+
+      payload.bpm = Math.round(bpm);
+    }
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return { ok: false, message: "No hay cambios para guardar." };
+  }
+
+  const { error } = await supabase.from("beats").update(payload).eq("id", resolvedBeatId);
+
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R update beat metadata error", error);
+    }
+
+    return { ok: false, message: "No se pudo actualizar la metadata." };
+  }
+
+  return { ok: true, message: "Metadata actualizada." };
 }
 
 function slugify(value: string) {
