@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SlidersHorizontal, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -13,6 +13,12 @@ import { AdminBeatStatus } from "./AdminBeatStatus";
 
 type AdminBeat = Beat & { isActive?: boolean | null };
 type MetadataField = "genre" | "bpm" | "musicalKey";
+type ChangeEvent = {
+  id: string;
+  action: string;
+  beat: string;
+  time: string;
+};
 
 function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
   return users.filter((user) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
@@ -40,10 +46,23 @@ function editableValue(beat: AdminBeat, field: MetadataField) {
   return beat.key ?? "";
 }
 
+function metadataFieldLabel(field: MetadataField) {
+  if (field === "genre") {
+    return "género";
+  }
+
+  if (field === "bpm") {
+    return "BPM";
+  }
+
+  return "tonalidad";
+}
+
 export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: User[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [adminBeats, setAdminBeats] = useState<Beat[]>(beats);
   const [localUsers, setLocalUsers] = useState(users);
   const [deletingBeatId, setDeletingBeatId] = useState("");
   const [updatingVisibilityBeatId, setUpdatingVisibilityBeatId] = useState("");
@@ -51,14 +70,57 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const [editingValue, setEditingValue] = useState("");
   const [savingBeatId, setSavingBeatId] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [catalogLoadMessage, setCatalogLoadMessage] = useState("");
+  const [changeEvents, setChangeEvents] = useState<ChangeEvent[]>([]);
+
+  const addChangeEvent = useCallback((action: string, beat: string) => {
+    setChangeEvents((current) => [
+      { id: `${Date.now()}-${current.length}`, action, beat, time: new Date().toLocaleTimeString() },
+      ...current,
+    ].slice(0, 8));
+  }, []);
+
+  const loadAdminBeats = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+
+    if (!supabase) {
+      setCatalogLoadMessage("No se pudo cargar catálogo admin: Supabase no está configurado.");
+      return false;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    if (!token) {
+      setCatalogLoadMessage("No se pudo cargar catálogo admin: sesión no válida.");
+      return false;
+    }
+
+    const response = await fetch("/api/admin/beats", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const payload = await response.json().catch(() => ({ ok: false, message: "No se pudo cargar catálogo admin." }));
+
+    if (!response.ok || !payload.ok || !Array.isArray(payload.beats)) {
+      setCatalogLoadMessage(payload.message ?? "No se pudo cargar catálogo admin.");
+      return false;
+    }
+
+    setAdminBeats(payload.beats);
+    setCatalogLoadMessage("");
+    return true;
+  }, []);
+
   const filteredBeats = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) {
-      return beats;
+      return adminBeats;
     }
 
-    return beats.filter((beat) => [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) => value.toLowerCase().includes(term)));
-  }, [beats, search]);
+    return adminBeats.filter((beat) => [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) => value.toLowerCase().includes(term)));
+  }, [adminBeats, search]);
 
   useEffect(() => {
     const loadId = window.setTimeout(() => {
@@ -67,10 +129,11 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
           setLocalUsers(result.users);
         }
       });
+      void loadAdminBeats();
     }, 0);
 
     return () => window.clearTimeout(loadId);
-  }, [pathname]);
+  }, [loadAdminBeats, pathname]);
 
   async function deleteBeat(beat: Beat) {
     const beatKey = beat.dbId ?? beat.id;
@@ -89,6 +152,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
 
     if (result.ok) {
       router.refresh();
+      await loadAdminBeats();
     }
 
     setDeletingBeatId("");
@@ -109,7 +173,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setActionMessage(result.message);
 
     if (result.ok) {
+      addChangeEvent(`Reproducción ${playbackVisibility === "public" ? "pública" : "privada"}`, beat.name);
       router.refresh();
+      await loadAdminBeats();
     }
 
     setUpdatingVisibilityBeatId("");
@@ -137,7 +203,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setActionMessage(result.message ?? (result.ok ? "Metadata actualizada." : "No se pudo actualizar la metadata."));
 
     if (result.ok) {
+      addChangeEvent(`Metadata: ${metadataFieldLabel(field)}`, beat.name);
       router.refresh();
+      await loadAdminBeats();
     }
 
     setSavingBeatId("");
@@ -155,7 +223,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setActionMessage(result.message ?? (result.ok ? "Metadata actualizada." : "No se pudo actualizar la metadata."));
 
     if (result.ok) {
+      addChangeEvent(!isActive ? "Activado" : "Desactivado", beat.name);
       router.refresh();
+      await loadAdminBeats();
     }
 
     setSavingBeatId("");
@@ -214,9 +284,29 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
           placeholder="Buscar nombre, slug, género o BPM"
           className="h-11 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300 md:max-w-lg"
         />
-        <span className="text-sm font-semibold text-cyan-200">{filteredBeats.length} / {beats.length} beats</span>
+        <span className="text-sm font-semibold text-cyan-200">{filteredBeats.length} / {adminBeats.length} beats</span>
       </div>
+      {catalogLoadMessage ? <p className="mb-4 rounded-md border border-red-300/20 bg-red-950/20 p-3 text-sm text-red-100">{catalogLoadMessage}</p> : null}
       {actionMessage ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{actionMessage}</p> : null}
+      <div className="mb-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-bold">Historial de cambios</p>
+          <span className="text-xs text-zinc-500">Sesión actual</span>
+        </div>
+        {changeEvents.length ? (
+          <div className="mt-3 grid gap-2">
+            {changeEvents.map((event) => (
+              <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-3 py-2 text-xs text-zinc-300 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+                <span className="font-semibold text-cyan-100">{event.action}</span>
+                <span className="truncate">{event.beat}</span>
+                <span className="text-zinc-500">{event.time}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-zinc-500">Sin cambios en esta sesión.</p>
+        )}
+      </div>
       <div className="hidden max-h-[58vh] overflow-auto rounded-lg border border-white/10 md:block">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-[#171a1f] text-xs uppercase text-zinc-500">
