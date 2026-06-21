@@ -7,19 +7,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { deleteBeatAsAdmin, getProfilesResult, updateBeatMetadataAsAdmin, updateBeatPlaybackVisibilityAsAdmin } from "@/lib/supabase/queries";
+import { createAdminChangeLog, deleteBeatAsAdmin, getAdminChangeLogs, getProfilesResult, updateBeatMetadataAsAdmin, updateBeatPlaybackVisibilityAsAdmin, type AdminChangeLog } from "@/lib/supabase/queries";
 import { PlayButton } from "../PlayButton";
 import { AdminBeatStatus } from "./AdminBeatStatus";
 
 type AdminBeat = Beat & { isActive?: boolean | null };
 type MetadataField = "genre" | "bpm" | "musicalKey";
-type ChangeEvent = {
-  id: string;
-  action: string;
-  beat: string;
-  time: string;
-};
-
 function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
   return users.filter((user) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
 }
@@ -71,15 +64,33 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const [savingBeatId, setSavingBeatId] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [catalogLoadMessage, setCatalogLoadMessage] = useState("");
-  const [changeEvents, setChangeEvents] = useState<ChangeEvent[]>([]);
+  const [changeEvents, setChangeEvents] = useState<AdminChangeLog[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
-  const addChangeEvent = useCallback((action: string, beat: string) => {
-    setChangeEvents((current) => [
-      { id: `${Date.now()}-${current.length}`, action, beat, time: new Date().toLocaleTimeString() },
-      ...current,
-    ]);
+  const loadChangeEvents = useCallback(async () => {
+    const result = await getAdminChangeLogs({ temporary: true });
+
+    if (result.ok) {
+      setChangeEvents(result.logs);
+    }
   }, []);
+
+  const addChangeEvent = useCallback(async (input: { action: string; eventType: string; beat: string; description: string; commandText: string; metadata?: Record<string, unknown> }) => {
+    const result = await createAdminChangeLog({
+      blockTitle: input.action,
+      eventType: input.eventType,
+      targetType: "beat",
+      targetName: input.beat,
+      description: input.description,
+      commandText: input.commandText,
+      metadata: input.metadata,
+      temporary: true,
+    });
+
+    if (result.ok) {
+      await loadChangeEvents();
+    }
+  }, [loadChangeEvents]);
 
   const loadAdminBeats = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -131,10 +142,11 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         }
       });
       void loadAdminBeats();
+      void loadChangeEvents();
     }, 0);
 
     return () => window.clearTimeout(loadId);
-  }, [loadAdminBeats, pathname]);
+  }, [loadAdminBeats, loadChangeEvents, pathname]);
 
   async function deleteBeat(beat: Beat) {
     const beatKey = beat.dbId ?? beat.id;
@@ -152,6 +164,14 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setActionMessage(result.message);
 
     if (result.ok) {
+      await addChangeEvent({
+        action: "Beat ocultado",
+        eventType: "beat_hidden",
+        beat: beat.name,
+        description: `Se ocultó ${beat.name} del catálogo público.`,
+        commandText: "AdminBeatList.deleteBeat -> is_active=false",
+        metadata: { beatId: beatKey, slug: beat.id },
+      });
       router.refresh();
       await loadAdminBeats();
     }
@@ -174,7 +194,14 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setActionMessage(result.message);
 
     if (result.ok) {
-      addChangeEvent(`Reproducción ${playbackVisibility === "public" ? "pública" : "privada"}`, beat.name);
+      await addChangeEvent({
+        action: `Reproducción ${playbackVisibility === "public" ? "pública" : "privada"}`,
+        eventType: "playback_visibility_update",
+        beat: beat.name,
+        description: `Se cambió la reproducción de ${beat.name} a ${playbackVisibility === "public" ? "pública" : "privada"}.`,
+        commandText: "AdminBeatList.updatePlaybackVisibility",
+        metadata: { beatId: beatKey, playbackVisibility },
+      });
       router.refresh();
       await loadAdminBeats();
     }
@@ -204,7 +231,14 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setActionMessage(result.message ?? (result.ok ? "Metadata actualizada." : "No se pudo actualizar la metadata."));
 
     if (result.ok) {
-      addChangeEvent(`Metadata: ${metadataFieldLabel(field)}`, beat.name);
+      await addChangeEvent({
+        action: `Metadata: ${metadataFieldLabel(field)}`,
+        eventType: "metadata_update",
+        beat: beat.name,
+        description: `Se actualizó ${metadataFieldLabel(field)} de ${beat.name}.`,
+        commandText: "AdminBeatList.saveMetadata",
+        metadata: { beatId: beatKey, field, previousValue: currentValue, nextValue: value },
+      });
       router.refresh();
       await loadAdminBeats();
     }
@@ -224,7 +258,14 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setActionMessage(result.message ?? (result.ok ? "Metadata actualizada." : "No se pudo actualizar la metadata."));
 
     if (result.ok) {
-      addChangeEvent(!isActive ? "Activado" : "Desactivado", beat.name);
+      await addChangeEvent({
+        action: !isActive ? "Beat activado" : "Beat desactivado",
+        eventType: "active_toggle",
+        beat: beat.name,
+        description: `${beat.name} quedó ${!isActive ? "activo" : "inactivo"}.`,
+        commandText: "AdminBeatList.toggleActive",
+        metadata: { beatId: beatKey, isActive: !isActive },
+      });
       router.refresh();
       await loadAdminBeats();
     }
@@ -254,9 +295,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
           .map(
             (event) => `
               <tr>
-                <td>${escapePrintText(event.action)}</td>
-                <td>${escapePrintText(event.beat)}</td>
-                <td>${escapePrintText(event.time)}</td>
+                <td>${escapePrintText(event.block_title)}</td>
+                <td>${escapePrintText(event.target_name ?? "Sin objetivo")}</td>
+                <td>${escapePrintText(new Date(event.created_at).toLocaleTimeString())}</td>
               </tr>
             `,
           )
@@ -391,9 +432,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               <div className="grid max-h-48 gap-2 overflow-y-auto pr-1">
                 {changeEvents.map((event) => (
                   <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-3 py-2 text-xs text-zinc-300 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
-                    <span className="font-semibold text-cyan-100">{event.action}</span>
-                    <span className="truncate">{event.beat}</span>
-                    <span className="text-zinc-500">{event.time}</span>
+                    <span className="font-semibold text-cyan-100">{event.block_title}</span>
+                    <span className="truncate">{event.target_name ?? "Sin objetivo"}</span>
+                    <span className="text-zinc-500">{new Date(event.created_at).toLocaleTimeString()}</span>
                   </div>
                 ))}
               </div>

@@ -41,6 +41,34 @@ type BeatMetadataInput = {
   isActive?: boolean;
 };
 
+export type AdminChangeLog = {
+  id: string;
+  year: number;
+  block_title: string;
+  event_type: string;
+  target_type: string | null;
+  target_name: string | null;
+  description: string;
+  command_text: string | null;
+  metadata: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  expires_at: string | null;
+  is_deleted: boolean;
+};
+
+type AdminChangeLogInput = {
+  year?: number;
+  blockTitle: string;
+  eventType: string;
+  targetType?: string | null;
+  targetName?: string | null;
+  description: string;
+  commandText?: string | null;
+  metadata?: Record<string, unknown>;
+  temporary?: boolean;
+};
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type BeatAccessRow = {
@@ -1386,4 +1414,104 @@ export async function updateBeatPreviewWithUpload(input: { beatId: string; slug:
   }
 
   return { ok: true, message: "Preview actualizado correctamente.", previewUrl: updatedBeat.preview_url, durationSeconds: updatedBeat.preview_duration_seconds ?? durationSeconds, previewUpdatedAt: updatedBeat.preview_updated_at, diagnostics };
+}
+
+async function getAdminApiToken() {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+
+  if (!supabase) {
+    return { ok: false as const, message: authClient.message, token: "" };
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    return { ok: false as const, message: "Sesión no válida.", token: "" };
+  }
+
+  return { ok: true as const, message: "", token };
+}
+
+export async function getAdminChangeLogs(input: { year?: number; temporary?: boolean } = {}) {
+  const tokenResult = await getAdminApiToken();
+
+  if (!tokenResult.ok) {
+    return { ok: false, message: tokenResult.message, logs: [] as AdminChangeLog[], years: [] as number[] };
+  }
+
+  const params = new URLSearchParams();
+
+  if (input.year) {
+    params.set("year", String(input.year));
+  }
+
+  if (input.temporary) {
+    params.set("temporary", "true");
+  }
+
+  const response = await fetch(`/api/admin/change-logs${params.size ? `?${params.toString()}` : ""}`, {
+    headers: { Authorization: `Bearer ${tokenResult.token}` },
+  });
+  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo cargar el historial." }));
+
+  if (!response.ok || !result.ok) {
+    return { ok: false, message: result.message ?? "No se pudo cargar el historial.", logs: [] as AdminChangeLog[], years: [] as number[] };
+  }
+
+  return {
+    ok: true,
+    message: "",
+    logs: (result.logs ?? []) as AdminChangeLog[],
+    years: (result.years ?? []) as number[],
+  };
+}
+
+export async function createAdminChangeLog(input: AdminChangeLogInput) {
+  const tokenResult = await getAdminApiToken();
+
+  if (!tokenResult.ok) {
+    return { ok: false, message: tokenResult.message, log: null as AdminChangeLog | null };
+  }
+
+  const response = await fetch("/api/admin/change-logs", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenResult.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo guardar el historial." }));
+
+  if (!response.ok || !result.ok) {
+    return { ok: false, message: result.message ?? "No se pudo guardar el historial.", log: null as AdminChangeLog | null };
+  }
+
+  return { ok: true, message: "", log: result.log as AdminChangeLog };
+}
+
+export async function deleteAdminChangeLog(logId: string) {
+  const tokenResult = await getAdminApiToken();
+
+  if (!tokenResult.ok) {
+    return { ok: false, message: tokenResult.message };
+  }
+
+  const response = await fetch(`/api/admin/change-logs/${logId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${tokenResult.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ isDeleted: true }),
+  });
+  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo borrar el bloque." }));
+
+  if (!response.ok || !result.ok) {
+    return { ok: false, message: result.message ?? "No se pudo borrar el bloque." };
+  }
+
+  return { ok: true, message: "Bloque borrado." };
 }
