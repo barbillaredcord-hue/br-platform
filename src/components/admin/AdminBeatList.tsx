@@ -13,6 +13,71 @@ import { AdminBeatStatus } from "./AdminBeatStatus";
 
 type AdminBeat = Beat & { isActive?: boolean | null };
 type MetadataField = "genre" | "bpm" | "musicalKey";
+const beatHistoryEventTypes = new Set(["active_toggle", "metadata_update", "playback_visibility_update", "beat_hidden"]);
+const beatHistoryStorageKey = "br-admin-beat-change-history";
+const beatHistoryRetentionMs = 7 * 24 * 60 * 60 * 1000;
+
+function isBeatChangeEvent(event: AdminChangeLog) {
+  return beatHistoryEventTypes.has(event.event_type) && (event.target_type === "beat" || !event.target_type);
+}
+
+function sortChangeEvents(events: AdminChangeLog[]) {
+  return [...events].sort((firstEvent, secondEvent) => new Date(secondEvent.created_at).getTime() - new Date(firstEvent.created_at).getTime());
+}
+
+function isRecentBeatChangeEvent(event: AdminChangeLog) {
+  const createdAt = new Date(event.created_at).getTime();
+
+  if (!Number.isFinite(createdAt)) {
+    return false;
+  }
+
+  return Date.now() - createdAt <= beatHistoryRetentionMs;
+}
+
+function getStoredBeatChangeEvents() {
+  if (typeof window === "undefined") {
+    return [] as AdminChangeLog[];
+  }
+
+  try {
+    const rawEvents = window.localStorage.getItem(beatHistoryStorageKey);
+    const parsedEvents = rawEvents ? JSON.parse(rawEvents) : [];
+
+    if (!Array.isArray(parsedEvents)) {
+      return [] as AdminChangeLog[];
+    }
+
+    return sortChangeEvents(parsedEvents.filter(isBeatChangeEvent).filter(isRecentBeatChangeEvent) as AdminChangeLog[]);
+  } catch {
+    return [] as AdminChangeLog[];
+  }
+}
+
+function saveStoredBeatChangeEvents(events: AdminChangeLog[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const uniqueEvents = new Map<string, AdminChangeLog>();
+
+  for (const event of events.filter(isBeatChangeEvent).filter(isRecentBeatChangeEvent)) {
+    uniqueEvents.set(event.id, event);
+  }
+
+  window.localStorage.setItem(beatHistoryStorageKey, JSON.stringify(sortChangeEvents([...uniqueEvents.values()])));
+}
+
+function mergeBeatChangeEvents(events: AdminChangeLog[]) {
+  const uniqueEvents = new Map<string, AdminChangeLog>();
+
+  for (const event of events.filter(isBeatChangeEvent).filter(isRecentBeatChangeEvent)) {
+    uniqueEvents.set(event.id, event);
+  }
+
+  return sortChangeEvents([...uniqueEvents.values()]);
+}
+
 function getUsersWithBeatAccess(beat: Beat, users: User[] = []) {
   return users.filter((user) => user.accessibleBeatIds.includes(beat.id) || Boolean(beat.dbId && user.accessibleBeatIds.includes(beat.dbId)));
 }
@@ -70,9 +135,17 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const loadChangeEvents = useCallback(async () => {
     const result = await getAdminChangeLogs({ temporary: true });
 
+    const storedEvents = getStoredBeatChangeEvents();
+
     if (result.ok) {
-      setChangeEvents(result.logs);
+      const mergedEvents = mergeBeatChangeEvents([...result.logs, ...storedEvents]);
+      setChangeEvents(mergedEvents);
+      saveStoredBeatChangeEvents(mergedEvents);
+      return;
     }
+
+    setChangeEvents(storedEvents);
+    setActionMessage("No se pudo cargar historial de cambios. Se muestra respaldo local de 7 días.");
   }, []);
 
   const addChangeEvent = useCallback(async (input: { action: string; eventType: string; beat: string; description: string; commandText: string; metadata?: Record<string, unknown> }) => {
@@ -87,10 +160,17 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
       temporary: true,
     });
 
-    if (result.ok) {
-      await loadChangeEvents();
+    if (result.ok && result.log) {
+      setChangeEvents((current) => {
+        const mergedEvents = mergeBeatChangeEvents([result.log as AdminChangeLog, ...current, ...getStoredBeatChangeEvents()]);
+        saveStoredBeatChangeEvents(mergedEvents);
+        return mergedEvents;
+      });
+      return;
     }
-  }, [loadChangeEvents]);
+
+    setActionMessage("No se pudo guardar historial de cambios.");
+  }, []);
 
   const loadAdminBeats = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -321,7 +401,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         </head>
         <body>
           <h1>Historial de cambios</h1>
-          <p>Sesión actual · ${changeEvents.length} eventos · ${escapePrintText(new Date().toLocaleString())}</p>
+          <p>Últimos 7 días · ${changeEvents.length} eventos · ${escapePrintText(new Date().toLocaleString())}</p>
           <table>
             <thead>
               <tr>
@@ -404,12 +484,12 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         <button
           type="button"
           onClick={() => setIsHistoryOpen((current) => !current)}
-          className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
-          aria-expanded={isHistoryOpen}
+          className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
+          aria-controls="beat-change-history-panel"
         >
           <span>
-            <span className="block text-sm font-bold">Historial de cambios</span>
-            <span className="text-xs text-zinc-500">Click para ver / descargar</span>
+            <span className="block text-xs font-bold uppercase tracking-[0.18em] text-cyan-100">Historial</span>
+            <span className="text-[11px] text-zinc-500">Gestión de Beats · 7 días</span>
           </span>
           <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-xs font-bold text-cyan-100">
             {changeEvents.length} eventos
@@ -417,29 +497,32 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         </button>
 
         {isHistoryOpen ? (
-          <div className="mt-2 rounded-lg border border-white/10 bg-[#15181c] p-3">
-            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-semibold text-zinc-200">Sesión actual</p>
+          <div id="beat-change-history-panel" className="mt-2 rounded-lg border border-white/10 bg-[#15181c] p-2">
+            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-semibold text-zinc-300">Últimos 7 días</p>
               <button
                 type="button"
                 onClick={downloadHistoryPdf}
-                className="h-9 w-fit rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10"
+                className="h-8 w-fit rounded-md border border-cyan-300/30 px-2.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/10"
               >
                 Descargar PDF
               </button>
             </div>
             {changeEvents.length ? (
-              <div className="grid max-h-48 gap-2 overflow-y-auto pr-1">
+              <div className="grid max-h-24 gap-1.5 overflow-y-auto pr-1">
                 {changeEvents.map((event) => (
-                  <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-3 py-2 text-xs text-zinc-300 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
-                    <span className="font-semibold text-cyan-100">{event.block_title}</span>
+                  <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-2 py-1.5 text-[11px] text-zinc-300 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_auto] sm:items-center">
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-cyan-100">{event.block_title}</span>
+                      <span className="block truncate text-zinc-500">{event.description}</span>
+                    </span>
                     <span className="truncate">{event.target_name ?? "Sin objetivo"}</span>
                     <span className="text-zinc-500">{new Date(event.created_at).toLocaleTimeString()}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="rounded-md bg-black/20 px-3 py-2 text-xs text-zinc-500">Aún no hay cambios registrados en esta sesión.</p>
+              <p className="rounded-md bg-black/20 px-2 py-1.5 text-[11px] text-zinc-500">Aún no hay cambios registrados.</p>
             )}
           </div>
         ) : null}

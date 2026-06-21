@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   let query = admin.supabase
     .from("admin_change_logs")
     .select("id,year,block_title,event_type,target_type,target_name,description,command_text,metadata,created_by,created_at,expires_at,is_deleted")
-    .eq("is_deleted", false)
+    .or("is_deleted.eq.false,is_deleted.is.null")
     .order("created_at", { ascending: false });
 
   if (Number.isInteger(year)) {
@@ -33,7 +33,11 @@ export async function GET(request: Request) {
   }
 
   if (temporary) {
-    query = query.not("expires_at", "is", null).gt("expires_at", new Date().toISOString());
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    query = query
+      .in("event_type", ["active_toggle", "metadata_update", "playback_visibility_update", "beat_hidden", "preview_update"])
+      .gte("created_at", sevenDaysAgo);
   }
 
   const { data, error } = await query;
@@ -67,7 +71,8 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const expiresAt = body?.temporary ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString() : null;
-  const payload = {
+
+  const basePayload = {
     year: Number.isInteger(body?.year) ? body?.year : now.getFullYear(),
     block_title: blockTitle,
     event_type: eventType,
@@ -77,19 +82,36 @@ export async function POST(request: Request) {
     command_text: body?.commandText?.trim() || null,
     metadata: body?.metadata ?? {},
     created_by: admin.requester.id,
-    expires_at: expiresAt,
+    is_deleted: false,
   };
+
+  const payloads = body?.temporary
+    ? [
+        { ...basePayload, expires_at: expiresAt },
+        {
+          ...basePayload,
+          block_title: `Gestión de Beats · ${blockTitle}`,
+          metadata: {
+            ...basePayload.metadata,
+            mirrored_from_temporary_history: true,
+          },
+          expires_at: null,
+        },
+      ]
+    : [{ ...basePayload, expires_at: expiresAt }];
 
   const { data, error } = await admin.supabase
     .from("admin_change_logs")
-    .insert(payload)
+    .insert(payloads)
     .select("id,year,block_title,event_type,target_type,target_name,description,command_text,metadata,created_by,created_at,expires_at,is_deleted")
-    .single();
+    .order("created_at", { ascending: false });
 
   if (error) {
     console.error("B.R admin change logs insert error", error);
     return Response.json({ ok: false, message: "No se pudo guardar el historial." }, { status: 500 });
   }
 
-  return Response.json({ ok: true, log: data });
+  const log = data?.find((item) => item.expires_at) ?? data?.[0] ?? null;
+
+  return Response.json({ ok: true, log, logs: data ?? [] });
 }
