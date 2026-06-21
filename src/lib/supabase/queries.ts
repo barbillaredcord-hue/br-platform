@@ -334,7 +334,7 @@ export async function getBeats() {
 }
 
 export async function getAdminBeats() {
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase) {
     return { beats: allBeats, rows: getFallbackRows(), usingFallback: true };
