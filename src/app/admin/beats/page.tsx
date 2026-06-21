@@ -2,12 +2,12 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { AdminBeatList } from "@/components/admin/AdminBeatList";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { getBeats, getProfiles } from "@/lib/supabase/queries";
+import { getAdminBeats, getProfiles } from "@/lib/supabase/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminBeatsPage() {
-  const [{ beats, usingFallback }, users] = await Promise.all([getBeats(), getProfiles()]);
+  const [{ beats, usingFallback }, users] = await Promise.all([getAdminBeats(), getProfiles()]);
 
   return (
     <AdminShell

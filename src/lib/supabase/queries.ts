@@ -333,6 +333,27 @@ export async function getBeats() {
   return { beats, rows: buildBeatRows(beats), usingFallback: false };
 }
 
+export async function getAdminBeats() {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    return { beats: allBeats, rows: getFallbackRows(), usingFallback: true };
+  }
+
+  const { data, error } = await supabase
+    .from("beats")
+    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active")
+    .order("created_at", { ascending: false });
+
+  if (error || !data?.length) {
+    return { beats: allBeats, rows: getFallbackRows(), usingFallback: true };
+  }
+
+  const beats = (data as BeatRowDb[]).map(mapSupabaseBeat);
+
+  return { beats, rows: buildBeatRows(beats), usingFallback: false };
+}
+
 export async function getBeatBySlug(slug: string) {
   const supabase = getSupabaseClient();
 
