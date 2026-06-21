@@ -7,12 +7,12 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 El foco principal de esta sesión debe ser `B.R`, no BR.autocar.
 
 Foco del producto:
-Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
+Consolidar el flujo Beat -> preview real -> solicitud -> pago/acceso -> descarga/licencia.
 
 Regla:
-El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.
+El foco principal de esta app es B.R. BR.autocarmation es soporte interno y no debe sustituir el objetivo del producto.
 
-BR.autocar dentro de esta app debe tratarse como: Objetivo secundario e infraestructura de continuidad.
+BR.autocar dentro de esta app debe tratarse como: Infraestructura de soporte.
 
 ## Resumen del proyecto
 
@@ -24,15 +24,15 @@ Vision:
 Convertir B.R en una plataforma musical premium para productores, musicos, beatmakers, DJs, artistas e ingenieros.
 
 Posicionamiento:
-Plataforma musical premium, privada y escalable con enfoque en acceso controlado, licencias, pagos manuales iniciales y futura colaboracion.
+Plataforma musical privada y escalable con acceso controlado, playback publico/privado, licencias, pagos manuales e historial administrativo.
 
 ## Estado actual
 
-- Fase: Fase 14 M1 - confirmacion manual de pago y liberacion de acceso
-- Estado: in_progress
-- Avance: 94%
-- Health: 3 healthy / 0 risk / 0 blocked
-- Siguiente accion: Diseñar Fase 14 M2: estados formales de orden como contacted, payment_pending, paid, rejected, cancelled y fulfilled, manteniendo beat_access solo como permiso real de descarga/licencia.
+- Fase: Fase 14D - historial administrativo y continuidad
+- Estado: implemented
+- Avance: 96%
+- Health: 0 healthy / 0 risk / 0 blocked
+- Siguiente accion: Disenar estados formales de orden/pago sobre access_requests u ordenes dedicadas, manteniendo beat_access como permiso real.
 
 ## Reglas de continuidad
 
@@ -49,14 +49,11 @@ Sin contexto registrado
 ## Pendiente principal
 
 - Fase 14 M2: estados formales de orden y pago
+- Aplicar/actualizar schema consolidado si se decide sincronizar docs/supabase/schema.sql con phase-14d
 - Evaluar bucket privado y signed URLs
-- Mejorar modelo formal de licencias despues del preview real
 - Terminos y condiciones
-- Suscripciones / freemium / watermark
+- Licencias legales avanzadas
+- Pagos automaticos completos
 - Marketplace multiusuario
-- Perfiles publicos de productores/artistas
-- Servicios musicales
-- Escrow o pago protegido
-- Chat / rooms de colaboracion
 
-Ultima generacion: 2026-06-21T08:46:17
+Ultima generacion: 2026-06-21T16:48:22

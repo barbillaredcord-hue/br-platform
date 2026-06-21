@@ -241,11 +241,9 @@ export function CommercialUsersPanel() {
     }
   }
 
-function downloadMonthlyStatement(month: string, amount: number) {
-  window.location.assign(
-    `/admin/reports/earnings/${encodeURIComponent(month)}?amount=${encodeURIComponent(String(amount))}`
-  );
-}
+  function downloadMonthlyStatement(month: string, amount: number) {
+    window.location.assign(`/admin/reports/earnings/${encodeURIComponent(month)}?amount=${encodeURIComponent(String(amount))}`);
+  }
 
   useEffect(() => {
     const loadId = window.setTimeout(() => {
@@ -256,39 +254,39 @@ function downloadMonthlyStatement(month: string, amount: number) {
   }, [loadUsers]);
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <section className="rounded-lg border border-white/10 bg-[#101317] p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase text-cyan-200">Usuarios comerciales</p>
-          <h2 className="mt-2 text-xl font-bold">Pagos por usuario</h2>
+          <h2 className="mt-1 text-base font-bold">Pagos por usuario</h2>
         </div>
-        <button type="button" onClick={() => void loadUsers()} className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
+        <button type="button" onClick={() => void loadUsers()} className="inline-flex h-8 items-center gap-2 rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
           <RefreshCw className={`h-4 w-4 ${isLoadingUsers ? "animate-spin" : ""}`} aria-hidden="true" />
           Actualizar
         </button>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
+      <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+        <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
           <p className="text-xs font-bold uppercase text-cyan-200">Ganancias este mes</p>
-          <p className="mt-2 text-2xl font-black text-cyan-100">{money(earnings.current_month)}</p>
+          <p className="mt-1 text-lg font-black text-cyan-100">{money(earnings.current_month)}</p>
           <p className="mt-1 text-xs text-zinc-500">{earnings.current_month_key ? formatMonthLabel(earnings.current_month_key) : "Mes actual"}</p>
         </div>
 
-        <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+        <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
           <p className="text-xs font-bold uppercase text-emerald-200">Ganancias totales</p>
-          <p className="mt-2 text-2xl font-black text-emerald-100">{money(earnings.total)}</p>
+          <p className="mt-1 text-lg font-black text-emerald-100">{money(earnings.total)}</p>
           <p className="mt-1 text-xs text-zinc-500">Pagos manuales registrados</p>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 md:col-span-2 xl:col-span-1">
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 sm:col-span-3 xl:col-span-1 2xl:col-span-1">
           <p className="text-xs font-bold uppercase text-zinc-500">Historial de ganancias</p>
-          <p className="mt-2 text-2xl font-black text-zinc-100">{earnings.history.length}</p>
+          <p className="mt-1 text-lg font-black text-zinc-100">{earnings.history.length}</p>
           <p className="mt-1 text-xs text-zinc-500">Meses con pagos registrados</p>
           <button
             type="button"
             onClick={() => setIsEarningsHistoryOpen(true)}
-            className="mt-3 inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200"
+            className="mt-2 inline-flex h-8 items-center rounded-md border border-white/10 px-2.5 text-[11px] font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200"
           >
             Ver historial
           </button>
@@ -337,21 +335,21 @@ function downloadMonthlyStatement(month: string, amount: number) {
         </div>
       ) : null}
 
-      {message ? <p className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-950/20 p-3 text-sm font-semibold text-cyan-100">{message}</p> : null}
+      {message ? <p className="mt-3 rounded-md border border-cyan-300/20 bg-cyan-950/20 p-2 text-xs font-semibold text-cyan-100">{message}</p> : null}
 
-      <div className="mt-5 grid max-h-[520px] gap-3 overflow-y-auto pr-2">
-        {users.length === 0 ? <p className="rounded-md border border-white/10 p-4 text-sm text-zinc-400">Sin usuarios comerciales todavía.</p> : null}
+      <div className="mt-3 grid max-h-[360px] gap-1.5 overflow-y-auto pr-1">
+        {users.length === 0 ? <p className="rounded-md border border-white/10 p-2.5 text-xs text-zinc-400">Sin usuarios comerciales todavía.</p> : null}
 
         {users.map((user) => (
           <button
             key={user.id}
             type="button"
             onClick={() => selectUser(user)}
-            className={`rounded-lg border p-4 text-left transition ${
+            className={`rounded-lg border p-2.5 text-left transition ${
               selectedUser?.id === user.id ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-white/[0.03] hover:border-cyan-300/40"
             }`}
           >
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="grid gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <UserRound className="h-4 w-4 text-cyan-200" aria-hidden="true" />
@@ -360,22 +358,22 @@ function downloadMonthlyStatement(month: string, amount: number) {
                 <p className="mt-1 truncate text-xs text-zinc-500">{user.email}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-5">
-                <span className="rounded-md bg-white/5 px-3 py-2 text-zinc-300">Acceso: {user.total_access_beats}</span>
-                <span className="rounded-md bg-white/5 px-3 py-2 text-zinc-300">Pagados: {user.total_paid_beats}</span>
-                <span className="rounded-md bg-white/5 px-3 py-2 text-cyan-100">Pendientes: {user.pending_payment_beats}</span>
-                <span className="rounded-md bg-white/5 px-3 py-2 text-zinc-300">MP3: {user.mp3_download_count}</span>
-                <span className="rounded-md bg-white/5 px-3 py-2 text-zinc-300">Licencias: {user.license_download_count}</span>
+              <div className="grid grid-cols-2 gap-1 text-[10px] 2xl:grid-cols-5">
+                <span className="rounded-md bg-white/5 px-2 py-1 text-zinc-300">Acceso: {user.total_access_beats}</span>
+                <span className="rounded-md bg-white/5 px-2 py-1 text-zinc-300">Pagados: {user.total_paid_beats}</span>
+                <span className="rounded-md bg-white/5 px-2 py-1 text-cyan-100">Pendientes: {user.pending_payment_beats}</span>
+                <span className="rounded-md bg-white/5 px-2 py-1 text-zinc-300">MP3: {user.mp3_download_count}</span>
+                <span className="rounded-md bg-white/5 px-2 py-1 text-zinc-300">Licencias: {user.license_download_count}</span>
               </div>
             </div>
 
-            <p className="mt-3 text-xs font-semibold text-zinc-400">Total registrado: {money(user.total_paid_amount)}</p>
+            <p className="mt-1.5 text-[10px] font-semibold text-zinc-500">Total registrado: {money(user.total_paid_amount)}</p>
           </button>
         ))}
       </div>
 
       {selectedUser && isPaymentFormOpen ? (
-        <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4">
+        <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase text-zinc-500">Registro manual</p>
@@ -394,10 +392,10 @@ function downloadMonthlyStatement(month: string, amount: number) {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2 md:col-span-2">
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <label className="grid gap-1.5 md:col-span-2">
               <span className="text-sm font-semibold text-zinc-300">Beat pendiente de pago</span>
-              <select value={form.beat_id} onChange={(event) => updateField("beat_id", event.target.value)} className="h-11 rounded-md border border-white/10 bg-[#15181c] px-3 text-sm outline-none focus:border-cyan-300">
+              <select value={form.beat_id} onChange={(event) => updateField("beat_id", event.target.value)} className="h-8 rounded-md border border-white/10 bg-[#15181c] px-3 text-sm outline-none focus:border-cyan-300">
                 <option value="">{beatOptions.length === 0 ? "Sin beats pendientes" : "Selecciona un beat"}</option>
                 {beatOptions.map((beat) => (
                   <option key={beat.id} value={beat.id}>
@@ -408,29 +406,29 @@ function downloadMonthlyStatement(month: string, amount: number) {
               {selectedBeat ? <span className="text-xs text-zinc-500">ID: {selectedBeat.id}</span> : null}
             </label>
 
-            <label className="grid gap-2">
+            <label className="grid gap-1.5">
               <span className="text-sm font-semibold text-zinc-300">Monto</span>
-              <input value={form.amount} onChange={(event) => updateField("amount", event.target.value)} type="number" min="0" step="0.01" className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="1500.00" />
+              <input value={form.amount} onChange={(event) => updateField("amount", event.target.value)} type="number" min="0" step="0.01" className="h-8 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="1500.00" />
             </label>
 
-            <label className="grid gap-2">
+            <label className="grid gap-1.5">
               <span className="text-sm font-semibold text-zinc-300">Moneda</span>
-              <input value={form.currency} onChange={(event) => updateField("currency", event.target.value.toUpperCase())} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="MXN" maxLength={3} />
+              <input value={form.currency} onChange={(event) => updateField("currency", event.target.value.toUpperCase())} className="h-8 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="MXN" maxLength={3} />
             </label>
 
-            <label className="grid gap-2 md:col-span-2">
+            <label className="grid gap-1.5 md:col-span-2">
               <span className="text-sm font-semibold text-zinc-300">Método</span>
-              <input value={form.payment_method} onChange={(event) => updateField("payment_method", event.target.value)} className="h-11 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="Transferencia, efectivo..." />
+              <input value={form.payment_method} onChange={(event) => updateField("payment_method", event.target.value)} className="h-8 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="Transferencia, efectivo..." />
             </label>
 
-            <label className="grid gap-2 md:col-span-2">
+            <label className="grid gap-1.5 md:col-span-2">
               <span className="text-sm font-semibold text-zinc-300">Nota</span>
-              <textarea value={form.note} onChange={(event) => updateField("note", event.target.value)} className="min-h-24 rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-cyan-300" placeholder="Referencia o nota interna" />
+              <textarea value={form.note} onChange={(event) => updateField("note", event.target.value)} className="min-h-14 rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-cyan-300" placeholder="Referencia o nota interna" />
             </label>
           </div>
 
-          <div className="mt-5">
-            <button type="button" onClick={() => void submitPayment()} disabled={isSaving || !form.beat_id || beatOptions.length === 0} className="inline-flex h-11 items-center gap-2 rounded-md bg-cyan-300 px-5 text-sm font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
+          <div className="mt-2">
+            <button type="button" onClick={() => void submitPayment()} disabled={isSaving || !form.beat_id || beatOptions.length === 0} className="inline-flex h-8 items-center gap-2 rounded-md bg-cyan-300 px-3 text-[11px] font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
               <CreditCard className="h-4 w-4" aria-hidden="true" />
               {isSaving ? "Guardando..." : "Registrar pago"}
             </button>

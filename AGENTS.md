@@ -15,8 +15,8 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 - App: `br-platform`
 - Producto: B.R
 - Tipo: marketplace musical / plataforma privada de beats
-- Fase actual: Fase 14 M1 - confirmacion manual de pago y liberacion de acceso
-- Avance: 94%
+- Fase actual: Fase 14D - historial administrativo y continuidad
+- Avance: 96%
 
 ## Reglas operativas
 
@@ -43,5 +43,5 @@ Sin contexto registrado
 
 ## Proxima accion
 
-Diseñar Fase 14 M2: estados formales de orden como contacted, payment_pending, paid, rejected, cancelled y fulfilled, manteniendo beat_access solo como permiso real de descarga/licencia.
+Disenar estados formales de orden/pago sobre access_requests u ordenes dedicadas, manteniendo beat_access como permiso real.
 <!-- END:br-autocar-generated-agent-rules -->

@@ -16,18 +16,18 @@ export default async function AdminPage() {
   return (
     <AdminShell
       title="Dashboard Admin"
-      subtitle="Vista demo para operar el catálogo privado, revisar solicitudes y preparar previews antes de liberar accesos."
+      subtitle="Panel privado para operar catálogo, accesos, solicitudes, actividad comercial, previews y auditoría administrativa de B.R."
     >
       <AdminDashboardStats initialBeats={beats} initialUsers={users} initialRequests={requests} />
       <ProductUpdatesPanel audience="admin" />
-      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-3 xl:grid-cols-[0.95fr_1.85fr]">
         <CommercialUsersPanel />
         <CommercialActivityPanel />
       </div>
 
-      <section>
-        <h2 className="mb-4 text-xl font-bold">Accesos rápidos</h2>
-        <div className="grid gap-4 md:grid-cols-6">
+      <section className="rounded-lg border border-white/10 bg-[#101317] p-3">
+        <h2 className="mb-3 text-base font-bold">Accesos rápidos</h2>
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <AdminQuickLink href="/admin/beats/new" label="Subir Beat" detail="Crear ficha visual y preparar archivos demo." icon={Plus} />
           <AdminQuickLink href="/admin/beats" label="Gestionar Beats" detail="Revisar catálogo, estados y edición de preview." icon={ListMusic} />
           <AdminQuickLink href="/admin/users" label="Usuarios" detail="Ver profiles y beats autorizados." icon={Users} />

@@ -13,7 +13,7 @@ import { AdminBeatStatus } from "./AdminBeatStatus";
 
 type AdminBeat = Beat & { isActive?: boolean | null };
 type MetadataField = "genre" | "bpm" | "musicalKey";
-const beatHistoryEventTypes = new Set(["active_toggle", "metadata_update", "playback_visibility_update", "beat_hidden"]);
+const beatHistoryEventTypes = new Set(["active_toggle", "metadata_update", "playback_visibility_update", "beat_hidden", "preview_update"]);
 const beatHistoryStorageKey = "br-admin-beat-change-history";
 const beatHistoryRetentionMs = 7 * 24 * 60 * 60 * 1000;
 
@@ -114,6 +114,43 @@ function metadataFieldLabel(field: MetadataField) {
   }
 
   return "tonalidad";
+}
+
+function formatChangeValue(value: unknown) {
+  if (typeof value === "boolean") {
+    return value ? "Sí" : "No";
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return "Sin dato";
+  }
+
+  return String(value);
+}
+
+function formatChangeDetail(event: AdminChangeLog) {
+  const metadata = event.metadata as Record<string, unknown> | null | undefined;
+
+  if (metadata?.field && "previousValue" in metadata && "nextValue" in metadata) {
+    return `${metadataFieldLabel(String(metadata.field) as MetadataField)}: ${formatChangeValue(metadata.previousValue)} → ${formatChangeValue(metadata.nextValue)}`;
+  }
+
+  if ("previousPlaybackVisibility" in (metadata ?? {}) && "nextPlaybackVisibility" in (metadata ?? {})) {
+    return `Reproducción: ${formatChangeValue(metadata?.previousPlaybackVisibility)} → ${formatChangeValue(metadata?.nextPlaybackVisibility)}`;
+  }
+
+  if ("previousIsActive" in (metadata ?? {}) && "nextIsActive" in (metadata ?? {})) {
+    return `Estado: ${metadata?.previousIsActive ? "Activo" : "Inactivo"} → ${metadata?.nextIsActive ? "Activo" : "Inactivo"}`;
+  }
+
+  if (event.event_type === "preview_update") {
+    const startSecond = formatChangeValue(metadata?.startSecond);
+    const previousDuration = formatChangeValue(metadata?.previousDurationSeconds);
+    const nextDuration = formatChangeValue(metadata?.nextDurationSeconds);
+    return `Preview: inicio ${startSecond}s · duración ${previousDuration}s → ${nextDuration}s`;
+  }
+
+  return event.description;
 }
 
 export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: User[] }) {
@@ -278,9 +315,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         action: `Reproducción ${playbackVisibility === "public" ? "pública" : "privada"}`,
         eventType: "playback_visibility_update",
         beat: beat.name,
-        description: `Se cambió la reproducción de ${beat.name} a ${playbackVisibility === "public" ? "pública" : "privada"}.`,
+        description: `Reproducción: ${beat.playbackVisibility ?? "private"} → ${playbackVisibility}.`,
         commandText: "AdminBeatList.updatePlaybackVisibility",
-        metadata: { beatId: beatKey, playbackVisibility },
+        metadata: { beatId: beatKey, previousPlaybackVisibility: beat.playbackVisibility ?? "private", nextPlaybackVisibility: playbackVisibility },
       });
       router.refresh();
       await loadAdminBeats();
@@ -315,7 +352,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         action: `Metadata: ${metadataFieldLabel(field)}`,
         eventType: "metadata_update",
         beat: beat.name,
-        description: `Se actualizó ${metadataFieldLabel(field)} de ${beat.name}.`,
+        description: `${metadataFieldLabel(field)}: ${formatChangeValue(currentValue)} → ${formatChangeValue(value)}.`,
         commandText: "AdminBeatList.saveMetadata",
         metadata: { beatId: beatKey, field, previousValue: currentValue, nextValue: value },
       });
@@ -342,9 +379,9 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         action: !isActive ? "Beat activado" : "Beat desactivado",
         eventType: "active_toggle",
         beat: beat.name,
-        description: `${beat.name} quedó ${!isActive ? "activo" : "inactivo"}.`,
+        description: `Estado: ${isActive ? "Activo" : "Inactivo"} → ${!isActive ? "Activo" : "Inactivo"}.`,
         commandText: "AdminBeatList.toggleActive",
-        metadata: { beatId: beatKey, isActive: !isActive },
+        metadata: { beatId: beatKey, previousIsActive: isActive, nextIsActive: !isActive },
       });
       router.refresh();
       await loadAdminBeats();
@@ -377,12 +414,13 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               <tr>
                 <td>${escapePrintText(event.block_title)}</td>
                 <td>${escapePrintText(event.target_name ?? "Sin objetivo")}</td>
+                <td>${escapePrintText(formatChangeDetail(event))}</td>
                 <td>${escapePrintText(new Date(event.created_at).toLocaleTimeString())}</td>
               </tr>
             `,
           )
           .join("")
-      : `<tr><td colspan="3">Aún no hay cambios registrados en esta sesión.</td></tr>`;
+      : `<tr><td colspan="4">Aún no hay cambios registrados en esta sesión.</td></tr>`;
 
     historyWindow.document.write(`
       <!doctype html>
@@ -407,6 +445,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               <tr>
                 <th>Acción</th>
                 <th>Beat</th>
+                <th>Cambio</th>
                 <th>Hora local</th>
               </tr>
             </thead>
@@ -514,7 +553,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                   <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-2 py-1.5 text-[11px] text-zinc-300 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_auto] sm:items-center">
                     <span className="min-w-0">
                       <span className="block font-semibold text-cyan-100">{event.block_title}</span>
-                      <span className="block truncate text-zinc-500">{event.description}</span>
+                      <span className="block truncate text-zinc-500">{formatChangeDetail(event)}</span>
                     </span>
                     <span className="truncate">{event.target_name ?? "Sin objetivo"}</span>
                     <span className="text-zinc-500">{new Date(event.created_at).toLocaleTimeString()}</span>

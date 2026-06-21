@@ -88,13 +88,13 @@ export function CommercialActivityPanel() {
   }, [loadActivity]);
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
+    <section className="rounded-lg border border-white/10 bg-[#101317] p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase text-cyan-200">Actividad comercial</p>
-          <h2 className="mt-1 text-lg font-bold">Últimos eventos</h2>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-200">Actividad comercial</p>
+          <h2 className="mt-1 text-base font-bold">Últimos eventos admin</h2>
         </div>
-        <button type="button" onClick={() => void loadActivity()} className="inline-flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
+        <button type="button" onClick={() => void loadActivity()} className="inline-flex h-8 items-center gap-2 rounded-md border border-white/10 px-2.5 text-[11px] font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
           <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />
           Actualizar
         </button>
@@ -102,18 +102,18 @@ export function CommercialActivityPanel() {
 
       {message ? <p className="mt-3 rounded-md border border-red-300/20 bg-red-950/20 p-2.5 text-xs text-red-100">{message}</p> : null}
 
-      <div className="mt-3 max-h-[320px] overflow-y-auto rounded-md border border-white/10">
-        <div className="hidden grid-cols-4 bg-white/5 px-3 py-2 text-[11px] font-bold uppercase text-zinc-500 md:grid">
+      <div className="mt-3 max-h-[430px] overflow-auto rounded-md border border-white/10 bg-black/10">
+        <div className="hidden min-w-[820px] grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 md:grid">
           <span>Fecha</span>
           <span>Evento</span>
           <span>Beat</span>
           <span>Usuario</span>
         </div>
         {activity.length === 0 ? (
-          <p className="p-3 text-xs text-zinc-400">Sin actividad registrada.</p>
+          <p className="p-2.5 text-xs text-zinc-400">Sin actividad registrada.</p>
         ) : (
           activity.map((item) => (
-            <article key={item.id} className="grid gap-1.5 border-t border-white/10 px-3 py-2.5 text-xs md:grid-cols-4 md:gap-3">
+            <article key={item.id} className="grid min-w-[820px] gap-1.5 border-t border-white/10 px-3 py-2 text-[11px] md:grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] md:gap-3">
               <p className="text-zinc-400">{formatDate(item.created_at)}</p>
               <p className="font-bold text-cyan-100">{eventLabels[item.event_type] ?? item.event_type}</p>
               <p className="truncate text-zinc-200">{item.beat_title || item.beat_slug || "Beat sin título"}</p>

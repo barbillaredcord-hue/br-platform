@@ -2,56 +2,51 @@
   "schema": {
     "name": "BR.autocar App State Schema",
     "version": "v3",
-    "purpose": "Estandarizar la forma en que B.R describe su identidad, avance, objetivos, riesgos, continuidad e historial para que BR.autocar pueda entenderla y administrarla."
+    "purpose": "Fuente principal de continuidad para B.R."
   },
   "app": "br-platform",
   "owner": {
     "owner_type": "single_owner",
     "owner_name": "Fabian",
     "visibility": "private",
-    "admin_access": "limited_system_admin"
+    "admin_access": "B.RCEO"
   },
   "identity": {
     "product_name": "B.R",
     "product_type": "marketplace musical / plataforma privada de beats",
-    "created_reason": "Crear una plataforma musical privada para administrar beats, previews, solicitudes, accesos, descargas controladas y licencias.",
+    "created_reason": "Administrar beats, previews, solicitudes, accesos, pagos manuales, descargas, licencias e historial administrativo.",
     "vision": "Convertir B.R en una plataforma musical premium para productores, musicos, beatmakers, DJs, artistas e ingenieros.",
-    "positioning": "Plataforma musical premium, privada y escalable con enfoque en acceso controlado, licencias, pagos manuales iniciales y futura colaboracion.",
-    "primary_product_focus": "Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.",
-    "primary_product_rule": "El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.",
-    "autocar_role_inside_product": "Objetivo secundario e infraestructura de continuidad",
-    "catalog_visibility_rule": "Todo beat activo debe aparecer en el catalogo para visitantes, usuarios nuevos, usuarios existentes y admin/B.RCEO. beat_access no filtra la visibilidad del catalogo; solo controla descarga, licencia, badges y acciones protegidas. playback_visibility controla si la reproduccion full es publica o privada.",
-    "player_access_rule": "Si el beat tiene playback_visibility public, visitantes y usuarios pueden reproducir full audio. Si playback_visibility es private, usuarios sin acceso reproducen preview y usuarios con acceso reproducen full. Admin/B.RCEO reproduce full en cualquier beat sin requerir beat_access. Siguiente/anterior deben resolver acceso y visibilidad por beat.",
-    "account_deletion_rule": "Si un usuario elimina su cuenta, se eliminan sus datos y accesos. Si vuelve a crear una cuenta con el mismo correo, B.R no garantiza recuperar accesos anteriores. Esta regla debe incluirse despues en terminos y condiciones."
+    "positioning": "Plataforma musical privada y escalable con acceso controlado, playback publico/privado, licencias, pagos manuales e historial administrativo.",
+    "primary_product_focus": "Consolidar el flujo Beat -> preview real -> solicitud -> pago/acceso -> descarga/licencia.",
+    "primary_product_rule": "El foco principal de esta app es B.R. BR.autocarmation es soporte interno y no debe sustituir el objetivo del producto.",
+    "catalog_visibility_rule": "is_active controla visibilidad publica. Todo beat activo aparece en catalogo publico; beats inactivos permanecen visibles para admin por /api/admin/beats. beat_access no filtra catalogo.",
+    "player_access_rule": "playback_visibility=public permite full playback publico. playback_visibility=private da preview a visitantes/usuarios sin acceso y full a usuarios con beat_access. Admin/B.RCEO reproduce full global. Descargas MP3 y licencias siempre requieren beat_access.",
+    "account_deletion_rule": "Si un usuario elimina su cuenta, se eliminan sus datos y accesos. Si vuelve con el mismo correo, B.R no garantiza recuperar accesos anteriores."
   },
   "product": {
     "offer": [
-      "Catalogo de beats",
-      "Preview de beats",
-      "Solicitud de acceso",
-      "Acceso manual administrado por B.RCEO",
-      "Subida de MP3 reales",
-      "Panel admin",
-      "Perfiles de usuario con telefono",
-      "Favoritos",
-      "Mis Beats",
-      "Eliminacion de usuarios",
-      "Descarga protegida de MP3",
-      "Descarga protegida de licencia",
-      "Pagos manuales por usuario + beat",
-      "Actividad comercial",
-      "Tipos de licencia basic, premium y exclusive",
+      "Catalogo publico de beats activos",
+      "Gestion admin de beats activos e inactivos",
       "Preview real generado desde beat completo",
-      "Duraciones de preview 15, 20, 25 y 30 segundos",
-      "Player premium con modo Preview / Acceso completo",
-      "Dominio propio brstudios.org",
-      "Correos de confirmacion con Resend + Supabase SMTP",
-      "Actualizaciones compactas con modal",
-      "Reproduccion publica/privada por beat",
-      "Admin B.RCEO con reproduccion full global",
-      "Confirmacion manual de pago desde solicitudes",
-      "Liberacion automatica de beat_access al confirmar pago",
-      "Registro comercial de pago confirmado con licencia"
+      "Preview Editor con FFmpeg WASM",
+      "Player global premium full/preview por acceso",
+      "playback_visibility publico/privado por beat",
+      "Supabase Auth con confirmacion SMTP Resend",
+      "Supabase Storage bucket beats",
+      "Solicitudes de acceso",
+      "beat_access como permiso real de descarga/licencia",
+      "Descarga MP3 protegida",
+      "Licencia HTML protegida por tipo basic/premium/exclusive",
+      "Pagos manuales por usuario + beat",
+      "Actividad comercial compacta",
+      "Usuarios comerciales",
+      "Revocaciones de acceso",
+      "Panel admin B.RCEO",
+      "B.R Cambios con admin_change_logs",
+      "Historial temporal de Gestion de Beats por 7 dias",
+      "Historial permanente agrupado por anio con soft delete",
+      "Descarga PDF manual del historial temporal",
+      "Dominio brstudios.org en Vercel con Cloudflare DNS"
     ],
     "target_users": [
       "B.RCEO",
@@ -64,412 +59,135 @@
       "Clientes que buscan beats/licencias"
     ],
     "limits": [
+      "Pagos automaticos completos pendientes",
+      "Ordenes formales avanzadas pendientes",
       "Licencias legales avanzadas pendientes",
       "Marketplace multiusuario pendiente",
       "Perfiles publicos de productores/artistas pendientes",
-      "Chat interno pendiente",
-      "Ordenes formales avanzadas pendientes"
+      "Chat interno pendiente"
     ]
   },
   "objectives": {
-    "main": "Consolidar primero el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia antes de expandir a marketplace multiusuario.",
+    "main": "Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.",
     "secondary": [
-      {
-        "name": "Player por acceso",
-        "goal": "Reproducir full audio cuando el usuario tiene acceso y preview cuando no tiene acceso o no ha iniciado sesion.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Descargas protegidas",
-        "goal": "Descargar MP3 solo con sesion y beat_access valido.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Licencias protegidas",
-        "goal": "Descargar licencia solo con sesion y beat_access valido.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Actividad comercial",
-        "goal": "Registrar actividad server-side en commercial_activity.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Pagos manuales",
-        "goal": "Registrar pagos manuales por usuario + beat, con prevencion de duplicados.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Tipos de licencia",
-        "goal": "Soportar licencias basic, premium y exclusive.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Preview real",
-        "goal": "Generar y administrar previews reales desde el beat completo con duraciones 15, 20, 25 o 30 segundos.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Player premium y responsive",
-        "goal": "Mejorar PlayerBar, preview/full visual y experiencia movil compacta.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Auth SMTP y dominio",
-        "goal": "Configurar brstudios.org, Cloudflare, Vercel, Resend y Supabase SMTP para confirmacion real de correo.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Playback publico/privado",
-        "goal": "Permitir beats publicos con full playback abierto y beats privados con preview/full por acceso, manteniendo descarga/licencia protegidas.",
-        "progress_percent": 100,
-        "status": "completed"
-      },
-      {
-        "name": "Ordenes y pagos controlados",
-        "goal": "Implementar ordenes/pagos controlados desde admin antes de automatizar pagos completos.",
-        "progress_percent": 35,
-        "status": "in_progress"
-      },
-      {
-        "name": "Licencias formales",
-        "goal": "Mejorar modelo legal y descargable de licencias despues del preview real.",
-        "progress_percent": 0,
-        "status": "planned"
-      },
-      {
-        "name": "Marketplace musical",
-        "goal": "Expandir B.R a marketplace para productores, musicos, beatmakers, DJs y servicios musicales.",
-        "progress_percent": 0,
-        "status": "future"
-      }
+      { "name": "Catalogo activo publico", "goal": "Publico ve solo is_active=true; admin ve activos e inactivos.", "progress_percent": 100, "status": "completed" },
+      { "name": "Player por acceso", "goal": "Resolver preview/full por playback_visibility, beat_access y rol admin.", "progress_percent": 100, "status": "completed" },
+      { "name": "Descargas protegidas", "goal": "Descargar MP3 solo con sesion y beat_access valido.", "progress_percent": 100, "status": "completed" },
+      { "name": "Licencias protegidas", "goal": "Generar licencia solo con sesion, beat_access y tipo de licencia.", "progress_percent": 100, "status": "completed" },
+      { "name": "Actividad comercial", "goal": "Registrar descargas, licencias y pagos en commercial_activity.", "progress_percent": 100, "status": "completed" },
+      { "name": "Pagos manuales", "goal": "Confirmar pagos manuales y liberar beat_access.", "progress_percent": 100, "status": "completed" },
+      { "name": "Preview real", "goal": "Generar previews reales de 15, 20, 25 o 30 segundos.", "progress_percent": 100, "status": "completed" },
+      { "name": "Revocaciones de acceso", "goal": "Registrar access_revocations al retirar acceso.", "progress_percent": 100, "status": "completed" },
+      { "name": "B.R Cambios", "goal": "Registrar historial administrativo temporal y permanente.", "progress_percent": 100, "status": "completed" },
+      { "name": "Ordenes y pagos controlados", "goal": "Formalizar estados de orden sin automatizar pagos completos.", "progress_percent": 55, "status": "in_progress" },
+      { "name": "Licencias formales", "goal": "Mejorar contrato legal y versionado de licencias.", "progress_percent": 0, "status": "planned" },
+      { "name": "Marketplace musical", "goal": "Expandir a marketplace multiusuario.", "progress_percent": 0, "status": "future" }
     ],
     "future": [
-      "Perfiles publicos de productores y artistas",
+      "Stripe o pagos automaticos completos",
+      "Perfiles publicos",
       "Servicios musicales",
       "Escrow o pago protegido",
-      "Suscripciones / freemium",
-      "Watermark para reproduccion completa sin acceso limpio",
-      "Chat interno",
-      "Rooms de colaboracion musical"
+      "Suscripciones/freemium/watermark",
+      "Chat y rooms de colaboracion"
     ]
   },
   "status": {
-    "current_phase": "fase_14_orders_payments_controlled_m1",
-    "current_phase_label": "Fase 14 M1 - confirmacion manual de pago y liberacion de acceso",
-    "current_phase_status": "in_progress",
-    "progress_percent": 94,
-    "current_level": "App Next.js publicada en Vercel con dominio brstudios.org, Supabase Auth, Storage, beats reales, preview real generado desde beat completo, duraciones 15/20/25/30, catalogo visible, player premium full/preview por acceso y playback_visibility, admin B.RCEO con full global, guardados, Mis Beats, solicitudes, confirmacion manual de pago desde admin, liberacion automatica de beat_access al confirmar pago, registro en manual_payments, registro en commercial_activity, descargas protegidas, licencias protegidas, actualizaciones compactas con modal y Supabase SMTP con Resend.",
-    "last_stable_commit": "pending_phase_14_m1_commit",
-    "checkpoint_doc": "docs/phase-14-controlled-orders-checkpoint.md",
+    "current_phase": "fase_14d_admin_change_logs",
+    "current_phase_label": "Fase 14D - historial administrativo y continuidad",
+    "current_phase_status": "implemented",
+    "progress_percent": 96,
+    "current_level": "Produccion inicial operativa: Next.js App Router en Vercel con dominio brstudios.org, Supabase Auth/Storage/Postgres, Resend SMTP, catalogo publico activo, admin con activos/inactivos, preview real, player full/preview por acceso, descargas/licencias protegidas, pagos manuales, actividad comercial, revocaciones, B.R Cambios y admin_change_logs.",
+    "last_stable_commit": "pending_phase_14d_commit",
+    "checkpoint_doc": "docs/phase-13-preview-player-auth-checkpoint.md",
     "commercial_sql": "docs/supabase/phase-12-commercial.sql",
+    "change_logs_sql": "docs/supabase/phase-14d-admin-change-logs.sql",
     "next_phase": "fase_14_m2_order_status_model",
     "next_phase_label": "Fase 14 M2 - estados formales de orden",
-    "next_phase_goal": "Separar solicitud, contacto, pago pendiente, pago confirmado, acceso liberado y cierre de orden mediante estados formales sin automatizar pagos completos todavia."
+    "next_phase_goal": "Formalizar estados de orden/pago y continuidad comercial sin romper beat_access, descargas, licencias ni playback."
   },
   "phases": {
     "completed": [
-      {
-        "phase": "fase_1",
-        "label": "Base inicial",
-        "result": "Proyecto Next.js creado y estructura inicial preparada."
-      },
-      {
-        "phase": "fase_2",
-        "label": "Diseno visual inicial",
-        "result": "Home y experiencia visual tipo Spotify/Netflix con identidad B.R."
-      },
-      {
-        "phase": "fase_3",
-        "label": "Beats y player",
-        "result": "Catalogo de beats, pagina dinamica y player funcional."
-      },
-      {
-        "phase": "fase_4",
-        "label": "Admin inicial",
-        "result": "Panel admin, gestion de beats y solicitudes iniciales."
-      },
-      {
-        "phase": "fase_11",
-        "label": "Supabase y Storage",
-        "result": "Supabase Auth, Storage, bucket beats, upload MP3 y flujos funcionales conectados."
-      },
-      {
-        "phase": "fase_11d",
-        "label": "Produccion inicial",
-        "result": "Deploy en Vercel, acceso manual, B.RCEO admin, eliminacion de usuarios y app lista para consolidacion comercial."
-      },
-      {
-        "phase": "fase_11e",
-        "label": "Consistencia y duplicados",
-        "result": "Control de slugs duplicados, mensajes claros, limpieza defensiva de MP3 huerfanos y refresh de accesos."
-      },
-      {
-        "phase": "fase_11f",
-        "label": "UX de solicitudes y dashboard",
-        "result": "Dashboard admin vivo, solicitudes mas claras, contacto por WhatsApp, rutas dinamicas y datos reales desde Supabase."
-      },
-      {
-        "phase": "fase_11f_b",
-        "label": "Accesos, usuarios y navegacion",
-        "result": "Access Manager centrado en beat, solicitudes con historial, usuarios expandibles, Explore, Favoritos y Mis Beats funcionales."
-      },
-      {
-        "phase": "fase_11f_c",
-        "label": "Estabilidad de catalogo, usuarios y accesos",
-        "result": "Usuarios existentes reciben beats nuevos, regla permanente de catalogo activo agregada, UserContext valida cuenta eliminada y Supabase schema actualizado."
-      },
-      {
-        "phase": "fase_12b",
-        "label": "Player por acceso",
-        "result": "Player full/preview resuelto por acceso real; siguiente/anterior selecciona full si el usuario tiene acceso y preview si no lo tiene."
-      },
-      {
-        "phase": "fase_12c",
-        "label": "Guardados y controles del player",
-        "result": "Scroll horizontal Safari-safe, guardados locales, /account/saved funcional, Space play/pause y barra de progreso seekable/clickeable."
-      },
-      {
-        "phase": "fase_12_closed_commercial_base",
-        "label": "Fase 12 comercial base",
-        "result": "Descarga protegida MP3, descarga protegida de licencia, commercial_activity, paneles admin comerciales, pagos manuales, prevencion de duplicados y tipos de licencia basic/premium/exclusive."
-      },
-      {
-        "phase": "fase_13_closed_preview_player_auth_playback",
-        "label": "Fase 13 preview real, player premium, auth SMTP y playback publico-privado",
-        "result": "Preview real generado desde beat completo con duraciones 15/20/25/30, PlayerBar premium, responsive movil, dominio brstudios.org, Cloudflare, Vercel, Resend + Supabase SMTP, actualizaciones compactas con modal, playback_visibility publico/privado por beat y admin full global sin beat_access."
-      },
-      {
-        "phase": "fase_14_m1_manual_payment_approval",
-        "label": "Fase 14 M1 - pago manual confirmado y acceso liberado",
-        "result": "El admin puede confirmar pago desde solicitudes pendientes, registrar manual_payments, registrar commercial_activity con license_type y access_granted, liberar beat_access automaticamente y marcar la solicitud como approved. Validado con lint, build y datos reales en Supabase."
-      }
+      { "phase": "fase_1_to_11", "label": "Base, Supabase, Storage y admin inicial", "result": "Next.js, Supabase Auth/Storage, upload MP3, catalogo, solicitudes, admin y produccion inicial." },
+      { "phase": "fase_12", "label": "Comercial base", "result": "Descargas MP3/licencia protegidas, commercial_activity, manual_payments y tipos basic/premium/exclusive." },
+      { "phase": "fase_13", "label": "Preview real, player premium, auth SMTP y playback publico/privado", "result": "Preview Editor, PlayerBar, dominio, Resend SMTP y playback_visibility." },
+      { "phase": "fase_14_m1", "label": "Pago manual confirmado", "result": "Confirmacion admin crea beat_access, manual_payments, commercial_activity y actualiza solicitud." },
+      { "phase": "fase_14b", "label": "Estados iniciales de orden", "result": "SQL incremental para estados de access_requests preparado." },
+      { "phase": "fase_14c", "label": "Revocaciones", "result": "access_revocations y flujo de revocacion documentado/implementado." },
+      { "phase": "fase_14d", "label": "Historial administrativo", "result": "admin_change_logs, B.R Cambios, historial temporal por 7 dias, soft delete y PDF manual." }
     ],
-    "current": {
-      "phase": "fase_14_orders_payments_controlled_m1",
-      "label": "Fase 14 M1 - confirmacion manual de pago y liberacion de acceso",
-      "status": "in_progress"
-    },
-    "next": {
-      "phase": "fase_14_m2_order_status_model",
-      "label": "Fase 14 M2 - estados formales de orden",
-      "goal": "Separar solicitud, contacto, pago pendiente, pago confirmado, acceso liberado y cierre de orden sin automatizar pagos completos todavia."
-    }
+    "current": { "phase": "fase_14d_admin_change_logs", "label": "Fase 14D - historial administrativo y continuidad", "status": "implemented" },
+    "next": { "phase": "fase_14_m2_order_status_model", "label": "Fase 14 M2 - estados formales de orden", "goal": "Separar solicitud, contacto, pago pendiente, pago confirmado, acceso liberado y cierre." }
   },
   "execution": {
     "completed": [
-      "Proyecto Next.js creado",
-      "Diseno inicial tipo Spotify/Netflix",
-      "Supabase Auth conectado",
-      "Supabase Storage conectado",
-      "Bucket beats funcional",
-      "Upload MP3 funcional",
-      "Home con beats reales",
-      "Explore conectado",
-      "Favoritos funcionales",
-      "Mis Beats funcional",
-      "Player funcional",
-      "Solicitudes de acceso funcionales",
-      "Dar y quitar acceso funcional",
-      "Panel admin funcional",
-      "Usuarios visibles para admin",
-      "Usuarios admin expandibles",
-      "Telefono en perfil",
-      "Cambio de username",
-      "Ocultar Supabase conectado a usuarios normales",
-      "Eliminar usuarios implementado",
-      "UserContext valida cuenta eliminada",
-      "Solicitudes con pendientes e historial reciente",
-      "Admin Access centrado en beat",
-      "Usuarios existentes reciben beats nuevos",
-      "Regla de catalogo activo agregada",
-      "Player full/preview por acceso completado",
-      "Siguiente/anterior del player respeta acceso real",
-      "Scroll horizontal Safari-safe en BeatRow",
-      "Guardados locales implementados con localStorage",
-      "/account/saved conectado a guardados reales",
-      "Space play/pause agregado al player",
-      "Barra de progreso clickeable/seekable agregada al player",
-      "Descarga protegida de MP3 por sesion y beat_access",
-      "Descarga protegida de licencia por sesion y beat_access",
-      "Registro server-side de actividad comercial en commercial_activity",
-      "Panel admin de actividad comercial",
-      "Panel admin de usuarios comerciales",
-      "Registro de pagos manuales por usuario + beat",
-      "Prevencion de pago manual duplicado por usuario + beat",
-      "Tipos de licencia basic, premium y exclusive",
-      "Checkpoint de Fase 12 en docs/phase-12-commercial-checkpoint.md",
-      "Supabase schema actualizado para Fase 11F-C y Fase 12 comercial",
-      "Deploy en Vercel funcionando",
-      "GitHub conectado",
-      "APP_STATE.json creado para BR.autocarmation",
-      "B.R registrada en Core v3 registry",
-      "Preview real generado desde beat completo",
-      "Duraciones de preview 15, 20, 25 y 30 segundos",
-      "Preview Editor funcional con FFmpeg WASM",
-      "PlayerBar premium con modo Preview / Acceso completo",
-      "Responsive movil critico corregido",
-      "Dominio brstudios.org conectado a Vercel",
-      "Cloudflare DNS configurado",
-      "Resend verificado",
-      "Supabase SMTP funcionando",
-      "Confirmacion de correo funcionando",
-      "ProductUpdatesPanel compacto con modal",
-      "playback_visibility agregado a beats",
-      "Admin puede cambiar beat publico/privado desde Gestionar Beats",
-      "Beat publico reproduce full sin acceso",
-      "Beat privado respeta preview/full por acceso",
-      "Admin B.RCEO reproduce full sin beat_access",
-      "Fase 14 M1: admin confirma pago desde solicitudes pendientes",
-      "Fase 14 M1: confirmacion de pago crea beat_access automaticamente",
-      "Fase 14 M1: confirmacion de pago registra manual_payments con license_type",
-      "Fase 14 M1: confirmacion de pago registra commercial_activity con access_granted",
-      "Fase 14 M1: solicitud pendiente cambia a approved al confirmar pago",
-      "Fase 14 M1 validada con npm run lint, npm run build y datos reales en Supabase"
+      "Home, explore, beat detail, favoritos y Mis Beats",
+      "Panel admin con Gestion de Beats, Usuarios, Accesos, Solicitudes, Actividad Comercial, Usuarios Comerciales, Preview Editor, Estado Supabase y B.R Cambios",
+      "Catalogo publico filtra is_active=true",
+      "Admin carga activos e inactivos via /api/admin/beats",
+      "Metadata editable en Gestion de Beats",
+      "playback_visibility editable en admin",
+      "PlayerBar enlazado al beat y full/preview por acceso",
+      "Descargas MP3 y licencias protegidas por beat_access",
+      "Pagos manuales con license_type y prevencion de duplicados",
+      "Actividad comercial server-side",
+      "access_revocations",
+      "admin_change_logs con temporal 7 dias y permanente por anio",
+      "Soft delete is_deleted para B.R Cambios",
+      "PDF manual del historial temporal"
     ],
     "pending": [
       "Fase 14 M2: estados formales de orden y pago",
+      "Aplicar/actualizar schema consolidado si se decide sincronizar docs/supabase/schema.sql con phase-14d",
       "Evaluar bucket privado y signed URLs",
-      "Mejorar modelo formal de licencias despues del preview real",
       "Terminos y condiciones",
-      "Suscripciones / freemium / watermark",
-      "Marketplace multiusuario",
-      "Perfiles publicos de productores/artistas",
-      "Servicios musicales",
-      "Escrow o pago protegido",
-      "Chat / rooms de colaboracion"
+      "Licencias legales avanzadas",
+      "Pagos automaticos completos",
+      "Marketplace multiusuario"
     ],
     "blocked": []
   },
   "completed": [
-    "Proyecto Next.js creado",
-    "Diseno inicial tipo Spotify/Netflix",
-    "Supabase Auth conectado",
-    "Supabase Storage conectado",
-    "Bucket beats funcional",
-    "Upload MP3 funcional",
-    "Home con beats reales",
-    "Explore conectado",
-    "Favoritos funcionales",
-    "Mis Beats funcional",
-    "Player funcional",
-    "Solicitudes de acceso funcionales",
-    "Dar y quitar acceso funcional",
-    "Panel admin funcional",
-    "Usuarios visibles para admin",
-    "Usuarios admin expandibles",
-    "Telefono en perfil",
-    "Cambio de username",
-    "Ocultar Supabase conectado a usuarios normales",
-    "Eliminar usuarios implementado",
-    "Usuarios existentes reciben beats nuevos",
-    "Regla de catalogo activo agregada",
-    "Player full/preview por acceso completado",
-    "Siguiente/anterior del player respeta acceso real",
-    "Scroll horizontal Safari-safe en BeatRow",
-    "Guardados locales implementados con localStorage",
-    "/account/saved conectado a guardados reales",
-    "Space play/pause agregado al player",
-    "Barra de progreso clickeable/seekable agregada al player",
-    "Descarga protegida de MP3 por sesion y beat_access",
-    "Descarga protegida de licencia por sesion y beat_access",
-    "Registro server-side de actividad comercial en commercial_activity",
-    "Panel admin de actividad comercial",
-    "Panel admin de usuarios comerciales",
-    "Registro de pagos manuales por usuario + beat",
-    "Prevencion de pago manual duplicado por usuario + beat",
-    "Tipos de licencia basic, premium y exclusive",
-    "Checkpoint de Fase 12 en docs/phase-12-commercial-checkpoint.md",
-    "Deploy en Vercel funcionando",
-    "GitHub conectado",
-    "Preview real generado desde beat completo",
-    "Duraciones de preview 15, 20, 25 y 30 segundos",
-    "Preview Editor funcional con FFmpeg WASM",
-    "PlayerBar premium con modo Preview / Acceso completo",
-    "Responsive movil critico corregido",
-    "Dominio brstudios.org conectado a Vercel",
-    "Cloudflare DNS configurado",
-    "Resend verificado",
-    "Supabase SMTP funcionando",
-    "Confirmacion de correo funcionando",
-    "ProductUpdatesPanel compacto con modal",
-    "playback_visibility agregado a beats",
-    "Admin puede cambiar beat publico/privado desde Gestionar Beats",
-    "Beat publico reproduce full sin acceso",
-    "Beat privado respeta preview/full por acceso",
-    "Admin B.RCEO reproduce full sin beat_access",
-    "Fase 14 M1: admin confirma pago desde solicitudes pendientes",
-    "Fase 14 M1: confirmacion de pago crea beat_access automaticamente",
-    "Fase 14 M1: confirmacion de pago registra manual_payments con license_type",
-    "Fase 14 M1: confirmacion de pago registra commercial_activity con access_granted",
-    "Fase 14 M1: solicitud pendiente cambia a approved al confirmar pago",
-    "Fase 14 M1 validada con npm run lint, npm run build y datos reales en Supabase"
+    "Supabase Auth, Storage y bucket beats",
+    "Preview real y Preview Editor",
+    "Catalogo publico por is_active",
+    "Admin activos/inactivos",
+    "Player full/preview por playback_visibility y beat_access",
+    "Descargas/licencias protegidas",
+    "Pagos manuales y actividad comercial",
+    "Revocaciones",
+    "B.R Cambios/admin_change_logs"
   ],
   "pending": [
-    "Fase 14 M2: estados formales de orden y pago",
-    "Evaluar bucket privado y signed URLs",
-    "Mejorar modelo formal de licencias despues del preview real",
+    "Estados formales de orden y pago",
+    "Bucket privado/signed URLs",
     "Terminos y condiciones",
-    "Suscripciones / freemium / watermark",
-    "Marketplace multiusuario",
-    "Perfiles publicos de productores/artistas",
-    "Servicios musicales",
-    "Escrow o pago protegido",
-    "Chat / rooms de colaboracion"
+    "Licencias legales avanzadas",
+    "Pagos automaticos completos",
+    "Marketplace multiusuario"
   ],
   "blocked": [],
   "risks": [
-    "No exponer SUPABASE_SERVICE_ROLE_KEY",
-    "Mantener B.RCEO como unico admin real",
-    "No permitir acciones protegidas con fallback admin",
-    "No mezclar BR.autocarmation con la logica principal de B.R",
-    "No volver a filtrar el catalogo por beat_access: usuarios nuevos, existentes y admin deben recibir beats activos nuevos sin depender de sus accesos",
-    "No romper player full/preview por acceso durante preview real, descargas, licencias o pagos",
-    "No habilitar descarga sin acceso/licencia valida",
-    "No avanzar a marketplace antes de consolidar preview real, pagos iniciales y licencias",
-    "No confundir is_active con playback_visibility: is_active controla catalogo y playback_visibility controla full publico/privado",
-    "No liberar descarga/licencia solo porque un beat sea publico",
-    "No hacer depender al admin/B.RCEO de beat_access para reproducir full"
+    "No exponer SUPABASE_SERVICE_ROLE_KEY al cliente.",
+    "No usar beat_access para filtrar catalogo publico.",
+    "No confundir is_active con playback_visibility.",
+    "No liberar descarga/licencia solo porque playback_visibility sea public.",
+    "docs/supabase/schema.sql puede quedar atras respecto a deltas phase-14b/14c/14d si no se consolida manualmente.",
+    "B.R Cambios depende de ejecutar phase-14d-admin-change-logs.sql en Supabase."
   ],
   "pros": [
-    "Base funcional ya publicada",
-    "Supabase Auth y Storage operativos",
-    "Flujo de acceso manual ya probado",
-    "Favoritos y Mis Beats ya funcionan",
-    "Catalogo activo ya funciona para usuarios nuevos, existentes y admin",
-    "Player ya respeta acceso full/preview",
-    "Guardados locales ya funcionan como base de favoritos",
-    "Controles de player mejorados con teclado y seek",
-    "Descarga MP3 protegida ya funciona",
-    "Descarga de licencia protegida ya funciona",
-    "Actividad comercial registrada server-side",
-    "Pagos manuales por usuario + beat ya funcionan",
-    "Tipos de licencia basic/premium/exclusive ya soportados",
-    "Arquitectura lista para preview real, pagos iniciales y licencias formales",
-    "Marca B.R puede evolucionar a marketplace musical",
-    "Preview real ya funciona con duraciones configurables",
-    "Dominio propio y SMTP real ya funcionan",
-    "Playback publico/privado por beat ya funciona",
-    "Admin B.RCEO tiene full global sin beat_access",
-    "Actualizaciones compactas con modal ya funcionan",
-    "Fase 14 M1 ya conecta solicitud, confirmacion manual de pago, beat_access, manual_payments y commercial_activity"
+    "Produccion inicial operativa.",
+    "Flujo comercial base funcional.",
+    "Admin tiene visibilidad operacional completa de beats y cambios.",
+    "Reglas de playback y descarga separadas correctamente."
   ],
   "cons": [
-    "Aun falta formalizar estados avanzados de orden en Fase 14 M2",
-    "Aun falta sistema formal/legal avanzado de licencias",
-    "El marketplace multiusuario requiere roles, permisos y moderacion adicionales"
+    "Aun faltan ordenes formales completas.",
+    "Aun faltan pagos automaticos y licencias legales avanzadas.",
+    "Schema consolidado debe revisarse contra deltas recientes antes de usarlo como source of truth."
   ],
   "architecture": {
-    "stack": "Next.js, TypeScript, Tailwind, Supabase, Vercel",
+    "stack": "Next.js App Router, TypeScript, Tailwind, Supabase, Vercel, Cloudflare DNS, Resend",
     "data_layer": "Supabase Postgres",
     "backend": true,
     "database": true,
@@ -482,32 +200,38 @@
     "playback_visibility": true,
     "preview_editor": true,
     "ffmpeg_preview_generation": true,
-    "license_types": [
-      "basic",
-      "premium",
-      "exclusive"
-    ]
+    "admin_change_logs": true,
+    "license_types": ["basic", "premium", "exclusive"]
   },
   "documentation": {
     "files": [
       "APP_STATE.json",
       "README.md",
+      "PROJECT_STATUS.md",
       "CHANGELOG.md",
-      "AGENTS.md",
       "CHATGPT_CONTEXT.md",
       "CODEX_CONTEXT.md",
-      "PROJECT_STATUS.md",
-      "docs/phase-12-commercial-checkpoint.md",
-      "docs/phase-12m1-continuity-sync.md",
+      "AGENTS.md",
       "docs/SETUP_SUPABASE.md",
-      "docs/supabase/schema.sql",
+      "docs/phase-12-commercial-checkpoint.md",
+      "docs/phase-13-preview-player-auth-checkpoint.md",
       "docs/supabase/phase-12-commercial.sql",
-      ".env.local.example",
       "docs/supabase/phase-13-preview-editor.sql",
       "docs/supabase/phase-13f-playback-visibility.sql",
-      "docs/phase-13-preview-player-auth-checkpoint.md",
-      "docs/phase-14-controlled-orders-checkpoint.md"
-    ]
+      "docs/supabase/phase-14b-order-status.sql",
+      "docs/supabase/phase-14c-access-revocations.sql",
+      "docs/supabase/phase-14d-admin-change-logs.sql",
+      "docs/supabase/schema.sql"
+    ],
+    "audit_2026_06_21": {
+      "reviewed": "Documentos raiz, docs, docs/supabase y codigo real en src/app, src/components, src/context y src/lib/supabase.",
+      "findings": [
+        "Docs raiz estaban desfasados en Fase 14 M1.",
+        "CHANGELOG.md estaba vacio.",
+        "B.R Cambios/admin_change_logs no estaba documentado en continuidad.",
+        "docs/supabase/schema.sql no refleja todos los deltas recientes."
+      ]
+    }
   },
   "br_autocar": {
     "managed": true,
@@ -517,9 +241,10 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Continuar Fase 14 despues de M1: formalizar estados de orden y pago sin romper el flujo manual validado.",
-    "next_action": "Diseñar Fase 14 M2: estados formales de orden como contacted, payment_pending, paid, rejected, cancelled y fulfilled, manteniendo beat_access solo como permiso real de descarga/licencia.",
-    "context": "B.R esta publicada en Vercel con dominio brstudios.org, conectada a Supabase real, registrada en BR.autocarmation y con Fase 14 M1 validada. El sistema ya tiene preview real generado desde el beat completo, player premium, full/preview por acceso y playback_visibility, admin full global, SMTP real con Resend/Supabase, actualizaciones compactas, descargas/licencias protegidas, pagos manuales base y flujo solicitud -> confirmacion manual de pago -> manual_payments -> beat_access -> commercial_activity. El siguiente foco es Fase 14 M2: estados formales de orden y pago.",
-    "catalog_rule": "beat_access no filtra catalogo; solo controla descarga, licencia, badges y acciones protegidas. playback_visibility controla si el beat reproduce full publicamente o solo preview/full por acceso."
+    "priority": "Continuar Fase 14 M2 sin romper catalogo, playback, descargas/licencias ni historial administrativo.",
+    "next_action": "Disenar estados formales de orden/pago sobre access_requests u ordenes dedicadas, manteniendo beat_access como permiso real.",
+    "context": "B.R esta publicada en Vercel con dominio brstudios.org, Supabase real, preview real, player premium, playback_visibility, pagos manuales, descargas/licencias protegidas, revocaciones y B.R Cambios con admin_change_logs.",
+    "catalog_rule": "is_active filtra publico; admin ve activos e inactivos. beat_access no filtra catalogo.",
+    "playback_rule": "playback_visibility controla full publico/privado; beat_access controla full privado, descargas y licencias."
   }
 }

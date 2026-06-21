@@ -4,9 +4,9 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 
 ## Foco principal
 
-Consolidar el flujo Beat -> preview -> solicitud -> pago/acceso -> descarga/licencia.
+Consolidar el flujo Beat -> preview real -> solicitud -> pago/acceso -> descarga/licencia.
 
-El foco principal, continuidad, avances y meta final de esta app pertenecen a B.R. BR.autocarmation dentro de esta app es infraestructura de soporte y no debe sustituir el objetivo principal del producto.
+El foco principal de esta app es B.R. BR.autocarmation es soporte interno y no debe sustituir el objetivo del producto.
 
 ## Resumen
 
@@ -16,39 +16,35 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 
 - App: `br-platform`
 - Tipo: marketplace musical / plataforma privada de beats
-- Fase: Fase 14 M1 - confirmacion manual de pago y liberacion de acceso
-- Estado: in_progress
-- Avance: 94%
+- Fase: Fase 14D - historial administrativo y continuidad
+- Estado: implemented
+- Avance: 96%
 - Siguiente fase: Fase 14 M2 - estados formales de orden
 
 ## Oferta del producto
 
-- Catalogo de beats
-- Preview de beats
-- Solicitud de acceso
-- Acceso manual administrado por B.RCEO
-- Subida de MP3 reales
-- Panel admin
-- Perfiles de usuario con telefono
-- Favoritos
-- Mis Beats
-- Eliminacion de usuarios
-- Descarga protegida de MP3
-- Descarga protegida de licencia
-- Pagos manuales por usuario + beat
-- Actividad comercial
-- Tipos de licencia basic, premium y exclusive
+- Catalogo publico de beats activos
+- Gestion admin de beats activos e inactivos
 - Preview real generado desde beat completo
-- Duraciones de preview 15, 20, 25 y 30 segundos
-- Player premium con modo Preview / Acceso completo
-- Dominio propio brstudios.org
-- Correos de confirmacion con Resend + Supabase SMTP
-- Actualizaciones compactas con modal
-- Reproduccion publica/privada por beat
-- Admin B.RCEO con reproduccion full global
-- Confirmacion manual de pago desde solicitudes
-- Liberacion automatica de beat_access al confirmar pago
-- Registro comercial de pago confirmado con licencia
+- Preview Editor con FFmpeg WASM
+- Player global premium full/preview por acceso
+- playback_visibility publico/privado por beat
+- Supabase Auth con confirmacion SMTP Resend
+- Supabase Storage bucket beats
+- Solicitudes de acceso
+- beat_access como permiso real de descarga/licencia
+- Descarga MP3 protegida
+- Licencia HTML protegida por tipo basic/premium/exclusive
+- Pagos manuales por usuario + beat
+- Actividad comercial compacta
+- Usuarios comerciales
+- Revocaciones de acceso
+- Panel admin B.RCEO
+- B.R Cambios con admin_change_logs
+- Historial temporal de Gestion de Beats por 7 dias
+- Historial permanente agrupado por anio con soft delete
+- Descarga PDF manual del historial temporal
+- Dominio brstudios.org en Vercel con Cloudflare DNS
 
 ## Usuarios objetivo
 
@@ -63,15 +59,16 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 
 ## Limites del producto
 
+- Pagos automaticos completos pendientes
+- Ordenes formales avanzadas pendientes
 - Licencias legales avanzadas pendientes
 - Marketplace multiusuario pendiente
 - Perfiles publicos de productores/artistas pendientes
 - Chat interno pendiente
-- Ordenes formales avanzadas pendientes
 
 ## Arquitectura
 
-- Stack: Next.js, TypeScript, Tailwind, Supabase, Vercel
+- Stack: Next.js App Router, TypeScript, Tailwind, Supabase, Vercel, Cloudflare DNS, Resend
 - Nivel de datos: Supabase Postgres
 - Backend: True
 - Database: True
@@ -80,7 +77,7 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 ## BR.autocar como soporte
 
 - Managed: True
-- Rol dentro del producto: Objetivo secundario e infraestructura de continuidad
+- Rol dentro del producto: Infraestructura de soporte
 - Regla de foco: BR.autocar debe actuar como soporte y no como foco principal cuando esta app no sea BR.autocar Admin Web.
 - Template version: app-state-schema-v3
 - Future sync target: BR.autocar Admin Web
@@ -108,4 +105,4 @@ Archivos derivados:
 - `CLAUDE.md`
 - `README.md`
 
-Ultima generacion: 2026-06-21T08:46:17
+Ultima generacion: 2026-06-21T16:48:22

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Scissors } from "lucide-react";
-import { updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
+import { createAdminChangeLog, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
 
 function formatFileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
@@ -133,6 +133,24 @@ export function PreviewEditorForm({
     setIsSaving(false);
 
     if (result.ok) {
+      await createAdminChangeLog({
+        blockTitle: "Preview actualizado",
+        eventType: "preview_update",
+        targetType: "beat",
+        targetName: title,
+        description: `Se actualizó el preview de ${title}. Inicio: ${startSecond}s · Duración: ${result.durationSeconds ?? durationSeconds}s.`,
+        commandText: "PreviewEditorForm.updateBeatPreviewWithUpload",
+        metadata: {
+          beatId,
+          slug,
+          startSecond,
+          previousDurationSeconds: initialDurationSeconds,
+          nextDurationSeconds: result.durationSeconds ?? durationSeconds,
+          changedFields: ["preview_url", "preview_duration_seconds", "preview_updated_at"],
+        },
+        temporary: true,
+      });
+
       router.refresh();
     }
   }

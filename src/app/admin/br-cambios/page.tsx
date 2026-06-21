@@ -4,6 +4,59 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { deleteAdminChangeLog, getAdminChangeLogs, type AdminChangeLog } from "@/lib/supabase/queries";
 
+function formatChangeValue(value: unknown) {
+  if (typeof value === "boolean") {
+    return value ? "Sí" : "No";
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return "Sin dato";
+  }
+
+  return String(value);
+}
+
+function formatMetadataField(field: string) {
+  if (field === "genre") {
+    return "género";
+  }
+
+  if (field === "bpm") {
+    return "BPM";
+  }
+
+  if (field === "musicalKey") {
+    return "tonalidad";
+  }
+
+  return field;
+}
+
+function formatChangeDetail(log: AdminChangeLog) {
+  const metadata = log.metadata as Record<string, unknown> | null | undefined;
+
+  if (metadata?.field && "previousValue" in metadata && "nextValue" in metadata) {
+    return `${formatMetadataField(String(metadata.field))}: ${formatChangeValue(metadata.previousValue)} → ${formatChangeValue(metadata.nextValue)}`;
+  }
+
+  if ("previousPlaybackVisibility" in (metadata ?? {}) && "nextPlaybackVisibility" in (metadata ?? {})) {
+    return `Reproducción: ${formatChangeValue(metadata?.previousPlaybackVisibility)} → ${formatChangeValue(metadata?.nextPlaybackVisibility)}`;
+  }
+
+  if ("previousIsActive" in (metadata ?? {}) && "nextIsActive" in (metadata ?? {})) {
+    return `Estado: ${metadata?.previousIsActive ? "Activo" : "Inactivo"} → ${metadata?.nextIsActive ? "Activo" : "Inactivo"}`;
+  }
+
+  if (log.event_type === "preview_update") {
+    const startSecond = formatChangeValue(metadata?.startSecond);
+    const previousDuration = formatChangeValue(metadata?.previousDurationSeconds);
+    const nextDuration = formatChangeValue(metadata?.nextDurationSeconds);
+    return `Preview: inicio ${startSecond}s · duración ${previousDuration}s → ${nextDuration}s`;
+  }
+
+  return log.description;
+}
+
 export default function AdminBrCambiosPage() {
   const currentYear = new Date().getFullYear();
   const [logs, setLogs] = useState<AdminChangeLog[]>([]);
@@ -78,6 +131,7 @@ export default function AdminBrCambiosPage() {
             (log) => `
               <tr>
                 <td>${log.block_title}</td>
+                <td>${formatChangeDetail(log)}</td>
                 <td>${log.event_type}</td>
                 <td>${log.target_name ?? log.target_type ?? "Sin objetivo"}</td>
                 <td>${new Date(log.created_at).toLocaleString()}</td>
@@ -85,7 +139,7 @@ export default function AdminBrCambiosPage() {
             `,
           )
           .join("")
-      : `<tr><td colspan="4">No existen registros.</td></tr>`;
+      : `<tr><td colspan="5">No existen registros.</td></tr>`;
 
     printWindow.document.write(`
       <!doctype html>
@@ -221,6 +275,7 @@ export default function AdminBrCambiosPage() {
             <thead>
               <tr>
                 <th>Bloque</th>
+                <th>Cambio</th>
                 <th>Tipo</th>
                 <th>Objetivo</th>
                 <th>Fecha</th>
@@ -284,7 +339,7 @@ export default function AdminBrCambiosPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-[0.12em] text-cyan-100">{log.block_title}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-emerald-100/80">{log.description}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-emerald-100/80">{formatChangeDetail(log)}</p>
                   </div>
                   <button
                     type="button"

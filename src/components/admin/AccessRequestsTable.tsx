@@ -38,6 +38,7 @@ type PaymentDraft = {
   license_type: "basic" | "premium" | "exclusive";
 };
 
+
 const defaultPaymentDraft: PaymentDraft = {
   amount: "",
   currency: "MXN",
@@ -45,6 +46,8 @@ const defaultPaymentDraft: PaymentDraft = {
   note: "",
   license_type: "basic",
 };
+
+const statusNotesStorageKey = "br-access-request-status-notes";
 
 function getRequestUser(request: AccessRequestRow) {
   const profile = Array.isArray(request.profiles) ? request.profiles[0] : request.profiles;
@@ -107,8 +110,36 @@ function revocationMatchesRequest(revocation: AccessRevocationRow, request: Acce
   return revocation.user_id === request.user_id && (revocation.beat_id === request.beat_id || beat?.slug === request.beat_id);
 }
 
+
 function getRevocationDate(revocation: AccessRevocationRow) {
   return revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha";
+}
+
+function loadStoredStatusNotes() {
+  if (typeof window === "undefined") {
+    return {} as Record<string, string>;
+  }
+
+  try {
+    const rawNotes = window.localStorage.getItem(statusNotesStorageKey);
+    const parsedNotes = rawNotes ? JSON.parse(rawNotes) : {};
+
+    if (!parsedNotes || typeof parsedNotes !== "object" || Array.isArray(parsedNotes)) {
+      return {} as Record<string, string>;
+    }
+
+    return parsedNotes as Record<string, string>;
+  } catch {
+    return {} as Record<string, string>;
+  }
+}
+
+function saveStoredStatusNotes(notes: Record<string, string>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(statusNotesStorageKey, JSON.stringify(notes));
 }
 
 export function AccessRequestsTable() {
@@ -121,6 +152,10 @@ export function AccessRequestsTable() {
   const [processingPaymentId, setProcessingPaymentId] = useState("");
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [paymentOpenIds, setPaymentOpenIds] = useState<string[]>([]);
+  const [statusNotes, setStatusNotes] = useState<Record<string, string>>({});
+  const [savedStatusNoteId, setSavedStatusNoteId] = useState("");
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const [isRevokedOpen, setIsRevokedOpen] = useState(false);
 
   async function refresh() {
     const requests = await getAccessRequests();
@@ -129,6 +164,29 @@ export function AccessRequestsTable() {
 
     setItems(requests);
     setRevocations(revocationGroups.flat());
+  }
+
+  function updateStatusNote(requestId: string, note: string) {
+    setStatusNotes((current) => ({
+      ...current,
+      [requestId]: note,
+    }));
+  }
+
+  function saveStatusNote(request: AccessRequestRow) {
+    const nextNotes = {
+      ...statusNotes,
+      [request.id]: statusNotes[request.id]?.trim() ?? "",
+    };
+
+    setStatusNotes(nextNotes);
+    saveStoredStatusNotes(nextNotes);
+    setSavedStatusNoteId(request.id);
+    setMessage(`Nota de estado guardada para ${getRequestUser(request)}.`);
+
+    window.setTimeout(() => {
+      setSavedStatusNoteId((current) => (current === request.id ? "" : current));
+    }, 1800);
   }
 
   async function rejectRequest(id: string) {
@@ -287,6 +345,7 @@ export function AccessRequestsTable() {
 
   useEffect(() => {
     const loadId = window.setTimeout(() => {
+      setStatusNotes(loadStoredStatusNotes());
       void refresh();
     }, 0);
 
@@ -303,9 +362,15 @@ export function AccessRequestsTable() {
     .filter((request) => !findRevocationForRequest(request) && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid"))
     .sort((a, b) => new Date(a.created_at ?? a.updated_at ?? 0).getTime() - new Date(b.created_at ?? b.updated_at ?? 0).getTime());
 
-  const closedItems = items
-    .filter((request) => !activeItems.some((activeRequest) => activeRequest.id === request.id))
+  const revokedItems = items
+    .filter((request) => Boolean(findRevocationForRequest(request)))
     .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
+
+  const historyItems = items
+    .filter((request) => !activeItems.some((activeRequest) => activeRequest.id === request.id))
+    .filter((request) => !findRevocationForRequest(request))
+    .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
+
 
   function toggleExpanded(id: string) {
     setExpandedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
@@ -317,11 +382,11 @@ export function AccessRequestsTable() {
 
   function renderCards(requests: AccessRequestRow[]) {
     if (requests.length === 0) {
-      return <p className="rounded-md border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">Sin solicitudes en esta sección.</p>;
+      return <p className="rounded-md border border-white/10 bg-white/5 p-2.5 text-xs text-zinc-400">Sin solicitudes en esta sección.</p>;
     }
 
     return (
-      <div className="grid gap-2">
+      <div className="grid gap-1.5">
         {requests.map((request) => {
           const profile = getRequestProfile(request);
           const expanded = expandedIds.includes(request.id);
@@ -332,7 +397,7 @@ export function AccessRequestsTable() {
           const showReject = !revocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending");
 
           return (
-            <article key={request.id} className={`rounded-lg border p-2.5 ${revocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#15181c]"}`}>
+            <article key={request.id} className={`rounded-lg border p-2 ${revocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#15181c]"}`}>
               <div className="grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto] md:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -376,6 +441,33 @@ export function AccessRequestsTable() {
                       <p className="font-bold text-amber-100">Revocación registrada</p>
                       <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Motivo: {revocation.reason}</p>
                       <p className="mt-1 text-zinc-500">Fecha: {getRevocationDate(revocation)}</p>
+                    </div>
+                  ) : null}
+                  {isClosedRequest(request, revocation) ? (
+                    <div className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 md:col-span-2">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-cyan-100">Nota de estado</p>
+                          <p className="text-[11px] text-cyan-100/70">Seguimiento interno para solicitudes cerradas / historial.</p>
+                        </div>
+                        {savedStatusNoteId === request.id ? <span className="rounded-full border border-emerald-300/30 px-2 py-1 text-[11px] font-bold text-emerald-200">Guardada</span> : null}
+                      </div>
+                      <textarea
+                        value={statusNotes[request.id] ?? ""}
+                        onChange={(event) => updateStatusNote(request.id, event.target.value)}
+                        placeholder="Ejemplo: Pago confirmado por transferencia. Acceso liberado manualmente. Cliente notificado."
+                        className="min-h-20 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
+                      />
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => saveStatusNote(request)}
+                          className="inline-flex h-8 items-center gap-2 rounded-md bg-cyan-300 px-3 text-xs font-bold text-black hover:bg-cyan-200"
+                        >
+                          <Save className="h-3.5 w-3.5" aria-hidden="true" />
+                          Guardar nota
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -442,10 +534,10 @@ export function AccessRequestsTable() {
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
+    <section className="rounded-lg border border-white/10 bg-[#101317] p-3">
       {message ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
 
-      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Activas</p>
           <p className="mt-1 text-2xl font-black text-white">{activeItems.length}</p>
@@ -463,12 +555,12 @@ export function AccessRequestsTable() {
           <p className="mt-1 text-2xl font-black text-amber-200">{items.filter((request) => findRevocationForRequest(request)).length}</p>
         </div>
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
-          <p className="text-xs font-bold uppercase text-zinc-500">Cerradas</p>
-          <p className="mt-1 text-2xl font-black text-zinc-200">{closedItems.length}</p>
+          <p className="text-xs font-bold uppercase text-zinc-500">Historial</p>
+          <p className="mt-1 text-2xl font-black text-zinc-200">{historyItems.length}</p>
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-bold">Activas</h2>
@@ -477,12 +569,50 @@ export function AccessRequestsTable() {
           {renderCards(activeItems)}
         </div>
 
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-bold">Cerradas / historial</h2>
-            <span className="text-xs font-semibold text-zinc-400">{closedItems.length}</span>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-left hover:border-cyan-300/40"
+            >
+              <span>
+                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-zinc-300">Historial</span>
+                <span className="text-[11px] text-zinc-500">Cerradas sin revocación</span>
+              </span>
+              <span className="inline-flex items-center gap-2 text-[11px] font-bold text-zinc-400">
+                {historyItems.length}
+                <ChevronDown className={`h-3.5 w-3.5 transition ${isHistoryOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+              </span>
+            </button>
+            {isHistoryOpen ? (
+              <div className="mt-2 max-h-[420px] overflow-y-auto pr-1">
+                {renderCards(historyItems)}
+              </div>
+            ) : null}
           </div>
-          {renderCards(closedItems)}
+
+          <div className="rounded-lg border border-amber-300/20 bg-amber-300/[0.04] p-2.5">
+            <button
+              type="button"
+              onClick={() => setIsRevokedOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-2 rounded-md border border-amber-300/20 bg-black/20 px-3 py-2 text-left hover:border-amber-300/40"
+            >
+              <span>
+                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-amber-200">Revocadas</span>
+                <span className="text-[11px] text-amber-100/60">Sólo accesos revocados</span>
+              </span>
+              <span className="inline-flex items-center gap-2 text-[11px] font-bold text-amber-100/70">
+                {revokedItems.length}
+                <ChevronDown className={`h-3.5 w-3.5 transition ${isRevokedOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+              </span>
+            </button>
+            {isRevokedOpen ? (
+              <div className="mt-2 max-h-[420px] overflow-y-auto pr-1">
+                {renderCards(revokedItems)}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </section>

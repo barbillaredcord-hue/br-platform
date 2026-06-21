@@ -10,22 +10,22 @@ type AdminStatCardProps = {
 export function AdminStatCard({ label, value, detail, href }: AdminStatCardProps) {
   const content = (
     <>
-      <p className="text-sm text-zinc-400">{label}</p>
-      <p className="mt-3 text-3xl font-black text-white">{value}</p>
-      <p className="mt-2 text-xs text-cyan-200">{detail}</p>
+      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</p>
+      <p className="mt-1 text-xl font-black text-white">{value}</p>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-cyan-200/80">{detail}</p>
     </>
   );
 
   if (href) {
     return (
-      <Link href={href} className="rounded-lg border border-white/10 bg-[#101317] p-5 transition hover:border-cyan-300 hover:bg-[#15181c]">
+      <Link href={href} className="rounded-lg border border-white/10 bg-[#101317] p-3 transition hover:border-cyan-300 hover:bg-[#15181c]">
         {content}
       </Link>
     );
   }
 
   return (
-    <article className="rounded-lg border border-white/10 bg-[#101317] p-5">
+    <article className="rounded-lg border border-white/10 bg-[#101317] p-3">
       {content}
     </article>
   );

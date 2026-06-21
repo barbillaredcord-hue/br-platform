@@ -53,7 +53,7 @@ export function AdminDashboardStats({ initialBeats, initialUsers, initialRequest
   }, [beats, requests, users]);
 
   return (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
       <AdminStatCard label="Total de beats" value={String(beats.length)} detail="Catálogo activo" href="/admin/beats" />
       <AdminStatCard label="Accesos activos" value={String(stats.accessCount)} detail={`${stats.usersWithAccess.length} usuarios con acceso`} href="/admin/access" />
       <AdminStatCard label="Usuarios" value={String(users.length)} detail="Profiles reales" href="/admin/users" />
