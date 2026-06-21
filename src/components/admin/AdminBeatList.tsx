@@ -72,12 +72,13 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const [actionMessage, setActionMessage] = useState("");
   const [catalogLoadMessage, setCatalogLoadMessage] = useState("");
   const [changeEvents, setChangeEvents] = useState<ChangeEvent[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const addChangeEvent = useCallback((action: string, beat: string) => {
     setChangeEvents((current) => [
       { id: `${Date.now()}-${current.length}`, action, beat, time: new Date().toLocaleTimeString() },
       ...current,
-    ].slice(0, 8));
+    ]);
   }, []);
 
   const loadAdminBeats = useCallback(async () => {
@@ -231,6 +232,76 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     setSavingBeatId("");
   }
 
+  function escapePrintText(value: string) {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function downloadHistoryPdf() {
+    const historyWindow = window.open("", "_blank", "width=840,height=700");
+
+    if (!historyWindow) {
+      setActionMessage("No se pudo abrir la ventana de impresión. Revisa el bloqueador de ventanas.");
+      return;
+    }
+
+    const rows = changeEvents.length
+      ? changeEvents
+          .map(
+            (event) => `
+              <tr>
+                <td>${escapePrintText(event.action)}</td>
+                <td>${escapePrintText(event.beat)}</td>
+                <td>${escapePrintText(event.time)}</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `<tr><td colspan="3">Aún no hay cambios registrados en esta sesión.</td></tr>`;
+
+    historyWindow.document.write(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Historial de cambios B.R</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
+            h1 { font-size: 22px; margin: 0 0 6px; }
+            p { margin: 0 0 20px; color: #4b5563; font-size: 13px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>
+          <h1>Historial de cambios</h1>
+          <p>Sesión actual · ${changeEvents.length} eventos · ${escapePrintText(new Date().toLocaleString())}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Acción</th>
+                <th>Beat</th>
+                <th>Hora local</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <script>
+            window.onload = () => {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    historyWindow.document.close();
+  }
+
   function renderEditable(beat: AdminBeat, field: MetadataField, label: string) {
     const cellKey = `${beat.id}-${field}`;
     const isEditing = editingCell === cellKey;
@@ -288,24 +359,49 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
       </div>
       {catalogLoadMessage ? <p className="mb-4 rounded-md border border-red-300/20 bg-red-950/20 p-3 text-sm text-red-100">{catalogLoadMessage}</p> : null}
       {actionMessage ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{actionMessage}</p> : null}
-      <div className="mb-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-bold">Historial de cambios</p>
-          <span className="text-xs text-zinc-500">Sesión actual</span>
-        </div>
-        {changeEvents.length ? (
-          <div className="mt-3 grid gap-2">
-            {changeEvents.map((event) => (
-              <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-3 py-2 text-xs text-zinc-300 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
-                <span className="font-semibold text-cyan-100">{event.action}</span>
-                <span className="truncate">{event.beat}</span>
-                <span className="text-zinc-500">{event.time}</span>
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setIsHistoryOpen((current) => !current)}
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
+          aria-expanded={isHistoryOpen}
+        >
+          <span>
+            <span className="block text-sm font-bold">Historial de cambios</span>
+            <span className="text-xs text-zinc-500">Click para ver / descargar</span>
+          </span>
+          <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-xs font-bold text-cyan-100">
+            {changeEvents.length} eventos
+          </span>
+        </button>
+
+        {isHistoryOpen ? (
+          <div className="mt-2 rounded-lg border border-white/10 bg-[#15181c] p-3">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-zinc-200">Sesión actual</p>
+              <button
+                type="button"
+                onClick={downloadHistoryPdf}
+                className="h-9 w-fit rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10"
+              >
+                Descargar PDF
+              </button>
+            </div>
+            {changeEvents.length ? (
+              <div className="grid max-h-48 gap-2 overflow-y-auto pr-1">
+                {changeEvents.map((event) => (
+                  <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-3 py-2 text-xs text-zinc-300 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+                    <span className="font-semibold text-cyan-100">{event.action}</span>
+                    <span className="truncate">{event.beat}</span>
+                    <span className="text-zinc-500">{event.time}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <p className="rounded-md bg-black/20 px-3 py-2 text-xs text-zinc-500">Aún no hay cambios registrados en esta sesión.</p>
+            )}
           </div>
-        ) : (
-          <p className="mt-2 text-xs text-zinc-500">Sin cambios en esta sesión.</p>
-        )}
+        ) : null}
       </div>
       <div className="hidden max-h-[58vh] overflow-auto rounded-lg border border-white/10 md:block">
         <table className="w-full border-collapse text-left text-sm">
