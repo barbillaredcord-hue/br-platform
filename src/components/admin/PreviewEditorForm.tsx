@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Scissors } from "lucide-react";
 import { createAdminChangeLog, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
@@ -15,6 +15,83 @@ function clampPreviewDuration(value: number) {
 
 function clampStartSecond(value: number) {
   return Math.max(0, Math.round(value || 0));
+}
+
+function buildWaveformSamples(buffer: AudioBuffer, sampleCount = 180) {
+  const channelData = buffer.getChannelData(0);
+  const blockSize = Math.max(1, Math.floor(channelData.length / sampleCount));
+  const samples: number[] = [];
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const start = index * blockSize;
+    let sum = 0;
+
+    for (let sampleIndex = 0; sampleIndex < blockSize && start + sampleIndex < channelData.length; sampleIndex += 1) {
+      sum += Math.abs(channelData[start + sampleIndex]);
+    }
+
+    samples.push(Math.min(1, sum / blockSize));
+  }
+
+  const maxSample = Math.max(...samples, 0.01);
+  return samples.map((sample) => sample / maxSample);
+}
+
+function drawWaveformCanvas(input: {
+  canvas: HTMLCanvasElement;
+  samples: number[];
+  audioDuration: number;
+  startSecond: number;
+  durationSeconds: number;
+}) {
+  const { canvas, samples, audioDuration, startSecond, durationSeconds } = input;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+  const centerY = height / 2;
+  const barWidth = Math.max(2, width / Math.max(samples.length, 1));
+
+  context.clearRect(0, 0, width, height);
+  context.fillStyle = "#05070a";
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(34, 197, 94, 0.14)";
+  context.lineWidth = 1;
+  for (let x = 0; x < width; x += 24) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+
+  const safeDuration = Math.max(audioDuration, 1);
+  const selectionStartX = Math.min(width, Math.max(0, (startSecond / safeDuration) * width));
+  const selectionWidth = Math.min(width - selectionStartX, (durationSeconds / safeDuration) * width);
+
+  context.fillStyle = "rgba(103, 232, 249, 0.12)";
+  context.fillRect(selectionStartX, 0, selectionWidth, height);
+
+  samples.forEach((sample, index) => {
+    const x = index * barWidth;
+    const barHeight = Math.max(2, sample * (height - 22));
+    const y = centerY - barHeight / 2;
+    const insideSelection = x >= selectionStartX && x <= selectionStartX + selectionWidth;
+
+    context.fillStyle = insideSelection ? "rgba(103, 232, 249, 0.95)" : "rgba(34, 197, 94, 0.75)";
+    context.fillRect(x, y, Math.max(1, barWidth - 1), barHeight);
+  });
+
+  context.strokeStyle = "#67e8f9";
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(selectionStartX, 0);
+  context.lineTo(selectionStartX, height);
+  context.stroke();
 }
 
 type PreviewEditorFormProps = {
@@ -36,20 +113,97 @@ export function PreviewEditorForm({
 }: PreviewEditorFormProps) {
   const router = useRouter();
   const fullAudioRef = useRef<HTMLAudioElement | null>(null);
+  const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const generatedPreviewUrlRef = useRef<string | null>(null);
   const [startSecond, setStartSecond] = useState(0);
   const [durationSeconds, setDurationSeconds] = useState(clampPreviewDuration(initialDurationSeconds));
   const [generatedPreviewFile, setGeneratedPreviewFile] = useState<File | null>(null);
   const [generatedPreviewUrl, setGeneratedPreviewUrl] = useState("");
+  const [waveformSamples, setWaveformSamples] = useState<number[]>([]);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [isWaveformLoading, setIsWaveformLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const hasRealPreview = Boolean(currentPreviewUrl && currentPreviewUrl !== fullAudioUrl);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWaveform() {
+      setIsWaveformLoading(true);
+
+      try {
+        const response = await fetch(fullAudioUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioContext = new AudioContext();
+        const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+        const samples = buildWaveformSamples(decodedBuffer);
+        await audioContext.close();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setWaveformSamples(samples);
+        setAudioDuration(decodedBuffer.duration);
+      } catch (error) {
+        console.error("B.R waveform analysis error", error);
+        if (isMounted) {
+          setStatus("No se pudo leer la onda del beat. Puedes seguir usando el recorte manual.");
+        }
+      } finally {
+        if (isMounted) {
+          setIsWaveformLoading(false);
+        }
+      }
+    }
+
+    void loadWaveform();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fullAudioUrl]);
+
+  useEffect(() => {
+    if (!waveformCanvasRef.current || waveformSamples.length === 0) {
+      return;
+    }
+
+    drawWaveformCanvas({
+      canvas: waveformCanvasRef.current,
+      samples: waveformSamples,
+      audioDuration,
+      startSecond,
+      durationSeconds,
+    });
+  }, [audioDuration, durationSeconds, startSecond, waveformSamples]);
+
+  function selectStartFromWaveform(event: React.MouseEvent<HTMLCanvasElement>) {
+    if (!audioDuration || !waveformCanvasRef.current) {
+      return;
+    }
+
+    const rect = waveformCanvasRef.current.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const ratio = Math.min(1, Math.max(0, clickX / rect.width));
+    const nextStart = clampStartSecond(ratio * audioDuration);
+
+    setStartSecond(nextStart);
+    if (fullAudioRef.current) {
+      fullAudioRef.current.currentTime = nextStart;
+    }
+    setStatus(`Inicio visual marcado en ${nextStart}s.`);
+  }
+
   function setCurrentAudioTimeAsStart() {
     const nextStart = clampStartSecond(fullAudioRef.current?.currentTime ?? 0);
     setStartSecond(nextStart);
+    if (fullAudioRef.current) {
+      fullAudioRef.current.currentTime = nextStart;
+    }
     setStatus(`Inicio del preview marcado en ${nextStart}s.`);
   }
 
@@ -156,14 +310,14 @@ export function PreviewEditorForm({
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-5">
-      <div className="mb-5 flex items-center gap-2 text-cyan-200">
+    <section className="rounded-lg border border-white/10 bg-[#101317] p-3">
+      <div className="mb-3 flex items-center gap-2 text-cyan-200">
         <Scissors className="h-4 w-4" aria-hidden="true" />
         <p className="text-sm font-bold uppercase">Recortar preview desde beat completo</p>
       </div>
 
-      <div className="grid gap-5">
-        <div className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-4">
+      <div className="grid gap-3">
+        <div className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3">
           <p className="text-sm font-bold text-cyan-100">
             {hasRealPreview ? "Este beat ya tiene preview real separado." : "Este beat todavía usa preview temporal."}
           </p>
@@ -195,6 +349,33 @@ export function PreviewEditorForm({
           </div>
         </div>
 
+        <div className="rounded-lg border border-emerald-300/20 bg-black/20 p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">Editor visual de onda</p>
+              <p className="text-[11px] text-zinc-500">Click sobre la onda para marcar el inicio exacto del preview.</p>
+            </div>
+            <span className="rounded-full border border-cyan-300/20 px-2 py-1 text-[11px] font-bold text-cyan-100">
+              {audioDuration ? `${Math.round(audioDuration)}s` : isWaveformLoading ? "Analizando..." : "Sin onda"}
+            </span>
+          </div>
+
+          <canvas
+            ref={waveformCanvasRef}
+            width={920}
+            height={160}
+            onClick={selectStartFromWaveform}
+            className="h-32 w-full cursor-crosshair rounded-md border border-emerald-300/10 bg-[#05070a]"
+            aria-label="Onda visual del beat completo"
+          />
+
+          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
+            <span>Inicio: <strong className="text-cyan-100">{startSecond}s</strong></span>
+            <span>Duración: <strong className="text-cyan-100">{durationSeconds}s</strong></span>
+            <span>Fin estimado: <strong className="text-cyan-100">{startSecond + durationSeconds}s</strong></span>
+          </div>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2">
             <span className="text-sm font-semibold text-zinc-300">Segundo inicial del preview</span>
@@ -202,7 +383,13 @@ export function PreviewEditorForm({
               type="number"
               min={0}
               value={startSecond}
-              onChange={(event) => setStartSecond(clampStartSecond(Number(event.target.value)))}
+              onChange={(event) => {
+                const nextStart = clampStartSecond(Number(event.target.value));
+                setStartSecond(nextStart);
+                if (fullAudioRef.current) {
+                  fullAudioRef.current.currentTime = nextStart;
+                }
+              }}
               className="h-12 rounded-md border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-cyan-300"
             />
             <span className="text-xs text-zinc-500">Ejemplo: 8 empieza el preview en el segundo 8 del beat completo.</span>
