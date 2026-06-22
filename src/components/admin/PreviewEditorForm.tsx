@@ -105,6 +105,33 @@ function drawWaveformCanvas(input: {
   context.stroke();
 }
 
+async function audioUrlLooksMissing(url: string) {
+  try {
+    const headResponse = await fetch(url, { method: "HEAD", cache: "no-store" });
+
+    if (headResponse.status === 404) {
+      return true;
+    }
+
+    if (headResponse.ok) {
+      return false;
+    }
+  } catch {
+    // Some storage/CDN setups reject HEAD or CORS preflight; FFmpeg can still try the real fetch.
+  }
+
+  try {
+    const rangeResponse = await fetch(url, {
+      cache: "no-store",
+      headers: { Range: "bytes=0-0" },
+    });
+
+    return rangeResponse.status === 404;
+  } catch {
+    return false;
+  }
+}
+
 type PreviewEditorFormProps = {
   beatId: string;
   slug: string;
@@ -183,7 +210,7 @@ export function PreviewEditorForm({
         setWaveformSamples(samples);
         setAudioDuration(decodedBuffer.duration);
       } catch (error) {
-        console.error("B.R waveform analysis error", error);
+        console.warn("B.R waveform unavailable", { title, fullAudioUrl, error });
         if (isMounted) {
           setWaveformSamples([]);
           setWaveformMessage("No se pudo leer onda; usa recorte manual.");
@@ -200,7 +227,7 @@ export function PreviewEditorForm({
     return () => {
       isMounted = false;
     };
-  }, [fullAudioUrl]);
+  }, [fullAudioUrl, title]);
 
   useEffect(() => {
     if (!waveformCanvasRef.current || waveformSamples.length === 0) {
@@ -421,6 +448,14 @@ export function PreviewEditorForm({
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
       });
 
+      setStatus("Validando archivo de audio...");
+      const isAudioMissing = await audioUrlLooksMissing(fullAudioUrl);
+
+      if (isAudioMissing) {
+        setStatus("Archivo de audio no encontrado. Revisa el MP3 del beat.");
+        return;
+      }
+
       setStatus("Descargando beat completo para recortar preview...");
       await ffmpeg.writeFile("input.mp3", await fetchFile(fullAudioUrl));
 
@@ -444,8 +479,9 @@ export function PreviewEditorForm({
       setGeneratedPreviewUrl(generatedPreviewUrlRef.current);
       setStatus("Preview generado. Reprodúcelo y guarda si te gusta el corte.");
     } catch (error) {
-      console.error("B.R preview generation error", error);
-      setStatus("No se pudo generar el preview desde el beat completo. Revisa conexión, CORS del audio o dependencias de FFmpeg.");
+      const errorText = error instanceof Error ? error.message : String(error);
+      console.warn("B.R preview generation warning", { title, fullAudioUrl, error });
+      setStatus(errorText.includes("404") ? "Archivo de audio no encontrado. Revisa el MP3 del beat." : "No se pudo generar el preview desde el beat completo. Revisa conexión, CORS del audio o dependencias de FFmpeg.");
     } finally {
       setIsGenerating(false);
     }

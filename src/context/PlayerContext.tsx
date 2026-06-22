@@ -85,6 +85,15 @@ function uniqueBeats(beats: Beat[]) {
   return result;
 }
 
+function warnAudioFailure(input: { beat: Beat | null; audioUrl: string | null; mode: PlayerMode; error?: unknown }) {
+  console.warn("B.R audio playback warning", {
+    beat: input.beat ? { id: input.beat.id, dbId: input.beat.dbId, name: input.beat.name } : null,
+    url: input.audioUrl,
+    mode: input.mode,
+    error: input.error,
+  });
+}
+
 function getRelatedNextBeat(currentBeat: Beat | null, currentQueue: Beat[], catalogQueue: Beat[], recentPlayedKeys: string[]) {
   if (!currentBeat) {
     return null;
@@ -203,7 +212,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
 
     audio.addEventListener("error", () => {
-      console.error("Audio file not found");
+      warnAudioFailure({ beat, audioUrl: nextAudioUrl, mode: nextMode, error: audio.error });
       setIsPlaying(false);
     });
 
@@ -212,8 +221,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setIsPlaying(true);
         fadeAudio(audio, 0, 1);
       })
-      .catch(() => {
-        console.error("Audio file not found");
+      .catch((error) => {
+        warnAudioFailure({ beat, audioUrl: nextAudioUrl, mode: nextMode, error });
         setIsPlaying(false);
       });
   }, []);
@@ -330,8 +339,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           setIsPlaying(true);
           fadeAudio(audio, audio.volume, 1);
         })
-        .catch(() => {
-          console.error("Audio file not found");
+        .catch((error) => {
+          warnAudioFailure({ beat: currentBeat, audioUrl, mode, error });
           setIsPlaying(false);
         });
       return;
@@ -341,7 +350,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       audio.pause();
       setIsPlaying(false);
     });
-  }, []);
+  }, [audioUrl, currentBeat, mode]);
 
   const seekTo = useCallback((seconds: number) => {
     const audio = audioRef.current;
