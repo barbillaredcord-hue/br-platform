@@ -519,38 +519,38 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
       </div>
       {catalogLoadMessage ? <p className="mb-4 rounded-md border border-red-300/20 bg-red-950/20 p-3 text-sm text-red-100">{catalogLoadMessage}</p> : null}
       {actionMessage ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{actionMessage}</p> : null}
-      <div className="mb-4">
+      <div className="mb-3">
         <button
           type="button"
           onClick={() => setIsHistoryOpen((current) => !current)}
-          className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
+          className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
           aria-controls="beat-change-history-panel"
         >
           <span>
             <span className="block text-xs font-bold uppercase tracking-[0.18em] text-cyan-100">Historial</span>
             <span className="text-[11px] text-zinc-500">Gestión de Beats · 7 días</span>
           </span>
-          <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-1 text-xs font-bold text-cyan-100">
+          <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-0.5 text-[11px] font-bold text-cyan-100">
             {changeEvents.length} eventos
           </span>
         </button>
 
         {isHistoryOpen ? (
-          <div id="beat-change-history-panel" className="mt-2 rounded-lg border border-white/10 bg-[#15181c] p-2">
-            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div id="beat-change-history-panel" className="mt-1.5 rounded-md border border-white/10 bg-[#15181c] p-1.5">
+            <div className="mb-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs font-semibold text-zinc-300">Últimos 7 días</p>
               <button
                 type="button"
                 onClick={downloadHistoryPdf}
-                className="h-8 w-fit rounded-md border border-cyan-300/30 px-2.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/10"
+                className="h-7 w-fit rounded-md border border-cyan-300/30 px-2 text-[10px] font-bold text-cyan-100 hover:bg-cyan-300/10"
               >
                 Descargar PDF
               </button>
             </div>
             {changeEvents.length ? (
-              <div className="grid max-h-24 gap-1.5 overflow-y-auto pr-1">
+              <div className="grid max-h-20 gap-1 overflow-y-auto pr-1">
                 {changeEvents.map((event) => (
-                  <div key={event.id} className="grid gap-1 rounded-md bg-black/20 px-2 py-1.5 text-[11px] text-zinc-300 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_auto] sm:items-center">
+                  <div key={event.id} className="grid gap-0.5 rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-300 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_auto] sm:items-center">
                     <span className="min-w-0">
                       <span className="block font-semibold text-cyan-100">{event.block_title}</span>
                       <span className="block truncate text-zinc-500">{formatChangeDetail(event)}</span>
@@ -561,7 +561,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                 ))}
               </div>
             ) : (
-              <p className="rounded-md bg-black/20 px-2 py-1.5 text-[11px] text-zinc-500">Aún no hay cambios registrados.</p>
+              <p className="rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-500">Aún no hay cambios registrados.</p>
             )}
           </div>
         ) : null}
