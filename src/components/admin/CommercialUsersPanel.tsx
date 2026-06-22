@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, CreditCard, Download, RefreshCw, UserRound, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CreditCard, Download, ExternalLink, RefreshCw, UserRound, X } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type CommercialUser = {
@@ -60,6 +60,13 @@ type CommercialSummary = {
   total_license_downloads: number;
   total_manual_payments: number;
 };
+
+type TopDownloadedBeat = CommercialSummary["top_downloaded_beats"][number];
+
+type DetailDock =
+  | { type: "user"; user: CommercialUser }
+  | { type: "beat"; beat: TopDownloadedBeat }
+  | null;
 
 const initialForm = {
   beat_id: "",
@@ -124,6 +131,7 @@ export function CommercialUsersPanel() {
   const [isTopUsersOpen, setIsTopUsersOpen] = useState(false);
   const [isTopBeatsOpen, setIsTopBeatsOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<CommercialUser | null>(null);
+  const [detailDock, setDetailDock] = useState<DetailDock>(null);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const [beatOptions, setBeatOptions] = useState<PaymentBeatOption[]>([]);
   const [form, setForm] = useState(initialForm);
@@ -217,13 +225,25 @@ export function CommercialUsersPanel() {
   }, []);
 
   function selectUser(user: CommercialUser) {
-    const isSameUser = selectedUser?.id === user.id;
-
     setSelectedUser(user);
-    setIsPaymentFormOpen(!isSameUser || !isPaymentFormOpen);
+    setDetailDock({ type: "user", user });
+    setIsPaymentFormOpen(false);
     setBeatOptions([]);
     setForm(initialForm);
     void loadBeatOptions(user.id);
+  }
+
+  function selectTopBeat(beat: TopDownloadedBeat) {
+    setDetailDock({ type: "beat", beat });
+    setIsPaymentFormOpen(false);
+  }
+
+  function closeDock() {
+    setDetailDock(null);
+    setSelectedUser(null);
+    setIsPaymentFormOpen(false);
+    setBeatOptions([]);
+    setForm(initialForm);
   }
 
   function updateField(field: keyof typeof initialForm, value: string) {
@@ -309,7 +329,9 @@ export function CommercialUsersPanel() {
         </button>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+      <div className="mt-3 grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="min-w-0">
+      <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
         <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
           <p className="text-xs font-bold uppercase text-cyan-200">Ganancias este mes</p>
           <p className="mt-1 text-lg font-black text-cyan-100">{money(earnings.current_month)}</p>
@@ -409,14 +431,10 @@ export function CommercialUsersPanel() {
                     </>
                   );
 
-                  return beat.beat_slug ? (
-                    <Link key={beat.beat_id} href={`/beats/${beat.beat_slug}`} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] text-zinc-300 hover:border-emerald-300/40 xl:w-full">
+                  return (
+                    <button key={beat.beat_id} type="button" onClick={() => selectTopBeat(beat)} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-emerald-300/40 xl:w-full">
                       {content}
-                    </Link>
-                  ) : (
-                    <div key={beat.beat_id} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] text-zinc-300 xl:w-full">
-                      {content}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -504,69 +522,153 @@ export function CommercialUsersPanel() {
         ))}
       </div>
 
-      {selectedUser && isPaymentFormOpen ? (
-        <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase text-zinc-500">Registro manual</p>
-              <h3 className="mt-1 font-bold">{userLabel(selectedUser)}</h3>
-              <p className="text-xs text-zinc-500">{selectedUser.email}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              {isLoadingOptions ? <p className="text-sm text-zinc-400">Cargando beats...</p> : null}
-              <button
-                type="button"
-                onClick={() => setIsPaymentFormOpen(false)}
-                className="rounded-md border border-white/10 px-3 py-2 text-xs font-bold text-zinc-300 hover:border-cyan-300 hover:text-cyan-200"
-              >
-                Ocultar
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
-            <label className="grid gap-1.5 md:col-span-2">
-              <span className="text-sm font-semibold text-zinc-300">Beat pendiente de pago</span>
-              <select value={form.beat_id} onChange={(event) => updateField("beat_id", event.target.value)} className="h-8 rounded-md border border-white/10 bg-[#15181c] px-3 text-sm outline-none focus:border-cyan-300">
-                <option value="">{beatOptions.length === 0 ? "Sin beats pendientes" : "Selecciona un beat"}</option>
-                {beatOptions.map((beat) => (
-                  <option key={beat.id} value={beat.id}>
-                    {beat.title || beat.slug || beat.id} {beat.genre ? `- ${beat.genre}` : ""} {beat.bpm ? `- ${beat.bpm} BPM` : ""}
-                  </option>
-                ))}
-              </select>
-              {selectedBeat ? <span className="text-xs text-zinc-500">ID: {selectedBeat.id}</span> : null}
-            </label>
-
-            <label className="grid gap-1.5">
-              <span className="text-sm font-semibold text-zinc-300">Monto</span>
-              <input value={form.amount} onChange={(event) => updateField("amount", event.target.value)} type="number" min="0" step="0.01" className="h-8 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="1500.00" />
-            </label>
-
-            <label className="grid gap-1.5">
-              <span className="text-sm font-semibold text-zinc-300">Moneda</span>
-              <input value={form.currency} onChange={(event) => updateField("currency", event.target.value.toUpperCase())} className="h-8 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="MXN" maxLength={3} />
-            </label>
-
-            <label className="grid gap-1.5 md:col-span-2">
-              <span className="text-sm font-semibold text-zinc-300">Método</span>
-              <input value={form.payment_method} onChange={(event) => updateField("payment_method", event.target.value)} className="h-8 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="Transferencia, efectivo..." />
-            </label>
-
-            <label className="grid gap-1.5 md:col-span-2">
-              <span className="text-sm font-semibold text-zinc-300">Nota</span>
-              <textarea value={form.note} onChange={(event) => updateField("note", event.target.value)} className="min-h-14 rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-cyan-300" placeholder="Referencia o nota interna" />
-            </label>
-          </div>
-
-          <div className="mt-2">
-            <button type="button" onClick={() => void submitPayment()} disabled={isSaving || !form.beat_id || beatOptions.length === 0} className="inline-flex h-8 items-center gap-2 rounded-md bg-cyan-300 px-3 text-[11px] font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
-              <CreditCard className="h-4 w-4" aria-hidden="true" />
-              {isSaving ? "Guardando..." : "Registrar pago"}
-            </button>
-          </div>
         </div>
-      ) : null}
+
+        <aside className="min-h-[520px] rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.12),transparent_34%),#0b0f13] p-4 shadow-2xl shadow-black/20">
+          {!detailDock ? (
+            <div className="grid h-full min-h-[420px] place-items-center rounded-lg border border-white/10 bg-black/15 p-6 text-center">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-200">Detalle comercial</p>
+                <h3 className="mt-2 text-2xl font-black text-white">Selecciona un usuario o beat</h3>
+                <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
+                  El detalle se ancla aquí para revisar pagos, accesos, descargas y licencias sin abrir formularios debajo de la lista.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {detailDock?.type === "beat" ? (
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">Top beat</p>
+                  <h3 className="mt-2 truncate text-2xl font-black text-white">{detailDock.beat.beat_title || detailDock.beat.beat_slug || detailDock.beat.beat_id}</h3>
+                  <p className="mt-1 truncate text-sm text-zinc-500">{detailDock.beat.beat_slug || detailDock.beat.beat_id}</p>
+                </div>
+                <button type="button" onClick={closeDock} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:border-cyan-300 hover:text-cyan-200" aria-label="Cerrar detalle">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
+                  <p className="text-xs font-bold uppercase text-emerald-200">Total downloads</p>
+                  <p className="mt-2 text-3xl font-black text-emerald-100">{detailDock.beat.total_downloads}</p>
+                </div>
+                <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
+                  <p className="text-xs font-bold uppercase text-cyan-200">MP3</p>
+                  <p className="mt-2 text-3xl font-black text-cyan-100">{detailDock.beat.mp3}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-bold uppercase text-zinc-500">Licencias</p>
+                  <p className="mt-2 text-3xl font-black text-white">{detailDock.beat.licenses}</p>
+                </div>
+              </div>
+
+              {detailDock.beat.beat_slug ? (
+                <Link href={`/beats/${detailDock.beat.beat_slug}`} className="mt-5 inline-flex h-10 items-center gap-2 rounded-md border border-emerald-300/20 px-4 text-xs font-bold text-emerald-100 hover:border-emerald-300 hover:bg-emerald-300/10">
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  Ver beat público
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+
+          {detailDock?.type === "user" ? (
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-200">Usuario comercial</p>
+                  <h3 className="mt-2 truncate text-2xl font-black text-white">{userLabel(detailDock.user)}</h3>
+                  <p className="mt-1 truncate text-sm text-zinc-500">{detailDock.user.email}</p>
+                </div>
+                <button type="button" onClick={closeDock} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:border-cyan-300 hover:text-cyan-200" aria-label="Cerrar detalle">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
+                  <p className="text-[10px] font-bold uppercase text-emerald-200">Total registrado</p>
+                  <p className="mt-2 text-xl font-black text-emerald-100">{money(detailDock.user.total_paid_amount)}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos completos</p>
+                  <p className="mt-2 text-xl font-black text-white">{detailDock.user.total_paid_beats}</p>
+                </div>
+                <div className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-3">
+                  <p className="text-[10px] font-bold uppercase text-amber-200">Pagos pendientes</p>
+                  <p className="mt-2 text-xl font-black text-amber-100">{detailDock.user.pending_payment_beats}</p>
+                </div>
+                <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
+                  <p className="text-[10px] font-bold uppercase text-cyan-200">Acceso total</p>
+                  <p className="mt-2 text-xl font-black text-cyan-100">{detailDock.user.total_access_beats}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <p className="text-[10px] font-bold uppercase text-zinc-500">MP3 descargados</p>
+                  <p className="mt-2 text-xl font-black text-cyan-100">{detailDock.user.mp3_download_count}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <p className="text-[10px] font-bold uppercase text-zinc-500">Licencias</p>
+                  <p className="mt-2 text-xl font-black text-cyan-100">{detailDock.user.license_download_count}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => setIsPaymentFormOpen((current) => !current)} className="inline-flex h-9 items-center gap-2 rounded-md bg-cyan-300 px-3 text-xs font-bold text-black hover:bg-cyan-200">
+                  <CreditCard className="h-4 w-4" aria-hidden="true" />
+                  {isPaymentFormOpen ? "Ocultar registro" : "Registro manual"}
+                </button>
+                {isLoadingOptions ? <p className="text-xs text-zinc-400">Cargando beats pendientes...</p> : null}
+              </div>
+
+              {isPaymentFormOpen ? (
+                <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <label className="grid gap-1.5 md:col-span-2">
+                      <span className="text-sm font-semibold text-zinc-300">Beat pendiente de pago</span>
+                      <select value={form.beat_id} onChange={(event) => updateField("beat_id", event.target.value)} className="h-9 rounded-md border border-white/10 bg-[#15181c] px-3 text-sm outline-none focus:border-cyan-300">
+                        <option value="">{beatOptions.length === 0 ? "Sin beats pendientes" : "Selecciona un beat"}</option>
+                        {beatOptions.map((beat) => (
+                          <option key={beat.id} value={beat.id}>
+                            {beat.title || beat.slug || beat.id} {beat.genre ? `- ${beat.genre}` : ""} {beat.bpm ? `- ${beat.bpm} BPM` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedBeat ? <span className="text-xs text-zinc-500">ID: {selectedBeat.id}</span> : null}
+                    </label>
+
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-semibold text-zinc-300">Monto</span>
+                      <input value={form.amount} onChange={(event) => updateField("amount", event.target.value)} type="number" min="0" step="0.01" className="h-9 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="1500.00" />
+                    </label>
+
+                    <label className="grid gap-1.5">
+                      <span className="text-sm font-semibold text-zinc-300">Moneda</span>
+                      <input value={form.currency} onChange={(event) => updateField("currency", event.target.value.toUpperCase())} className="h-9 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="MXN" maxLength={3} />
+                    </label>
+
+                    <label className="grid gap-1.5 md:col-span-2">
+                      <span className="text-sm font-semibold text-zinc-300">Método</span>
+                      <input value={form.payment_method} onChange={(event) => updateField("payment_method", event.target.value)} className="h-9 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" placeholder="Transferencia, efectivo..." />
+                    </label>
+
+                    <label className="grid gap-1.5 md:col-span-2">
+                      <span className="text-sm font-semibold text-zinc-300">Nota</span>
+                      <textarea value={form.note} onChange={(event) => updateField("note", event.target.value)} className="min-h-16 rounded-md border border-white/10 bg-white/5 px-3 py-3 text-sm outline-none focus:border-cyan-300" placeholder="Referencia o nota interna" />
+                    </label>
+                  </div>
+
+                  <button type="button" onClick={() => void submitPayment()} disabled={isSaving || !form.beat_id || beatOptions.length === 0} className="mt-3 inline-flex h-9 items-center gap-2 rounded-md bg-cyan-300 px-3 text-xs font-bold text-black hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">
+                    <CreditCard className="h-4 w-4" aria-hidden="true" />
+                    {isSaving ? "Guardando..." : "Registrar pago"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </aside>
+      </div>
     </section>
   );
 }

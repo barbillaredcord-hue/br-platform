@@ -20,10 +20,8 @@ export default async function AdminPage() {
     >
       <AdminDashboardStats initialBeats={beats} initialUsers={users} initialRequests={requests} />
       <ProductUpdatesPanel audience="admin" />
-      <div className="grid gap-3 xl:grid-cols-[0.95fr_1.85fr]">
-        <CommercialUsersPanel />
-        <CommercialActivityPanel />
-      </div>
+      <CommercialUsersPanel />
+      <CommercialActivityPanel />
 
       <section className="rounded-lg border border-white/10 bg-[#101317] p-3">
         <h2 className="mb-3 text-base font-bold">Accesos rápidos</h2>
