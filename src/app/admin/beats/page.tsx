@@ -13,13 +13,14 @@ export default async function AdminBeatsPage() {
     <AdminShell
       title="Gestión de Beats"
       subtitle="Catálogo admin conectado a Supabase con fallback local temporal."
+      compact
     >
-      <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#101317] p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 rounded-lg border border-white/10 bg-[#101317] p-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-bold">Catálogo admin</p>
-          <p className="text-sm text-zinc-400">{beats.length} beats cargados {usingFallback ? "desde fallback local" : "desde Supabase"}.</p>
+          <p className="text-sm font-bold">Catálogo admin</p>
+          <p className="text-xs text-zinc-400">{beats.length} beats cargados {usingFallback ? "desde fallback local" : "desde Supabase"}.</p>
         </div>
-        <Link href="/admin/beats/new" className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-bold text-black hover:bg-cyan-200">
+        <Link href="/admin/beats/new" className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-cyan-300 px-3 text-xs font-bold text-black hover:bg-cyan-200">
           <Plus className="h-4 w-4" aria-hidden="true" />
           Nuevo Beat
         </Link>

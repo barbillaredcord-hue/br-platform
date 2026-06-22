@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { SlidersHorizontal, Trash2 } from "lucide-react";
+import { Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { createAdminChangeLog, deleteBeatAsAdmin, getAdminChangeLogs, getProfilesResult, updateBeatMetadataAsAdmin, updateBeatPlaybackVisibilityAsAdmin, type AdminChangeLog } from "@/lib/supabase/queries";
 import { PlayButton } from "../PlayButton";
-import { AdminBeatStatus } from "./AdminBeatStatus";
 
 type AdminBeat = Beat & { isActive?: boolean | null };
 type MetadataField = "genre" | "bpm" | "musicalKey";
@@ -168,6 +167,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const [catalogLoadMessage, setCatalogLoadMessage] = useState("");
   const [changeEvents, setChangeEvents] = useState<AdminChangeLog[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedBeatId, setSelectedBeatId] = useState("");
 
   const loadChangeEvents = useCallback(async () => {
     const result = await getAdminChangeLogs({ temporary: true });
@@ -250,6 +250,29 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
 
     return adminBeats.filter((beat) => [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) => value.toLowerCase().includes(term)));
   }, [adminBeats, search]);
+
+  const beatStats = useMemo(() => {
+    const activeBeats = adminBeats.filter((beat) => (beat as AdminBeat).isActive ?? true);
+    const publicBeats = adminBeats.filter((beat) => beat.playbackVisibility === "public");
+
+    return {
+      total: adminBeats.length,
+      active: activeBeats.length,
+      public: publicBeats.length,
+      private: adminBeats.length - publicBeats.length,
+    };
+  }, [adminBeats]);
+
+  const topAccessBeats = useMemo(() => {
+    return [...adminBeats]
+      .map((beat) => ({ beat, usersWithAccess: getUsersWithBeatAccess(beat, localUsers) }))
+      .sort((firstBeat, secondBeat) => secondBeat.usersWithAccess.length - firstBeat.usersWithAccess.length)
+      .slice(0, 5);
+  }, [adminBeats, localUsers]);
+
+  const selectedBeat = useMemo(() => {
+    return filteredBeats.find((beat) => beat.id === selectedBeatId || beat.dbId === selectedBeatId) ?? filteredBeats[0] ?? null;
+  }, [filteredBeats, selectedBeatId]);
 
   useEffect(() => {
     const loadId = window.setTimeout(() => {
@@ -506,258 +529,284 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     );
   }
 
+  const selectedAdminBeat = selectedBeat as AdminBeat | null;
+  const selectedUsersWithAccess = selectedBeat ? getUsersWithBeatAccess(selectedBeat, localUsers) : [];
+
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar nombre, slug, género o BPM"
-          className="h-11 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300 md:max-w-lg"
-        />
-        <span className="text-sm font-semibold text-cyan-200">{filteredBeats.length} / {adminBeats.length} beats</span>
-      </div>
-      {catalogLoadMessage ? <p className="mb-4 rounded-md border border-red-300/20 bg-red-950/20 p-3 text-sm text-red-100">{catalogLoadMessage}</p> : null}
-      {actionMessage ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">{actionMessage}</p> : null}
-      <div className="mb-3">
-        <button
-          type="button"
-          onClick={() => setIsHistoryOpen((current) => !current)}
-          className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
-          aria-controls="beat-change-history-panel"
-        >
-          <span>
-            <span className="block text-xs font-bold uppercase tracking-[0.18em] text-cyan-100">Historial</span>
-            <span className="text-[11px] text-zinc-500">Gestión de Beats · 7 días</span>
-          </span>
-          <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-0.5 text-[11px] font-bold text-cyan-100">
-            {changeEvents.length} eventos
-          </span>
-        </button>
-
-        {isHistoryOpen ? (
-          <div id="beat-change-history-panel" className="mt-1.5 rounded-md border border-white/10 bg-[#15181c] p-1.5">
-            <div className="mb-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-semibold text-zinc-300">Últimos 7 días</p>
-              <button
-                type="button"
-                onClick={downloadHistoryPdf}
-                className="h-7 w-fit rounded-md border border-cyan-300/30 px-2 text-[10px] font-bold text-cyan-100 hover:bg-cyan-300/10"
-              >
-                Descargar PDF
-              </button>
-            </div>
-            {changeEvents.length ? (
-              <div className="grid max-h-20 gap-1 overflow-y-auto pr-1">
-                {changeEvents.map((event) => (
-                  <div key={event.id} className="grid gap-0.5 rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-300 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_auto] sm:items-center">
-                    <span className="min-w-0">
-                      <span className="block font-semibold text-cyan-100">{event.block_title}</span>
-                      <span className="block truncate text-zinc-500">{formatChangeDetail(event)}</span>
-                    </span>
-                    <span className="truncate">{event.target_name ?? "Sin objetivo"}</span>
-                    <span className="text-zinc-500">{new Date(event.created_at).toLocaleTimeString()}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-500">Aún no hay cambios registrados.</p>
-            )}
+    <section className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
+      <aside className="min-w-0 rounded-xl border border-white/10 bg-[#101317] p-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
+            <p className="text-[10px] font-bold uppercase text-cyan-200">Total</p>
+            <p className="mt-1 text-2xl font-black text-cyan-100">{beatStats.total}</p>
           </div>
-        ) : null}
-      </div>
-      <div className="hidden max-h-[58vh] overflow-auto rounded-lg border border-white/10 md:block">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="sticky top-0 z-10 bg-[#171a1f] text-xs uppercase text-zinc-500">
-            <tr>
-              <th className="px-4 py-3">Portada</th>
-              <th className="px-4 py-3">Nombre</th>
-              <th className="px-4 py-3">Género</th>
-              <th className="px-4 py-3">BPM</th>
-              <th className="px-4 py-3">Tonalidad</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Reproducción</th>
-              <th className="px-4 py-3">Usuarios con acceso</th>
-              <th className="px-4 py-3 text-right">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredBeats.map((beat) => {
-              const usersWithAccess = getUsersWithBeatAccess(beat, localUsers);
-              const adminBeat = beat as AdminBeat;
-              const isActive = adminBeat.isActive ?? true;
+          <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
+            <p className="text-[10px] font-bold uppercase text-emerald-200">Activos</p>
+            <p className="mt-1 text-2xl font-black text-emerald-100">{beatStats.active}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+            <p className="text-[10px] font-bold uppercase text-zinc-500">Públicos</p>
+            <p className="mt-1 text-2xl font-black text-white">{beatStats.public}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <p className="text-[10px] font-bold uppercase text-zinc-500">Privados</p>
+            <p className="mt-1 text-2xl font-black text-white">{beatStats.private}</p>
+          </div>
+        </div>
 
-              return (
-                <tr key={beat.id} className={`border-t border-white/10 ${isActive ? "" : "bg-red-950/10 opacity-65"}`}>
-                  <td className="px-4 py-3">
-                    <div className="relative grid h-12 w-12 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">
-                      B.R
-                      <PlayButton
-                        variant="circle"
-                        beat={beat}
-                        mode="preview"
-                        queue={filteredBeats}
-                        showPauseState
-                        ariaLabel={`Reproducir preview de ${beat.name}`}
-                        className="absolute inset-0 h-full w-full bg-black/45 text-cyan-100 hover:bg-black/65"
-                      />
+        <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-200">Top acceso</p>
+          <div className="mt-2 grid max-h-40 gap-1.5 overflow-y-auto pr-1">
+            {topAccessBeats.map(({ beat, usersWithAccess }) => (
+              <button
+                key={beat.id}
+                type="button"
+                onClick={() => setSelectedBeatId(beat.id)}
+                className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-left text-[11px] hover:border-cyan-300/40"
+              >
+                <span className="block truncate font-bold text-zinc-100">{beat.name}</span>
+                <span className="text-zinc-500">{usersWithAccess.length} usuarios con acceso</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen((current) => !current)}
+            className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
+            aria-controls="beat-change-history-panel"
+          >
+            <span>
+              <span className="block text-xs font-bold uppercase tracking-[0.18em] text-cyan-100">Historial</span>
+              <span className="text-[11px] text-zinc-500">Últimos 7 días</span>
+            </span>
+            <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2 py-0.5 text-[11px] font-bold text-cyan-100">
+              {changeEvents.length}
+            </span>
+          </button>
+
+          {isHistoryOpen ? (
+            <div id="beat-change-history-panel" className="mt-1.5 rounded-md border border-white/10 bg-[#15181c] p-1.5">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-zinc-300">Cambios</p>
+                <button type="button" onClick={downloadHistoryPdf} className="h-7 rounded-md border border-cyan-300/30 px-2 text-[10px] font-bold text-cyan-100 hover:bg-cyan-300/10">
+                  PDF
+                </button>
+              </div>
+              {changeEvents.length ? (
+                <div className="grid max-h-40 gap-1 overflow-y-auto pr-1">
+                  {changeEvents.map((event) => (
+                    <div key={event.id} className="rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-300">
+                      <p className="truncate font-semibold text-cyan-100">{event.block_title}</p>
+                      <p className="truncate text-zinc-500">{event.target_name ?? "Sin objetivo"} · {formatChangeDetail(event)}</p>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 font-semibold">{beat.name}</td>
-                  <td className="px-4 py-3">{renderEditable(adminBeat, "genre", `Editar género de ${beat.name}`)}</td>
-                  <td className="px-4 py-3">{renderEditable(adminBeat, "bpm", `Editar BPM de ${beat.name}`)}</td>
-                  <td className="px-4 py-3">{renderEditable(adminBeat, "musicalKey", `Editar tonalidad de ${beat.name}`)}</td>
-                  <td className="px-4 py-3">
-                    <div className="grid gap-2">
-                      <AdminBeatStatus status={beat.status} />
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-500">Aún no hay cambios registrados.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </aside>
+
+      <div className="min-w-0 rounded-xl border border-white/10 bg-[#101317] p-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="relative md:max-w-md md:flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar beats, slug, género o BPM"
+              className="h-10 w-full rounded-md border border-white/10 bg-white/5 pl-9 pr-3 text-sm outline-none focus:border-cyan-300"
+            />
+          </div>
+          <span className="text-xs font-semibold text-cyan-200">{filteredBeats.length} / {adminBeats.length} beats</span>
+        </div>
+
+        {catalogLoadMessage ? <p className="mt-3 rounded-md border border-red-300/20 bg-red-950/20 p-2 text-xs text-red-100">{catalogLoadMessage}</p> : null}
+        {actionMessage ? <p className="mt-3 rounded-md border border-white/10 bg-white/5 p-2 text-xs text-zinc-300">{actionMessage}</p> : null}
+
+        <div className="mt-3 hidden max-h-[66vh] overflow-auto rounded-lg border border-white/10 md:block">
+          <table className="w-full min-w-[920px] border-collapse text-left text-xs">
+            <thead className="sticky top-0 z-10 bg-[#171a1f] uppercase text-zinc-500">
+              <tr>
+                <th className="px-3 py-2">Beat</th>
+                <th className="px-3 py-2">Género</th>
+                <th className="px-3 py-2">BPM</th>
+                <th className="px-3 py-2">Key</th>
+                <th className="px-3 py-2">Estado</th>
+                <th className="px-3 py-2">Reproducción</th>
+                <th className="px-3 py-2">Acceso</th>
+                <th className="px-3 py-2 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBeats.map((beat) => {
+                const usersWithAccess = getUsersWithBeatAccess(beat, localUsers);
+                const adminBeat = beat as AdminBeat;
+                const isActive = adminBeat.isActive ?? true;
+                const isSelected = selectedBeat?.id === beat.id;
+
+                return (
+                  <tr
+                    key={beat.id}
+                    onClick={() => setSelectedBeatId(beat.id)}
+                    className={`cursor-pointer border-t border-white/10 transition hover:bg-white/[0.04] ${isSelected ? "bg-cyan-300/10" : ""} ${isActive ? "" : "bg-red-950/10 opacity-70"}`}
+                  >
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-[10px] font-black">
+                          B.R
+                          <PlayButton variant="circle" beat={beat} mode="preview" queue={filteredBeats} showPauseState ariaLabel={`Reproducir preview de ${beat.name}`} className="absolute inset-0 h-full w-full bg-black/45 text-cyan-100 hover:bg-black/65" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-zinc-100">{beat.name}</p>
+                          <p className="truncate text-[11px] text-zinc-500">{beat.id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">{renderEditable(adminBeat, "genre", `Editar género de ${beat.name}`)}</td>
+                    <td className="px-3 py-2">{renderEditable(adminBeat, "bpm", `Editar BPM de ${beat.name}`)}</td>
+                    <td className="px-3 py-2">{renderEditable(adminBeat, "musicalKey", `Editar tonalidad de ${beat.name}`)}</td>
+                    <td className="px-3 py-2">
                       <button
                         type="button"
                         disabled={savingBeatId === (beat.dbId ?? beat.id)}
                         onClick={() => void toggleActive(adminBeat)}
-                        className={`w-fit rounded-full border px-2 py-1 text-xs font-bold ${isActive ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-red-300/30 bg-red-300/10 text-red-100"}`}
+                        className={`rounded-full border px-2 py-1 text-[11px] font-bold ${isActive ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-red-300/30 bg-red-300/10 text-red-100"}`}
                       >
                         {isActive ? "Activo" : "Inactivo"}
                       </button>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="grid gap-2">
-                      <PlaybackVisibilityBadge beat={beat} />
-                      <label className="sr-only" htmlFor={`playback-visibility-${beat.id}`}>
-                        Cambiar reproducción de {beat.name}
-                      </label>
+                    </td>
+                    <td className="px-3 py-2">
                       <select
-                        id={`playback-visibility-${beat.id}`}
                         value={beat.playbackVisibility ?? "private"}
                         disabled={updatingVisibilityBeatId === (beat.dbId ?? beat.id)}
                         onChange={(event) => void updatePlaybackVisibility(beat, event.target.value === "public" ? "public" : "private")}
-                        className="h-9 rounded-md border border-white/10 bg-white/5 px-2 text-xs font-semibold text-white outline-none transition focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-8 rounded-md border border-white/10 bg-white/5 px-2 text-[11px] font-semibold text-white outline-none focus:border-cyan-300 disabled:opacity-50"
                       >
-                        <option value="private" className="bg-[#101317] text-white">
-                          Privado
-                        </option>
-                        <option value="public" className="bg-[#101317] text-white">
-                          Público
-                        </option>
+                        <option value="private" className="bg-[#101317] text-white">Privado</option>
+                        <option value="public" className="bg-[#101317] text-white">Público</option>
                       </select>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-400">
-                    {usersWithAccess.length > 0 ? usersWithAccess.map((user) => user.name).join(", ") : "Sin usuarios"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Link
-                        href={`/admin/beats/${beat.id}/preview-editor`}
-                        className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-3 py-2 text-xs font-bold text-black hover:bg-cyan-200"
-                      >
-                        <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
-                        Editar Preview
-                      </Link>
-                      <button
-                        type="button"
-                        disabled={deletingBeatId === (beat.dbId ?? beat.id)}
-                        onClick={() => void deleteBeat(beat)}
-                        className="inline-flex items-center gap-2 rounded-md border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Trash2 className="h-3 w-3" aria-hidden="true" />
-                        {deletingBeatId === (beat.dbId ?? beat.id) ? "Eliminando..." : "Eliminar"}
+                    </td>
+                    <td className="px-3 py-2 text-zinc-400">{usersWithAccess.length}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-1.5">
+                        <Link href={`/admin/beats/${beat.id}/preview-editor`} className="inline-flex h-8 items-center gap-1 rounded-md bg-cyan-300 px-2 text-[11px] font-bold text-black hover:bg-cyan-200">
+                          <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />
+                          Preview
+                        </Link>
+                        <button type="button" disabled={deletingBeatId === (beat.dbId ?? beat.id)} onClick={() => void deleteBeat(beat)} className="inline-flex h-8 items-center gap-1 rounded-md border border-red-300/30 px-2 text-[11px] font-bold text-red-100 hover:bg-red-300/10 disabled:opacity-50">
+                          <Trash2 className="h-3 w-3" aria-hidden="true" />
+                          {deletingBeatId === (beat.dbId ?? beat.id) ? "..." : "Ocultar"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3 grid max-h-[62vh] gap-2 overflow-y-auto pr-1 md:hidden">
+          {filteredBeats.map((beat) => {
+            const adminBeat = beat as AdminBeat;
+            const isActive = adminBeat.isActive ?? true;
+            const isSelected = selectedBeat?.id === beat.id;
+
+            return (
+              <article key={beat.id} onClick={() => setSelectedBeatId(beat.id)} className={`rounded-lg border p-3 ${isSelected ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-[#15181c]"} ${isActive ? "" : "opacity-70"}`}>
+                <div className="flex items-start gap-3">
+                  <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-[10px] font-black">
+                    B.R
+                    <PlayButton variant="circle" beat={beat} mode="preview" queue={filteredBeats} showPauseState ariaLabel={`Reproducir preview de ${beat.name}`} className="absolute inset-0 h-full w-full bg-black/45 text-cyan-100 hover:bg-black/65" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">{beat.name}</p>
+                    <p className="truncate text-[11px] text-zinc-500">{beat.id}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                      {renderEditable(adminBeat, "genre", `Editar género de ${beat.name}`)}
+                      {renderEditable(adminBeat, "bpm", `Editar BPM de ${beat.name}`)}
+                      {renderEditable(adminBeat, "musicalKey", `Editar tonalidad de ${beat.name}`)}
+                      <button type="button" disabled={savingBeatId === (beat.dbId ?? beat.id)} onClick={() => void toggleActive(adminBeat)} className={`rounded-md border px-2 py-1 text-[11px] font-bold ${isActive ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-red-300/30 bg-red-300/10 text-red-100"}`}>
+                        {isActive ? "Activo" : "Inactivo"}
                       </button>
                     </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid max-h-[62vh] gap-3 overflow-y-auto pr-1 md:hidden">
-        {filteredBeats.map((beat) => {
-          const adminBeat = beat as AdminBeat;
-          const isActive = adminBeat.isActive ?? true;
+      <aside className="min-w-0 rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.12),transparent_34%),#0b0f13] p-3 xl:sticky xl:top-4 xl:h-fit">
+        {selectedBeat && selectedAdminBeat ? (
+          <div>
+            <div className="grid aspect-square place-items-center rounded-lg bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-4xl font-black text-white/85">
+              B.R
+            </div>
+            <div className="mt-3">
+              <h3 className="break-words text-xl font-black text-white">{selectedBeat.name}</h3>
+              <p className="mt-1 break-all text-xs text-zinc-500">{selectedBeat.id}</p>
+            </div>
 
-          return (
-          <article key={beat.id} className={`rounded-lg border border-white/10 bg-[#15181c] p-4 ${isActive ? "" : "opacity-65"}`}>
-            <div className="flex items-start gap-3">
-              <div className="relative grid h-14 w-14 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-xs font-black">
-                B.R
-                <PlayButton
-                  variant="circle"
-                  beat={beat}
-                  mode="preview"
-                  queue={filteredBeats}
-                  showPauseState
-                  ariaLabel={`Reproducir preview de ${beat.name}`}
-                  className="absolute inset-0 h-full w-full bg-black/45 text-cyan-100 hover:bg-black/65"
-                />
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-bold text-zinc-200">{selectedBeat.genre}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-bold text-zinc-200">{selectedBeat.bpm} BPM</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-bold text-zinc-200">{selectedBeat.key || "Sin key"}</span>
+              <span className={`rounded-full border px-2 py-1 text-[11px] font-bold ${(selectedAdminBeat.isActive ?? true) ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-red-300/30 bg-red-300/10 text-red-100"}`}>
+                {(selectedAdminBeat.isActive ?? true) ? "Activo" : "Inactivo"}
+              </span>
+              <PlaybackVisibilityBadge beat={selectedBeat} />
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                <p className="text-[10px] font-bold uppercase text-zinc-500">Preview actual</p>
+                <audio className="mt-2 w-full" controls src={selectedBeat.previewUrl} />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{beat.name}</p>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                  {renderEditable(adminBeat, "genre", `Editar género de ${beat.name}`)}
-                  {renderEditable(adminBeat, "bpm", `Editar BPM de ${beat.name}`)}
-                  {renderEditable(adminBeat, "musicalKey", `Editar tonalidad de ${beat.name}`)}
-                  <button
-                    type="button"
-                    disabled={savingBeatId === (beat.dbId ?? beat.id)}
-                    onClick={() => void toggleActive(adminBeat)}
-                    className={`rounded-md border px-2 py-1 text-xs font-bold ${isActive ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : "border-red-300/30 bg-red-300/10 text-red-100"}`}
-                  >
-                    {isActive ? "Activo" : "Inactivo"}
-                  </button>
-                </div>
-                <div className="mt-3">
-                  <AdminBeatStatus status={beat.status} />
-                </div>
-                <div className="mt-2 grid gap-2">
-                  <PlaybackVisibilityBadge beat={beat} />
-                  <label className="sr-only" htmlFor={`mobile-playback-visibility-${beat.id}`}>
-                    Cambiar reproducción de {beat.name}
-                  </label>
-                  <select
-                    id={`mobile-playback-visibility-${beat.id}`}
-                    value={beat.playbackVisibility ?? "private"}
-                    disabled={updatingVisibilityBeatId === (beat.dbId ?? beat.id)}
-                    onChange={(event) => void updatePlaybackVisibility(beat, event.target.value === "public" ? "public" : "private")}
-                    className="h-10 rounded-md border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="private" className="bg-[#101317] text-white">
-                      Privado
-                    </option>
-                    <option value="public" className="bg-[#101317] text-white">
-                      Público
-                    </option>
-                  </select>
-                </div>
-                <p className="mt-2 text-xs text-zinc-500">
-                  Usuarios con acceso:{" "}
-                  {getUsersWithBeatAccess(beat, localUsers).map((user) => user.name).join(", ") || "Sin usuarios"}
-                </p>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                <p className="text-[10px] font-bold uppercase text-zinc-500">Full audio</p>
+                <audio className="mt-2 w-full" controls src={selectedBeat.fullAudioUrl} />
               </div>
             </div>
+
+            <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-xs font-bold uppercase text-cyan-200">Usuarios con acceso</p>
+              <div className="mt-2 grid max-h-24 gap-1 overflow-y-auto pr-1">
+                {selectedUsersWithAccess.length ? (
+                  selectedUsersWithAccess.map((user) => <span key={user.id} className="truncate rounded bg-black/20 px-2 py-1 text-xs text-zinc-300">{user.name}</span>)
+                ) : (
+                  <p className="text-xs text-zinc-500">Sin usuarios con acceso.</p>
+                )}
+              </div>
+            </div>
+
             <div className="mt-4 grid gap-2">
-              <Link
-                href={`/admin/beats/${beat.id}/preview-editor`}
-                className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200"
-              >
+              <PlayButton variant="light" beat={selectedBeat} mode="preview" queue={filteredBeats} showPauseState>
+                Preview
+              </PlayButton>
+              <Link href={`/admin/beats/${selectedBeat.id}/preview-editor`} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 text-sm font-bold text-black hover:bg-cyan-200">
                 <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                 Editar Preview
               </Link>
-              <button
-                type="button"
-                disabled={deletingBeatId === (beat.dbId ?? beat.id)}
-                onClick={() => void deleteBeat(beat)}
-                className="flex h-10 items-center justify-center gap-2 rounded-md border border-red-300/30 text-sm font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <button type="button" disabled={deletingBeatId === (selectedBeat.dbId ?? selectedBeat.id)} onClick={() => void deleteBeat(selectedBeat)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-300/30 text-sm font-bold text-red-100 hover:bg-red-300/10 disabled:opacity-50">
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
-                {deletingBeatId === (beat.dbId ?? beat.id) ? "Eliminando..." : "Eliminar"}
+                {deletingBeatId === (selectedBeat.dbId ?? selectedBeat.id) ? "Ocultando..." : "Ocultar/Eliminar"}
               </button>
             </div>
-          </article>
-          );
-        })}
-      </div>
+          </div>
+        ) : (
+          <div className="grid min-h-72 place-items-center rounded-lg border border-white/10 bg-black/15 p-6 text-center">
+            <p className="text-sm text-zinc-400">Selecciona un beat para ver detalle.</p>
+          </div>
+        )}
+      </aside>
     </section>
   );
 }
