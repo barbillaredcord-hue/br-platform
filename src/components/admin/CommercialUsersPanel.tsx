@@ -35,12 +35,45 @@ type EarningsSummary = {
   }>;
 };
 
+type CommercialSummary = {
+  top_active_users: Array<{
+    id: string;
+    email: string;
+    username: string | null;
+    display_name: string | null;
+    activity_count: number;
+    mp3_download_count: number;
+    license_download_count: number;
+    total_paid_beats: number;
+    total_paid_amount: number;
+  }>;
+  top_downloaded_beats: Array<{
+    beat_id: string;
+    beat_title: string | null;
+    beat_slug: string | null;
+    mp3: number;
+    licenses: number;
+    total_downloads: number;
+  }>;
+  total_mp3_downloads: number;
+  total_license_downloads: number;
+  total_manual_payments: number;
+};
+
 const initialForm = {
   beat_id: "",
   amount: "",
   currency: "MXN",
   payment_method: "",
   note: "",
+};
+
+const emptyCommercialSummary: CommercialSummary = {
+  top_active_users: [],
+  top_downloaded_beats: [],
+  total_mp3_downloads: 0,
+  total_license_downloads: 0,
+  total_manual_payments: 0,
 };
 
 function userLabel(user: CommercialUser) {
@@ -80,6 +113,7 @@ export function CommercialUsersPanel() {
     current_month_key: "",
     history: [],
   });
+  const [summary, setSummary] = useState<CommercialSummary>(emptyCommercialSummary);
   const [isEarningsHistoryOpen, setIsEarningsHistoryOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<CommercialUser | null>(null);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -131,6 +165,7 @@ export function CommercialUsersPanel() {
 
       setUsers(payload.users ?? []);
       setEarnings(payload.earnings ?? { total: 0, current_month: 0, current_month_key: "", history: [] });
+      setSummary(payload.summary ?? emptyCommercialSummary);
     } catch {
       setMessage("No se pudieron cargar los usuarios comerciales.");
     } finally {
@@ -290,6 +325,20 @@ export function CommercialUsersPanel() {
           >
             Ver historial
           </button>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-md border border-white/10 bg-black/20 p-2">
+          <p className="text-[10px] font-bold uppercase text-zinc-500">MP3 total</p>
+          <p className="mt-1 text-base font-black text-cyan-100">{summary.total_mp3_downloads}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-black/20 p-2">
+          <p className="text-[10px] font-bold uppercase text-zinc-500">Licencias total</p>
+          <p className="mt-1 text-base font-black text-cyan-100">{summary.total_license_downloads}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-black/20 p-2">
+          <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos total</p>
+          <p className="mt-1 text-base font-black text-emerald-100">{summary.total_manual_payments}</p>
         </div>
       </div>
 

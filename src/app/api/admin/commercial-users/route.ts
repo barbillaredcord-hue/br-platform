@@ -22,6 +22,9 @@ type ManualPaymentRow = {
 type ActivityRow = {
   user_id: string | null;
   event_type: string | null;
+  beat_id: string | null;
+  beat_title: string | null;
+  beat_slug: string | null;
 };
 
 type DownloadCounts = {
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
     admin.supabase.from("profiles").select("id,email,username,display_name").order("created_at", { ascending: false }),
     admin.supabase.from("beat_access").select("user_id,beat_id"),
     admin.supabase.from("manual_payments").select("user_id,beat_id,amount,created_at"),
-    admin.supabase.from("commercial_activity").select("user_id,event_type").in("event_type", ["mp3_download", "license_download"]),
+    admin.supabase.from("commercial_activity").select("user_id,event_type,beat_id,beat_title,beat_slug").in("event_type", ["mp3_download", "license_download"]),
   ]);
 
   if (profilesResult.error) {
@@ -96,6 +99,7 @@ export async function GET(request: Request) {
   const paidByUser = new Map<string, Set<string>>();
   const totalsByUser = new Map<string, number>();
   const downloadCountsByUser = new Map<string, DownloadCounts>();
+  const downloadCountsByBeat = new Map<string, { beat_id: string; beat_title: string | null; beat_slug: string | null; mp3: number; licenses: number }>();
   const relevantUserIds = new Set<string>();
   const currentMonthKey = getCurrentMonthKey();
   let earningsTotal = 0;
@@ -158,6 +162,26 @@ export async function GET(request: Request) {
     }
 
     downloadCountsByUser.set(row.user_id, counts);
+
+    if (row.beat_id) {
+      const beatCounts = downloadCountsByBeat.get(row.beat_id) ?? {
+        beat_id: row.beat_id,
+        beat_title: row.beat_title,
+        beat_slug: row.beat_slug,
+        mp3: 0,
+        licenses: 0,
+      };
+
+      if (row.event_type === "mp3_download") {
+        beatCounts.mp3 += 1;
+      }
+
+      if (row.event_type === "license_download") {
+        beatCounts.licenses += 1;
+      }
+
+      downloadCountsByBeat.set(row.beat_id, beatCounts);
+    }
   });
 
   const users = Array.from(relevantUserIds)
@@ -193,6 +217,31 @@ export async function GET(request: Request) {
       return a.email.localeCompare(b.email);
     });
 
+  const topActiveUsers = users
+    .map((user) => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      display_name: user.display_name,
+      activity_count: user.mp3_download_count + user.license_download_count + user.total_paid_beats,
+      mp3_download_count: user.mp3_download_count,
+      license_download_count: user.license_download_count,
+      total_paid_beats: user.total_paid_beats,
+      total_paid_amount: user.total_paid_amount,
+    }))
+    .filter((user) => user.activity_count > 0)
+    .sort((a, b) => b.activity_count - a.activity_count || b.total_paid_amount - a.total_paid_amount || a.email.localeCompare(b.email))
+    .slice(0, 5);
+
+  const topDownloadedBeats = Array.from(downloadCountsByBeat.values())
+    .map((beat) => ({
+      ...beat,
+      total_downloads: beat.mp3 + beat.licenses,
+    }))
+    .filter((beat) => beat.total_downloads > 0)
+    .sort((a, b) => b.total_downloads - a.total_downloads || (a.beat_title || a.beat_slug || a.beat_id).localeCompare(b.beat_title || b.beat_slug || b.beat_id))
+    .slice(0, 5);
+
   const earningsHistory = Array.from(earningsByMonth.entries())
     .map(([month, amount]) => ({ month, amount }))
     .sort((a, b) => b.month.localeCompare(a.month));
@@ -205,6 +254,13 @@ export async function GET(request: Request) {
       current_month: earningsCurrentMonth,
       current_month_key: currentMonthKey,
       history: earningsHistory,
+    },
+    summary: {
+      top_active_users: topActiveUsers,
+      top_downloaded_beats: topDownloadedBeats,
+      total_mp3_downloads: activityRows.filter((row) => row.event_type === "mp3_download").length,
+      total_license_downloads: activityRows.filter((row) => row.event_type === "license_download").length,
+      total_manual_payments: paymentRows.length,
     },
   });
 }
