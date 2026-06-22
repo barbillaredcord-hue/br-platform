@@ -1,9 +1,6 @@
-import { AdminPreview } from "@/components/AdminPreview";
-import { BeatRow } from "@/components/BeatRow";
 import { Header } from "@/components/Header";
-import { HeroBeat } from "@/components/HeroBeat";
+import { HomeDiscovery } from "@/components/HomeDiscovery";
 import { Sidebar } from "@/components/Sidebar";
-import { SupabaseFallbackNotice } from "@/components/SupabaseFallbackNotice";
 import { getBeats } from "@/lib/supabase/queries";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +8,6 @@ export const revalidate = 0;
 
 export default async function Home() {
   const { beats, rows: beatRows, usingFallback } = await getBeats();
-  const newestBeat = beats[0];
-  const mostAccessedBeat: typeof newestBeat | null = null;
 
   return (
     <main className="min-h-screen bg-[#050607] text-white">
@@ -21,18 +16,7 @@ export default async function Home() {
 
         <section className="min-w-0 flex-1">
           <Header />
-
-          <div className="min-w-0 space-y-8 px-3 py-5 sm:px-4 md:space-y-10 md:px-8 md:py-6">
-            {usingFallback ? <SupabaseFallbackNotice /> : null}
-            {newestBeat ? <HeroBeat beat={newestBeat} label="Beat más nuevo" /> : null}
-            {mostAccessedBeat ? <HeroBeat beat={mostAccessedBeat} label="Beat con más acceso" /> : null}
-
-            {beatRows.map((row, rowIndex) => (
-              <BeatRow key={row.title} title={row.title} beats={row.beats} rowIndex={rowIndex} />
-            ))}
-
-            <AdminPreview />
-          </div>
+          <HomeDiscovery beats={beats} beatRows={beatRows} usingFallback={usingFallback} />
         </section>
       </div>
     </main>

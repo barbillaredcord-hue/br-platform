@@ -1,6 +1,6 @@
 import { createClient, type User as SupabaseAuthUser } from "@supabase/supabase-js";
 import type { AccessRequestStatus } from "@/data/accessRequests";
-import { allBeats, beatRows, type Beat, type BeatRow } from "@/data/beats";
+import { allBeats, type Beat, type BeatRow } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "./client";
 import { getSupabasePublicConfigStatus } from "./config";
@@ -175,7 +175,7 @@ function first<T>(value: T | T[] | null | undefined): T | null {
 }
 
 function getFallbackRows(): BeatRow[] {
-  return beatRows;
+  return buildBeatRows(allBeats);
 }
 
 export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status" | "updated_at" | "created_at" | "message">) {
@@ -217,13 +217,71 @@ export function mapSupabaseBeat(row: BeatRowDb): Beat {
 
 export function buildBeatRows(beats: Beat[]): BeatRow[] {
   const groups = new Map<string, Beat[]>();
+  const priority = ["Full Beats", "Trap", "Dark Trap", "Drill", "Boom Bap", "R&B", "Reggaeton", "Afrobeat", "Cinematic"];
+  const priorityMap = new Map(priority.map((title, index) => [title.toLowerCase(), index]));
+
+  const normalizeGenreTitle = (genre: string) => {
+    const normalized = genre.trim().replace(/\s+/g, " ");
+    const priorityTitle = priority.find((title) => title.toLowerCase() === normalized.toLowerCase());
+
+    if (priorityTitle) {
+      return priorityTitle;
+    }
+
+    return normalized || "Sin género";
+  };
+
+  const getGenreTitles = (genre: string) => {
+    const seen = new Set<string>();
+    const titles = genre
+      .split(/[,/;|]+/)
+      .map(normalizeGenreTitle)
+      .filter((title) => {
+        const key = title.toLowerCase();
+
+        if (!title || seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      });
+
+    return titles.length > 0 ? titles : ["Sin género"];
+  };
+
+  const addBeatToGroup = (title: string, beat: Beat) => {
+    const rowBeats = groups.get(title) ?? [];
+
+    if (rowBeats.some((item) => item.id === beat.id)) {
+      return;
+    }
+
+    groups.set(title, [...rowBeats, beat]);
+  };
 
   beats.forEach((beat) => {
-    const title = beat.genre || "Beats";
-    groups.set(title, [...(groups.get(title) ?? []), beat]);
+    if (beat.playbackVisibility === "public") {
+      addBeatToGroup("Full Beats", beat);
+    }
+
+    getGenreTitles(beat.genre || "Sin género").forEach((title) => {
+      addBeatToGroup(title, beat);
+    });
   });
 
-  return Array.from(groups.entries()).map(([title, rowBeats]) => ({ title, beats: rowBeats }));
+  return Array.from(groups.entries())
+    .sort(([titleA], [titleB]) => {
+      const priorityA = priorityMap.get(titleA.toLowerCase());
+      const priorityB = priorityMap.get(titleB.toLowerCase());
+
+      if (priorityA !== undefined || priorityB !== undefined) {
+        return (priorityA ?? Number.MAX_SAFE_INTEGER) - (priorityB ?? Number.MAX_SAFE_INTEGER);
+      }
+
+      return titleA.localeCompare(titleB, "es");
+    })
+    .map(([title, rowBeats]) => ({ title, beats: rowBeats }));
 }
 
 export function getBeatAccessKey(beat: Pick<Beat, "id" | "dbId"> | string) {
