@@ -116,12 +116,12 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.
 
 ## Registry Intelligence
 
-- Apps registradas: 0
-- Healthy: 0
+- Apps registradas: 3
+- Healthy: 3
 - Attention: 0
 - Risk: 0
 - Blocked: 0
-- Validated pilot: 0
-- Recomendacion: No definida
+- Validated pilot: 1
+- Recomendacion: Separar trabajo futuro del ecosistema BR.autocar de riesgos operativos de cada app antes de avanzar al Admin Web.
 
-Ultima generacion: 2026-06-21T16:48:22
+Ultima generacion: 2026-06-21T20:14:45

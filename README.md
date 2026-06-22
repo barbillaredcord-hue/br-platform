@@ -105,4 +105,4 @@ Archivos derivados:
 - `CLAUDE.md`
 - `README.md`
 
-Ultima generacion: 2026-06-21T16:48:22
+Ultima generacion: 2026-06-21T20:14:45
