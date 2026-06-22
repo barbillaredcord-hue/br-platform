@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -34,6 +34,19 @@ export function CommercialActivityPanel() {
   const [activity, setActivity] = useState<CommercialActivity[]>([]);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const activityStats = useMemo(() => {
+    const mp3Downloads = activity.filter((item) => item.event_type === "mp3_download").length;
+    const licenseDownloads = activity.filter((item) => item.event_type === "license_download").length;
+    const manualPayments = activity.filter((item) => item.event_type === "manual_payment").length;
+
+    return {
+      total: activity.length,
+      mp3Downloads,
+      licenseDownloads,
+      manualPayments,
+    };
+  }, [activity]);
 
   const loadActivity = useCallback(async () => {
     const supabase = createSupabaseBrowserClient();
@@ -101,6 +114,25 @@ export function CommercialActivityPanel() {
       </div>
 
       {message ? <p className="mt-3 rounded-md border border-red-300/20 bg-red-950/20 p-2.5 text-xs text-red-100">{message}</p> : null}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+          <p className="text-[10px] font-bold uppercase text-zinc-500">MP3</p>
+          <p className="mt-1 text-lg font-black text-cyan-100">{activityStats.mp3Downloads}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+          <p className="text-[10px] font-bold uppercase text-zinc-500">Licencias</p>
+          <p className="mt-1 text-lg font-black text-cyan-100">{activityStats.licenseDownloads}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+          <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos</p>
+          <p className="mt-1 text-lg font-black text-emerald-100">{activityStats.manualPayments}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+          <p className="text-[10px] font-bold uppercase text-zinc-500">Eventos</p>
+          <p className="mt-1 text-lg font-black text-zinc-100">{activityStats.total}</p>
+        </div>
+      </div>
 
       <div className="mt-3 max-h-[430px] overflow-auto rounded-md border border-white/10 bg-black/10">
         <div className="hidden min-w-[820px] grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 md:grid">
