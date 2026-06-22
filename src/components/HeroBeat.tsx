@@ -11,6 +11,7 @@ import { userCanAccessBeat } from "@/lib/access";
 
 type HeroBeatProps = {
   beat: Beat;
+  label?: string;
 };
 
 function getPreviewSeconds(beat: Beat) {
@@ -48,7 +49,7 @@ function revocationMatchesBeat(revocation: AccessRevocationRow, beatId: string) 
   return revocation.beat_id === beatId || revokedBeat?.slug === beatId;
 }
 
-export function HeroBeat({ beat }: HeroBeatProps) {
+export function HeroBeat({ beat, label = "Beat destacado" }: HeroBeatProps) {
   const previewSeconds = getPreviewSeconds(beat);
   const { currentUser, isEmailConfirmed } = useUser();
   const isAdmin = currentUser?.role === "admin";
@@ -96,7 +97,7 @@ export function HeroBeat({ beat }: HeroBeatProps) {
     <section className="relative overflow-hidden rounded-lg border border-cyan-300/20 bg-[radial-gradient(circle_at_20%_20%,rgba(103,232,249,0.28),transparent_30%),linear-gradient(135deg,#111827,#050607_70%)] p-6 md:p-10">
       <div className="max-w-2xl">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <p className="text-sm font-bold uppercase text-cyan-200">Beat destacado</p>
+          <p className="text-sm font-bold uppercase text-cyan-200">{label}</p>
           {requestStatus ? (
             <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${requestStatusStyles[requestStatus] ?? "border-white/10 bg-white/5 text-zinc-300"}`}>
               {requestStatusLabels[requestStatus] ?? "Solicitud en proceso"}

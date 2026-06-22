@@ -134,7 +134,7 @@ export function CommercialActivityPanel() {
         </div>
       </div>
 
-      <div className="mt-3 max-h-[430px] overflow-auto rounded-md border border-white/10 bg-black/10">
+      <div className="mt-3 max-h-56 overflow-auto rounded-md border border-white/10 bg-black/10">
         <div className="hidden min-w-[820px] grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] bg-white/5 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 md:grid">
           <span>Fecha</span>
           <span>Evento</span>

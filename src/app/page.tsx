@@ -11,7 +11,8 @@ export const revalidate = 0;
 
 export default async function Home() {
   const { beats, rows: beatRows, usingFallback } = await getBeats();
-  const featuredBeat = beats[0];
+  const newestBeat = beats[0];
+  const mostAccessedBeat: typeof newestBeat | null = null;
 
   return (
     <main className="min-h-screen bg-[#050607] text-white">
@@ -23,7 +24,8 @@ export default async function Home() {
 
           <div className="min-w-0 space-y-8 px-3 py-5 sm:px-4 md:space-y-10 md:px-8 md:py-6">
             {usingFallback ? <SupabaseFallbackNotice /> : null}
-            {featuredBeat ? <HeroBeat beat={featuredBeat} /> : null}
+            {newestBeat ? <HeroBeat beat={newestBeat} label="Beat más nuevo" /> : null}
+            {mostAccessedBeat ? <HeroBeat beat={mostAccessedBeat} label="Beat con más acceso" /> : null}
 
             {beatRows.map((row, rowIndex) => (
               <BeatRow key={row.title} title={row.title} beats={row.beats} rowIndex={rowIndex} />

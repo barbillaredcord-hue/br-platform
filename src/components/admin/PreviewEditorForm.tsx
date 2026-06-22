@@ -139,6 +139,7 @@ export function PreviewEditorForm({
   const [waveformSamples, setWaveformSamples] = useState<number[]>([]);
   const [audioDuration, setAudioDuration] = useState(0);
   const [isWaveformLoading, setIsWaveformLoading] = useState(false);
+  const [waveformMessage, setWaveformMessage] = useState("");
   const [status, setStatus] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -162,9 +163,13 @@ export function PreviewEditorForm({
 
     async function loadWaveform() {
       setIsWaveformLoading(true);
+      setWaveformMessage("");
 
       try {
         const response = await fetch(fullAudioUrl);
+        if (!response.ok) {
+          throw new Error(`Waveform fetch failed: ${response.status}`);
+        }
         const arrayBuffer = await response.arrayBuffer();
         const audioContext = new AudioContext();
         const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
@@ -180,7 +185,8 @@ export function PreviewEditorForm({
       } catch (error) {
         console.error("B.R waveform analysis error", error);
         if (isMounted) {
-          setStatus("No se pudo leer la onda del beat. Puedes seguir usando el recorte manual.");
+          setWaveformSamples([]);
+          setWaveformMessage("No se pudo leer onda; usa recorte manual.");
         }
       } finally {
         if (isMounted) {
@@ -514,7 +520,17 @@ export function PreviewEditorForm({
 
           <div className="rounded-md bg-white/5 p-4">
             <p className="text-xs uppercase text-zinc-500">Beat completo para recorte</p>
-            <audio ref={fullAudioRef} className="mt-3 w-full" controls src={fullAudioUrl}>
+            <audio
+              ref={fullAudioRef}
+              className="mt-3 w-full"
+              controls
+              src={fullAudioUrl}
+              onLoadedMetadata={(event) => {
+                if (!audioDuration && Number.isFinite(event.currentTarget.duration)) {
+                  setAudioDuration(event.currentTarget.duration);
+                }
+              }}
+            >
               Tu navegador no soporta audio.
             </audio>
             <button
@@ -538,14 +554,21 @@ export function PreviewEditorForm({
             </span>
           </div>
 
-          <canvas
-            ref={waveformCanvasRef}
-            width={920}
-            height={160}
-            onClick={selectStartFromWaveform}
-            className="h-32 w-full cursor-crosshair rounded-md border border-emerald-300/10 bg-[#05070a]"
-            aria-label="Onda visual del beat completo"
-          />
+          <div className="relative">
+            <canvas
+              ref={waveformCanvasRef}
+              width={920}
+              height={160}
+              onClick={selectStartFromWaveform}
+              className="h-32 w-full cursor-crosshair rounded-md border border-emerald-300/10 bg-[#05070a]"
+              aria-label="Onda visual del beat completo"
+            />
+            {waveformMessage ? (
+              <div className="absolute inset-0 grid place-items-center rounded-md bg-black/45 px-3 text-center text-xs font-bold text-cyan-100">
+                {waveformMessage}
+              </div>
+            ) : null}
+          </div>
 
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
             <span>Inicio: <strong className="text-cyan-100">{startSecond}s</strong></span>

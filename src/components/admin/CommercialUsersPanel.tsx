@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CreditCard, Download, RefreshCw, UserRound, X } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronRight, CreditCard, Download, RefreshCw, UserRound, X } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type CommercialUser = {
@@ -76,7 +77,12 @@ const emptyCommercialSummary: CommercialSummary = {
   total_manual_payments: 0,
 };
 
+
 function userLabel(user: CommercialUser) {
+  return user.display_name || user.username || user.email || user.id;
+}
+
+function summaryUserLabel(user: CommercialSummary["top_active_users"][number]) {
   return user.display_name || user.username || user.email || user.id;
 }
 
@@ -115,6 +121,8 @@ export function CommercialUsersPanel() {
   });
   const [summary, setSummary] = useState<CommercialSummary>(emptyCommercialSummary);
   const [isEarningsHistoryOpen, setIsEarningsHistoryOpen] = useState(false);
+  const [isTopUsersOpen, setIsTopUsersOpen] = useState(false);
+  const [isTopBeatsOpen, setIsTopBeatsOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<CommercialUser | null>(null);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const [beatOptions, setBeatOptions] = useState<PaymentBeatOption[]>([]);
@@ -339,6 +347,81 @@ export function CommercialUsersPanel() {
         <div className="rounded-md border border-white/10 bg-black/20 p-2">
           <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos total</p>
           <p className="mt-1 text-base font-black text-emerald-100">{summary.total_manual_payments}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 xl:grid-cols-2">
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+          <button type="button" onClick={() => setIsTopUsersOpen((current) => !current)} className="flex w-full items-center justify-between gap-2 text-left">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-200">Top usuarios</p>
+              <p className="text-[11px] text-zinc-500">Actividad comercial</p>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/20 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
+              {isTopUsersOpen ? <ChevronDown className="h-3 w-3" aria-hidden="true" /> : <ChevronRight className="h-3 w-3" aria-hidden="true" />}
+              {summary.top_active_users.length}
+            </span>
+          </button>
+          {isTopUsersOpen ? (
+            <div className="mt-2 max-h-40 overflow-auto pr-1">
+              <div className="flex min-w-max gap-1.5 xl:grid xl:min-w-0 xl:grid-cols-1">
+                {summary.top_active_users.length === 0 ? <p className="rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-500">Sin actividad de usuarios.</p> : null}
+                {summary.top_active_users.map((user) => {
+                  const matchedUser = users.find((item) => item.id === user.id);
+                  return (
+                    <button key={user.id} type="button" onClick={() => matchedUser && selectUser(matchedUser)} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-cyan-300/40 xl:w-full">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate font-bold text-cyan-100">{summaryUserLabel(user)}</p>
+                        <span className="shrink-0 text-zinc-500">{user.activity_count}</span>
+                      </div>
+                      <p className="mt-0.5 truncate text-zinc-500">MP3 {user.mp3_download_count} · Lic {user.license_download_count} · Pagos {user.total_paid_beats}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+          <button type="button" onClick={() => setIsTopBeatsOpen((current) => !current)} className="flex w-full items-center justify-between gap-2 text-left">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-200">Top beats</p>
+              <p className="text-[11px] text-zinc-500">Descargas MP3 / licencias</p>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/20 px-2 py-0.5 text-[10px] font-bold text-emerald-100">
+              {isTopBeatsOpen ? <ChevronDown className="h-3 w-3" aria-hidden="true" /> : <ChevronRight className="h-3 w-3" aria-hidden="true" />}
+              {summary.top_downloaded_beats.length}
+            </span>
+          </button>
+          {isTopBeatsOpen ? (
+            <div className="mt-2 max-h-40 overflow-auto pr-1">
+              <div className="flex min-w-max gap-1.5 xl:grid xl:min-w-0 xl:grid-cols-1">
+                {summary.top_downloaded_beats.length === 0 ? <p className="rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-500">Sin beats descargados.</p> : null}
+                {summary.top_downloaded_beats.map((beat) => {
+                  const content = (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate font-bold text-emerald-100">{beat.beat_title || beat.beat_slug || beat.beat_id}</p>
+                        <span className="shrink-0 text-zinc-500">{beat.total_downloads}</span>
+                      </div>
+                      <p className="mt-0.5 truncate text-zinc-500">MP3 {beat.mp3} · Licencias {beat.licenses}</p>
+                    </>
+                  );
+
+                  return beat.beat_slug ? (
+                    <Link key={beat.beat_id} href={`/beats/${beat.beat_slug}`} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] text-zinc-300 hover:border-emerald-300/40 xl:w-full">
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={beat.beat_id} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] text-zinc-300 xl:w-full">
+                      {content}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
