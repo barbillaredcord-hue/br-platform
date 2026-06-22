@@ -47,9 +47,16 @@ export function AdminDashboardStats({ initialBeats, initialUsers, initialRequest
     const contactedRequests = requests.filter((request) => request.status === "contacted" || request.message?.includes("[contactado]"));
     const accessCount = users.reduce((total, user) => total + beats.filter((beat) => userHasBeatAccess(user, beat)).length, 0);
     const usersWithAccess = users.filter((user) => beats.some((beat) => userHasBeatAccess(user, beat)));
-    const mostPlayedBeat = beats[0];
+    const newestBeat = beats[0];
+    const beatsByAccess = beats
+      .map((beat) => ({
+        beat,
+        accessCount: users.filter((user) => userHasBeatAccess(user, beat)).length,
+      }))
+      .sort((a, b) => b.accessCount - a.accessCount);
+    const mostAccessedBeat = beatsByAccess[0]?.accessCount > 0 ? beatsByAccess[0] : null;
 
-    return { pendingRequests, paymentPendingRequests, completedRequests, rejectedRequests, contactedRequests, accessCount, usersWithAccess, mostPlayedBeat };
+    return { pendingRequests, paymentPendingRequests, completedRequests, rejectedRequests, contactedRequests, accessCount, usersWithAccess, newestBeat, mostAccessedBeat };
   }, [beats, requests, users]);
 
   return (
@@ -61,7 +68,8 @@ export function AdminDashboardStats({ initialBeats, initialUsers, initialRequest
       <AdminStatCard label="Pago pendiente" value={String(stats.paymentPendingRequests.length)} detail="Órdenes por cobrar" href="/admin/access-requests" />
       <AdminStatCard label="Órdenes completadas" value={String(stats.completedRequests.length)} detail="Pagadas o liberadas" href="/admin/access-requests" />
       <AdminStatCard label="Rechazadas/canceladas" value={String(stats.rejectedRequests.length)} detail="Historial comercial" href="/admin/access-requests" />
-      <AdminStatCard label="Beat destacado" value={stats.mostPlayedBeat?.name ?? "Sin beats"} detail={stats.mostPlayedBeat ? `${stats.mostPlayedBeat.genre} · ${stats.mostPlayedBeat.bpm} BPM` : "Pendiente"} href={stats.mostPlayedBeat ? `/beats/${stats.mostPlayedBeat.id}` : undefined} />
+      <AdminStatCard label="Beat más nuevo" value={stats.newestBeat?.name ?? "Sin beats"} detail={stats.newestBeat ? `${stats.newestBeat.genre} · ${stats.newestBeat.bpm} BPM` : "Pendiente"} href={stats.newestBeat ? `/beats/${stats.newestBeat.id}` : undefined} />
+      <AdminStatCard label="Beat con más acceso" value={stats.mostAccessedBeat?.beat.name ?? "Sin accesos"} detail={stats.mostAccessedBeat ? `${stats.mostAccessedBeat.accessCount} usuarios · ${stats.mostAccessedBeat.beat.genre}` : "Pendiente de datos reales"} href={stats.mostAccessedBeat ? `/beats/${stats.mostAccessedBeat.beat.id}` : undefined} />
     </section>
   );
 }
