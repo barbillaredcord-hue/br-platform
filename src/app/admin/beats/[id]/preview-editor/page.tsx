@@ -145,6 +145,9 @@ export default function PreviewEditorPage({ params }: PreviewEditorPageProps) {
             title={beat.name}
             currentPreviewUrl={beat.previewUrl}
             fullAudioUrl={beat.fullAudioUrl}
+            currentBpm={beat.bpm}
+            currentGenre={beat.genre}
+            currentMusicalKey={beat.key}
             initialDurationSeconds={previewDurationSeconds}
           />
         </section>

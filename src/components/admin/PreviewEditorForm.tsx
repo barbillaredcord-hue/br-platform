@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Scissors } from "lucide-react";
-import { createAdminChangeLog, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
+import { BrainCircuit, Save, Scissors } from "lucide-react";
+import { createAdminChangeLog, updateBeatMetadataAsAdmin, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
 
 function formatFileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
@@ -13,8 +13,19 @@ function clampPreviewDuration(value: number) {
   return Math.min(30, Math.max(15, Math.round(value || 15)));
 }
 
+function normalizePreviewDuration(value: number) {
+  return [15, 20, 25, 30].includes(value) ? value : 15;
+}
+
 function clampStartSecond(value: number) {
   return Math.max(0, Math.round(value || 0));
+}
+
+function splitCommaValues(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function buildWaveformSamples(buffer: AudioBuffer, sampleCount = 180) {
@@ -100,6 +111,9 @@ type PreviewEditorFormProps = {
   title: string;
   currentPreviewUrl: string;
   fullAudioUrl: string;
+  currentBpm: number;
+  currentGenre: string;
+  currentMusicalKey?: string;
   initialDurationSeconds?: number;
 };
 
@@ -109,6 +123,9 @@ export function PreviewEditorForm({
   title,
   currentPreviewUrl,
   fullAudioUrl,
+  currentBpm,
+  currentGenre,
+  currentMusicalKey = "",
   initialDurationSeconds = 15,
 }: PreviewEditorFormProps) {
   const router = useRouter();
@@ -125,6 +142,18 @@ export function PreviewEditorForm({
   const [status, setStatus] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [appliedBpm, setAppliedBpm] = useState(currentBpm);
+  const [appliedGenre, setAppliedGenre] = useState(currentGenre);
+  const [appliedMusicalKey, setAppliedMusicalKey] = useState(currentMusicalKey);
+  const [analysisBpm, setAnalysisBpm] = useState(currentBpm ? String(currentBpm) : "");
+  const [analysisAlternativeBpms, setAnalysisAlternativeBpms] = useState("");
+  const [analysisKey, setAnalysisKey] = useState(currentMusicalKey);
+  const [analysisAlternativeKeys, setAnalysisAlternativeKeys] = useState("");
+  const [analysisGenres, setAnalysisGenres] = useState(currentGenre);
+  const [analysisPreviewStart, setAnalysisPreviewStart] = useState("0");
+  const [analysisPreviewDuration, setAnalysisPreviewDuration] = useState(15);
+  const [analysisNotes, setAnalysisNotes] = useState("");
+  const [isApplyingAnalysis, setIsApplyingAnalysis] = useState("");
 
   const hasRealPreview = Boolean(currentPreviewUrl && currentPreviewUrl !== fullAudioUrl);
 
@@ -205,6 +234,155 @@ export function PreviewEditorForm({
       fullAudioRef.current.currentTime = nextStart;
     }
     setStatus(`Inicio del preview marcado en ${nextStart}s.`);
+  }
+
+  async function logAnalysisChange(input: {
+    blockTitle: string;
+    eventType: "ai_bpm_apply" | "ai_key_apply" | "ai_genre_apply" | "ai_preview_apply";
+    description: string;
+    previousValue: unknown;
+    nextValue: unknown;
+  }) {
+    await createAdminChangeLog({
+      blockTitle: input.blockTitle,
+      eventType: input.eventType,
+      targetType: "beat",
+      targetName: title,
+      description: input.description,
+      commandText: "PreviewEditorForm.AIBeatAnalysisLite",
+      metadata: {
+        beatId,
+        slug,
+        previousValue: input.previousValue,
+        nextValue: input.nextValue,
+        analysisNotes,
+      },
+      temporary: true,
+    });
+  }
+
+  async function applyAnalysisBpm() {
+    const nextBpm = Number(analysisBpm);
+
+    if (!Number.isFinite(nextBpm) || nextBpm < 40 || nextBpm > 240) {
+      setStatus("BPM inválido. Usa un número entre 40 y 240.");
+      return;
+    }
+
+    setIsApplyingAnalysis("bpm");
+    const roundedBpm = Math.round(nextBpm);
+    const result = await updateBeatMetadataAsAdmin(beatId, { bpm: roundedBpm });
+
+    if (result.ok) {
+      await logAnalysisChange({
+        blockTitle: "AI Lite: BPM aplicado",
+        eventType: "ai_bpm_apply",
+        description: `Se aplicó BPM sugerido para ${title}: ${roundedBpm}.`,
+        previousValue: appliedBpm,
+        nextValue: { bpm: roundedBpm, alternatives: splitCommaValues(analysisAlternativeBpms) },
+      });
+      setAppliedBpm(roundedBpm);
+      setStatus("BPM aplicado desde AI Beat Analysis Lite.");
+      router.refresh();
+    } else {
+      setStatus(result.message ?? "No se pudo aplicar BPM.");
+    }
+
+    setIsApplyingAnalysis("");
+  }
+
+  async function applyAnalysisKey() {
+    const nextKey = analysisKey.trim();
+
+    if (!nextKey) {
+      setStatus("Agrega una tonalidad principal.");
+      return;
+    }
+
+    setIsApplyingAnalysis("key");
+    const result = await updateBeatMetadataAsAdmin(beatId, { musicalKey: nextKey });
+
+    if (result.ok) {
+      await logAnalysisChange({
+        blockTitle: "AI Lite: tonalidad aplicada",
+        eventType: "ai_key_apply",
+        description: `Se aplicó tonalidad sugerida para ${title}: ${nextKey}.`,
+        previousValue: appliedMusicalKey,
+        nextValue: { musicalKey: nextKey, alternatives: splitCommaValues(analysisAlternativeKeys) },
+      });
+      setAppliedMusicalKey(nextKey);
+      setStatus("Tonalidad aplicada desde AI Beat Analysis Lite.");
+      router.refresh();
+    } else {
+      setStatus(result.message ?? "No se pudo aplicar tonalidad.");
+    }
+
+    setIsApplyingAnalysis("");
+  }
+
+  async function applyAnalysisGenres() {
+    const genres = splitCommaValues(analysisGenres);
+    const nextGenre = genres.join(", ");
+
+    if (!nextGenre) {
+      setStatus("Agrega al menos un género sugerido.");
+      return;
+    }
+
+    setIsApplyingAnalysis("genre");
+    const result = await updateBeatMetadataAsAdmin(beatId, { genre: nextGenre });
+
+    if (result.ok) {
+      await logAnalysisChange({
+        blockTitle: "AI Lite: géneros aplicados",
+        eventType: "ai_genre_apply",
+        description: `Se aplicaron géneros sugeridos para ${title}: ${nextGenre}.`,
+        previousValue: appliedGenre,
+        nextValue: { genre: nextGenre, genres },
+      });
+      setAppliedGenre(nextGenre);
+      setStatus("Géneros aplicados desde AI Beat Analysis Lite.");
+      router.refresh();
+    } else {
+      setStatus(result.message ?? "No se pudo aplicar géneros.");
+    }
+
+    setIsApplyingAnalysis("");
+  }
+
+  async function applySuggestedPreview() {
+    const nextStart = clampStartSecond(Number(analysisPreviewStart));
+    const nextDuration = normalizePreviewDuration(Number(analysisPreviewDuration));
+    const previousValue = { startSecond, durationSeconds };
+
+    setStartSecond(nextStart);
+    setDurationSeconds(nextDuration);
+    if (fullAudioRef.current) {
+      fullAudioRef.current.currentTime = nextStart;
+    }
+
+    setIsApplyingAnalysis("preview");
+    await logAnalysisChange({
+      blockTitle: "AI Lite: preview sugerido",
+      eventType: "ai_preview_apply",
+      description: `Se usó preview sugerido para ${title}: inicio ${nextStart}s, duración ${nextDuration}s.`,
+      previousValue,
+      nextValue: { startSecond: nextStart, durationSeconds: nextDuration },
+    });
+    setStatus(`Preview sugerido aplicado: ${nextStart}s por ${nextDuration}s.`);
+    setIsApplyingAnalysis("");
+  }
+
+  function clearAnalysis() {
+    setAnalysisBpm(currentBpm ? String(currentBpm) : "");
+    setAnalysisAlternativeBpms("");
+    setAnalysisKey(currentMusicalKey);
+    setAnalysisAlternativeKeys("");
+    setAnalysisGenres(currentGenre);
+    setAnalysisPreviewStart("0");
+    setAnalysisPreviewDuration(15);
+    setAnalysisNotes("");
+    setStatus("AI Beat Analysis Lite limpiado.");
   }
 
   function clearGeneratedPreviewUrl() {
@@ -409,6 +587,79 @@ export function PreviewEditorForm({
             </select>
             <span className="text-xs text-zinc-500">Máximo permitido: 30 segundos.</span>
           </label>
+        </div>
+
+        <div className="rounded-lg border border-cyan-300/20 bg-[#071012] p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <BrainCircuit className="h-4 w-4 text-emerald-300" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">AI Beat Analysis Lite</p>
+                <p className="text-[11px] text-zinc-500">Captura manual preparada para IA futura. No llama APIs externas.</p>
+              </div>
+            </div>
+            <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[11px] font-bold text-emerald-100">
+              Manual
+            </span>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            <label className="grid gap-1">
+              <span className="text-xs uppercase text-zinc-500">BPM principal</span>
+              <input type="number" min={40} max={240} value={analysisBpm} onChange={(event) => setAnalysisBpm(event.target.value)} className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
+            </label>
+            <label className="grid gap-1 lg:col-span-2">
+              <span className="text-xs uppercase text-zinc-500">BPM alternativos</span>
+              <input value={analysisAlternativeBpms} onChange={(event) => setAnalysisAlternativeBpms(event.target.value)} placeholder="140, 70, 142" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs uppercase text-zinc-500">Tonalidad principal</span>
+              <input value={analysisKey} onChange={(event) => setAnalysisKey(event.target.value)} placeholder="F minor" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
+            </label>
+            <label className="grid gap-1 lg:col-span-2">
+              <span className="text-xs uppercase text-zinc-500">Tonalidades alternativas</span>
+              <input value={analysisAlternativeKeys} onChange={(event) => setAnalysisAlternativeKeys(event.target.value)} placeholder="Ab major, C minor" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
+            </label>
+            <label className="grid gap-1 lg:col-span-3">
+              <span className="text-xs uppercase text-zinc-500">Géneros sugeridos</span>
+              <input value={analysisGenres} onChange={(event) => setAnalysisGenres(event.target.value)} placeholder="Trap, Drill, Dark" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs uppercase text-zinc-500">preview_start recomendado</span>
+              <input type="number" min={0} value={analysisPreviewStart} onChange={(event) => setAnalysisPreviewStart(event.target.value)} className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs uppercase text-zinc-500">preview_duration recomendado</span>
+              <select value={analysisPreviewDuration} onChange={(event) => setAnalysisPreviewDuration(normalizePreviewDuration(Number(event.target.value)))} className="h-9 rounded-md border border-white/10 bg-[#101317] px-3 text-sm outline-none focus:border-cyan-300">
+                <option value={15}>15 segundos</option>
+                <option value={20}>20 segundos</option>
+                <option value={25}>25 segundos</option>
+                <option value={30}>30 segundos</option>
+              </select>
+            </label>
+            <label className="grid gap-1 lg:col-span-3">
+              <span className="text-xs uppercase text-zinc-500">Resumen / notas de análisis</span>
+              <textarea value={analysisNotes} onChange={(event) => setAnalysisNotes(event.target.value)} className="min-h-16 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" placeholder="Ej: energía alta en el hook, mejor entrada después del drop." />
+            </label>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisBpm()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
+              {isApplyingAnalysis === "bpm" ? "Aplicando..." : "Aplicar BPM"}
+            </button>
+            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisKey()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
+              {isApplyingAnalysis === "key" ? "Aplicando..." : "Aplicar tonalidad"}
+            </button>
+            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisGenres()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
+              {isApplyingAnalysis === "genre" ? "Aplicando..." : "Aplicar géneros"}
+            </button>
+            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applySuggestedPreview()} className="h-9 rounded-md border border-emerald-300/30 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-60">
+              {isApplyingAnalysis === "preview" ? "Aplicando..." : "Usar preview sugerido"}
+            </button>
+            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={clearAnalysis} className="h-9 rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-300 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
+              Limpiar análisis
+            </button>
+          </div>
         </div>
 
         <button
