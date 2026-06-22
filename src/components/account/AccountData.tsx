@@ -25,6 +25,11 @@ function revokedBeatName(revocation: AccessRevocationRow) {
   return beat?.title || beat?.slug || revocation.beat_id;
 }
 
+function revokedBeatHref(revocation: AccessRevocationRow, fallbackBeatId: string) {
+  const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
+  return `/beats/${beat?.slug || fallbackBeatId}`;
+}
+
 function revocationMatchesRequest(revocation: AccessRevocationRow, request: AccessRequestRow) {
   const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
 
@@ -196,8 +201,8 @@ export function AccountRequests() {
             {revocation ? (
               <>
                 <p className="mt-2 text-sm leading-6 text-zinc-300">Motivo: {revocation.reason}</p>
-                <p className="mt-1 text-xs text-zinc-500">Revocada: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
-                <Link href={`/beats/${request.beat_id}`} className="mt-3 inline-flex h-10 w-fit items-center justify-center rounded-md border border-amber-300/30 px-4 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
+      z          <p className="mt-1 text-xs text-zinc-500">Revocada: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
+                <Link href={revokedBeatHref(revocation, request.beat_id)} className="mt-3 inline-flex h-10 w-fit items-center justify-center rounded-md border border-amber-300/30 px-4 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
                   Pedir revisión
                 </Link>
               </>
