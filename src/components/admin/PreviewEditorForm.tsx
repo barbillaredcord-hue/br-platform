@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrainCircuit, Save, Scissors } from "lucide-react";
+import * as Meyda from "meyda";
 import { analyze } from "web-audio-beat-detector";
 import { classifyBeatFromRealData } from "@/lib/beat-metadata";
 import { createAdminChangeLog, updateBeatMetadataAsAdmin, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
@@ -48,6 +49,88 @@ function buildWaveformSamples(buffer: AudioBuffer, sampleCount = 180) {
 
   const maxSample = Math.max(...samples, 0.01);
   return samples.map((sample) => sample / maxSample);
+}
+
+const chromaNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const majorProfile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const minorProfile = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+
+type MutableMeyda = typeof Meyda & {
+  bufferSize: number;
+  sampleRate: number;
+  extract: (feature: "chroma", signal: Float32Array) => unknown;
+};
+
+function rotateProfile(profile: number[], steps: number) {
+  return profile.map((_, index) => profile[(index - steps + profile.length) % profile.length]);
+}
+
+function scoreProfile(chroma: number[], profile: number[]) {
+  return chroma.reduce((score, value, index) => score + value * profile[index], 0);
+}
+
+function normalizeChroma(chroma: number[]) {
+  const total = chroma.reduce((sum, value) => sum + Math.max(0, value), 0);
+
+  if (!total) {
+    return chroma.map(() => 0);
+  }
+
+  return chroma.map((value) => Math.max(0, value) / total);
+}
+
+function detectKeyFromChroma(chroma: number[]) {
+  const normalizedChroma = normalizeChroma(chroma);
+  let bestScore = -Infinity;
+  let bestKey = "";
+
+  chromaNotes.forEach((note, index) => {
+    const majorScore = scoreProfile(normalizedChroma, rotateProfile(majorProfile, index));
+    const minorScore = scoreProfile(normalizedChroma, rotateProfile(minorProfile, index));
+
+    if (majorScore > bestScore) {
+      bestScore = majorScore;
+      bestKey = `${note} Major`;
+    }
+
+    if (minorScore > bestScore) {
+      bestScore = minorScore;
+      bestKey = `${note} Minor`;
+    }
+  });
+
+  return bestKey;
+}
+
+function detectKeyFromAudioBuffer(buffer: AudioBuffer) {
+  const channelData = buffer.getChannelData(0);
+  const frameSize = 4096;
+  const hopSize = frameSize * 12;
+  const chromaTotals = new Array(12).fill(0) as number[];
+  let analyzedFrames = 0;
+  const meyda = Meyda as MutableMeyda;
+
+  meyda.bufferSize = frameSize;
+  meyda.sampleRate = buffer.sampleRate;
+
+  for (let start = 0; start + frameSize <= channelData.length; start += hopSize) {
+    const frame = channelData.slice(start, start + frameSize);
+    const features = meyda.extract("chroma", frame);
+    if (!Array.isArray(features)) {
+      continue;
+    }
+
+    features.slice(0, 12).forEach((value, index) => {
+      chromaTotals[index] += Number(value) || 0;
+    });
+    analyzedFrames += 1;
+  }
+
+  if (!analyzedFrames) {
+    return "";
+  }
+
+  return detectKeyFromChroma(chromaTotals.map((value) => value / analyzedFrames));
 }
 
 function drawWaveformCanvas(input: {
@@ -207,11 +290,18 @@ export function PreviewEditorForm({
         const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
         const samples = buildWaveformSamples(decodedBuffer);
         let detectedBpm = 0;
+        let detectedKey = "";
 
         try {
           detectedBpm = Math.round(await analyze(decodedBuffer));
         } catch (bpmError) {
           console.warn("B.R BPM detection unavailable", { title, bpmError });
+        }
+
+        try {
+          detectedKey = detectKeyFromAudioBuffer(decodedBuffer);
+        } catch (keyError) {
+          console.warn("B.R key detection unavailable", { title, keyError });
         }
 
         await audioContext.close();
@@ -225,7 +315,18 @@ export function PreviewEditorForm({
 
         if (detectedBpm >= 40 && detectedBpm <= 240) {
           setAnalysisBpm(String(detectedBpm));
+        }
+
+        if (detectedKey) {
+          setAnalysisKey(detectedKey);
+        }
+
+        if (detectedBpm >= 40 && detectedBpm <= 240 && detectedKey) {
+          setAnalysisProcessMessage(`BPM y tonalidad detectados desde audio: ${detectedBpm} BPM · ${detectedKey}. Revisa antes de aplicar.`);
+        } else if (detectedBpm >= 40 && detectedBpm <= 240) {
           setAnalysisProcessMessage(`BPM detectado desde audio: ${detectedBpm}. Revisa antes de aplicar.`);
+        } else if (detectedKey) {
+          setAnalysisProcessMessage(`Tonalidad detectada desde audio: ${detectedKey}. Revisa antes de aplicar.`);
         }
       } catch (error) {
         console.warn("B.R waveform unavailable", { title, fullAudioUrl, error });
@@ -716,7 +817,7 @@ export function PreviewEditorForm({
               <BrainCircuit className="h-4 w-4 text-emerald-300" aria-hidden="true" />
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">AI Beat Analysis Lite</p>
-                <p className="text-[11px] text-zinc-500">Análisis local con metadata, BPM, tonalidad, duración y onda real. No llama APIs externas.</p>
+                <p className="text-[11px] text-zinc-500">Análisis local con BPM, tonalidad estimada, metadata, duración y onda real. No llama APIs externas.</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
