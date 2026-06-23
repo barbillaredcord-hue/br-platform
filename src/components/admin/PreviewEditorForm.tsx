@@ -894,14 +894,14 @@ export function PreviewEditorForm({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[11px] font-bold text-emerald-100">
-                {analysisProcessCount ? `Análisis #${analysisProcessCount}` : "Manual"}
+                {analysisProcessMessage ? "Analizado" : "Pendiente"}
               </span>
               <button
                 type="button"
                 onClick={reprocessAnalysis}
                 className="h-8 rounded-md border border-cyan-300/30 px-2.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/10"
               >
-                Procesar de nuevo
+                Analizar Beat
               </button>
             </div>
           </div>
@@ -912,22 +912,14 @@ export function PreviewEditorForm({
             </p>
           ) : null}
 
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             <label className="grid gap-1">
               <span className="text-xs uppercase text-zinc-500">BPM principal</span>
               <input type="number" min={40} max={240} value={analysisBpm} onChange={(event) => setAnalysisBpm(event.target.value)} className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-cyan-300" />
             </label>
-            <label className="grid gap-1 lg:col-span-2">
-              <span className="text-xs uppercase text-zinc-500">BPM alternativos</span>
-              <input value={analysisAlternativeBpms} onChange={(event) => setAnalysisAlternativeBpms(event.target.value)} placeholder="140, 70, 142" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
-            </label>
             <label className="grid gap-1">
               <span className="text-xs uppercase text-zinc-500">Tonalidad principal</span>
               <input value={analysisKey} onChange={(event) => setAnalysisKey(event.target.value)} placeholder="F minor" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
-            </label>
-            <label className="grid gap-1 lg:col-span-2">
-              <span className="text-xs uppercase text-zinc-500">Tonalidades alternativas</span>
-              <input value={analysisAlternativeKeys} onChange={(event) => setAnalysisAlternativeKeys(event.target.value)} placeholder="Ab major, C minor" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
             </label>
             <label className="grid gap-1 lg:col-span-3">
               <span className="text-xs uppercase text-zinc-500">Géneros sugeridos</span>
@@ -953,15 +945,6 @@ export function PreviewEditorForm({
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisBpm()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
-              {isApplyingAnalysis === "bpm" ? "Aplicando..." : "Aplicar BPM"}
-            </button>
-            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisKey()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
-              {isApplyingAnalysis === "key" ? "Aplicando..." : "Aplicar tonalidad"}
-            </button>
-            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisGenres()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
-              {isApplyingAnalysis === "genre" ? "Aplicando..." : "Aplicar géneros"}
-            </button>
             <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applySuggestedPreview()} className="h-9 rounded-md border border-emerald-300/30 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-60">
               {isApplyingAnalysis === "preview" ? "Aplicando..." : "Usar preview sugerido"}
             </button>
@@ -972,6 +955,35 @@ export function PreviewEditorForm({
               Limpiar análisis
             </button>
           </div>
+
+          <details className="mt-3 rounded-md border border-white/10 bg-black/20 p-3">
+            <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.14em] text-zinc-400">
+              Avanzado / ajustes manuales
+            </summary>
+
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <label className="grid gap-1">
+                <span className="text-xs uppercase text-zinc-500">BPM alternativos</span>
+                <input value={analysisAlternativeBpms} onChange={(event) => setAnalysisAlternativeBpms(event.target.value)} placeholder="140, 70, 142" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs uppercase text-zinc-500">Tonalidades alternativas</span>
+                <input value={analysisAlternativeKeys} onChange={(event) => setAnalysisAlternativeKeys(event.target.value)} placeholder="Ab major, C minor" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
+              </label>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisBpm()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
+                {isApplyingAnalysis === "bpm" ? "Aplicando..." : "Aplicar solo BPM"}
+              </button>
+              <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisKey()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
+                {isApplyingAnalysis === "key" ? "Aplicando..." : "Aplicar solo tonalidad"}
+              </button>
+              <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisGenres()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
+                {isApplyingAnalysis === "genre" ? "Aplicando..." : "Aplicar solo géneros"}
+              </button>
+            </div>
+          </details>
         </div>
 
         <button
