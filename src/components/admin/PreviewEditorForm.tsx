@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrainCircuit, Save, Scissors } from "lucide-react";
+import { analyze } from "web-audio-beat-detector";
 import { classifyBeatFromRealData } from "@/lib/beat-metadata";
 import { createAdminChangeLog, updateBeatMetadataAsAdmin, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
 
@@ -28,7 +29,6 @@ function splitCommaValues(value: string) {
     .map((item) => item.trim())
     .filter(Boolean);
 }
-
 
 function buildWaveformSamples(buffer: AudioBuffer, sampleCount = 180) {
   const channelData = buffer.getChannelData(0);
@@ -206,6 +206,14 @@ export function PreviewEditorForm({
         const audioContext = new AudioContext();
         const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
         const samples = buildWaveformSamples(decodedBuffer);
+        let detectedBpm = 0;
+
+        try {
+          detectedBpm = Math.round(await analyze(decodedBuffer));
+        } catch (bpmError) {
+          console.warn("B.R BPM detection unavailable", { title, bpmError });
+        }
+
         await audioContext.close();
 
         if (!isMounted) {
@@ -214,6 +222,11 @@ export function PreviewEditorForm({
 
         setWaveformSamples(samples);
         setAudioDuration(decodedBuffer.duration);
+
+        if (detectedBpm >= 40 && detectedBpm <= 240) {
+          setAnalysisBpm(String(detectedBpm));
+          setAnalysisProcessMessage(`BPM detectado desde audio: ${detectedBpm}. Revisa antes de aplicar.`);
+        }
       } catch (error) {
         console.warn("B.R waveform unavailable", { title, fullAudioUrl, error });
         if (isMounted) {
@@ -425,7 +438,6 @@ export function PreviewEditorForm({
     setAnalysisProcessMessage("");
     setStatus("AI Beat Analysis Lite limpiado.");
   }
-
 
   function reprocessAnalysis() {
     const classification = classifyBeatFromRealData({
