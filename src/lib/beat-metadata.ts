@@ -106,6 +106,10 @@ export type BeatClassification = {
   confidence: number;
   source: string;
   reasoning: string;
+  recommendedPreviewStart: number;
+  recommendedPreviewDuration: number;
+  previewConfidence: number;
+  previewReason: string;
 };
 
 function average(values: number[]) {
@@ -114,6 +118,82 @@ function average(values: number[]) {
   }
 
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizePreviewDurationByAudioLength(durationSeconds?: number) {
+  const safeDuration = Math.round(durationSeconds || 0);
+
+  if (safeDuration >= 90) {
+    return 20;
+  }
+
+  if (safeDuration >= 45) {
+    return 15;
+  }
+
+  return 15;
+}
+
+function findBestPreviewSegment(waveformSamples: number[] = [], durationSeconds?: number) {
+  const safeSamples = waveformSamples.filter((sample) => Number.isFinite(sample));
+  const safeDuration = Math.round(durationSeconds || 0);
+  const recommendedPreviewDuration = normalizePreviewDurationByAudioLength(safeDuration);
+
+  if (safeSamples.length < 12 || safeDuration <= recommendedPreviewDuration) {
+    return {
+      recommendedPreviewStart: 0,
+      recommendedPreviewDuration,
+      previewConfidence: 0.35,
+      previewReason: "Audio corto o sin suficientes datos de onda; preview sugerido desde el inicio.",
+    };
+  }
+
+  const minStartSecond = safeDuration >= 60 ? Math.round(safeDuration * 0.12) : 0;
+  const maxStartSecond = Math.max(minStartSecond, safeDuration - recommendedPreviewDuration - 2);
+  const windowSampleCount = Math.max(4, Math.round((recommendedPreviewDuration / safeDuration) * safeSamples.length));
+  const minStartIndex = Math.round((minStartSecond / safeDuration) * safeSamples.length);
+  const maxStartIndex = Math.max(minStartIndex, Math.min(safeSamples.length - windowSampleCount, Math.round((maxStartSecond / safeDuration) * safeSamples.length)));
+  const globalAverage = average(safeSamples);
+  let bestStartIndex = minStartIndex;
+  let bestScore = -Infinity;
+  let bestAverage = 0;
+  let bestPeakRatio = 0;
+
+  for (let startIndex = minStartIndex; startIndex <= maxStartIndex; startIndex += 1) {
+    const window = safeSamples.slice(startIndex, startIndex + windowSampleCount);
+    const windowAverage = average(window);
+    const peakRatio = window.filter((sample) => sample >= 0.72).length / Math.max(window.length, 1);
+    const positionRatio = startIndex / Math.max(safeSamples.length, 1);
+    const introPenalty = positionRatio < 0.12 ? 0.18 : 0;
+    const outroPenalty = positionRatio > 0.82 ? 0.22 : 0;
+    const score = windowAverage + peakRatio * 0.35 - introPenalty - outroPenalty;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestStartIndex = startIndex;
+      bestAverage = windowAverage;
+      bestPeakRatio = peakRatio;
+    }
+  }
+
+  const recommendedPreviewStart = clampNumber(Math.round((bestStartIndex / safeSamples.length) * safeDuration), 0, maxStartSecond);
+  const energyLift = Math.max(0, bestAverage - globalAverage);
+  const previewConfidence = clampNumber(0.48 + energyLift * 0.7 + bestPeakRatio * 0.28, 0.45, 0.91);
+  const previewReason =
+    bestPeakRatio >= 0.2
+      ? `Mayor energía detectada cerca de ${recommendedPreviewStart}s con picos consistentes; posible hook/drop.`
+      : `Segmento más estable detectado cerca de ${recommendedPreviewStart}s; mejor balance de energía para preview.`;
+
+  return {
+    recommendedPreviewStart,
+    recommendedPreviewDuration,
+    previewConfidence: Number(previewConfidence.toFixed(2)),
+    previewReason,
+  };
 }
 
 function detectWaveformEnergy(samples: number[]) {
@@ -195,6 +275,7 @@ export function classifyBeatFromRealData(input: BeatClassificationInput): BeatCl
 
   const mood = detectMood(input, primaryGenre);
   const useCase = detectUseCase(input, mood, energy);
+  const previewSuggestion = findBestPreviewSegment(input.waveformSamples, input.durationSeconds);
 
   const subgenres = [primaryGenre, mood].filter((value, index, values) => value && values.indexOf(value) === index);
 
@@ -219,6 +300,10 @@ export function classifyBeatFromRealData(input: BeatClassificationInput): BeatCl
     useCase,
     confidence: Number(confidence.toFixed(2)),
     source: signals.join("+") || "metadata",
-    reasoning: `Clasificación basada en ${signals.join(", ") || "metadata disponible"}: ${primaryGenre}, ${mood}, ${energy}, uso recomendado ${useCase}.`,
+    reasoning: `Clasificación basada en ${signals.join(", ") || "metadata disponible"}: ${primaryGenre}, ${mood}, ${energy}, uso recomendado ${useCase}. ${previewSuggestion.previewReason}`,
+    recommendedPreviewStart: previewSuggestion.recommendedPreviewStart,
+    recommendedPreviewDuration: previewSuggestion.recommendedPreviewDuration,
+    previewConfidence: previewSuggestion.previewConfidence,
+    previewReason: previewSuggestion.previewReason,
   };
 }

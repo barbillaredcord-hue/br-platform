@@ -569,15 +569,15 @@ export function PreviewEditorForm({
     setAnalysisProcessCount(nextCount);
     setLastAnalysisSignature(nextSignature);
     setAnalysisGenres(nextGenres);
-    setAnalysisPreviewStart(String(clampStartSecond(Number(analysisPreviewStart))));
-    setAnalysisPreviewDuration(normalizePreviewDuration(Number(analysisPreviewDuration)));
+    setAnalysisPreviewStart(String(clampStartSecond(classification.recommendedPreviewStart)));
+    setAnalysisPreviewDuration(normalizePreviewDuration(classification.recommendedPreviewDuration));
     setAnalysisNotes(classification.reasoning);
     setAnalysisProcessMessage(
       isStable
-        ? `Coincidencia estable: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · confianza ${Math.round(classification.confidence * 100)}%`
+        ? `Coincidencia estable: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · confianza ${Math.round(classification.confidence * 100)}%`
         : nextCount === 1
-          ? `Análisis real generado: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · fuente ${classification.source}`
-          : `Datos reales reprocesados: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · confianza ${Math.round(classification.confidence * 100)}%`,
+          ? `Análisis real generado: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · fuente ${classification.source}`
+          : `Datos reales reprocesados: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · confianza ${Math.round(classification.confidence * 100)}%`,
     );
   }
 
@@ -817,7 +817,7 @@ export function PreviewEditorForm({
               <BrainCircuit className="h-4 w-4 text-emerald-300" aria-hidden="true" />
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">AI Beat Analysis Lite</p>
-                <p className="text-[11px] text-zinc-500">Análisis local con BPM, tonalidad estimada, metadata, duración y onda real. No llama APIs externas.</p>
+                <p className="text-[11px] text-zinc-500">Análisis local con BPM, tonalidad estimada, preview sugerido, metadata, duración y onda real. No llama APIs externas.</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
