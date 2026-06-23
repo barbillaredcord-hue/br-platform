@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrainCircuit, Save, Scissors } from "lucide-react";
+import { classifyBeatFromRealData } from "@/lib/beat-metadata";
 import { createAdminChangeLog, updateBeatMetadataAsAdmin, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
 
 function formatFileSize(size: number) {
@@ -28,9 +29,6 @@ function splitCommaValues(value: string) {
     .filter(Boolean);
 }
 
-function normalizeAnalysisList(value: string) {
-  return splitCommaValues(value).join(", ");
-}
 
 function buildWaveformSamples(buffer: AudioBuffer, sampleCount = 180) {
   const channelData = buffer.getChannelData(0);
@@ -428,40 +426,45 @@ export function PreviewEditorForm({
     setStatus("AI Beat Analysis Lite limpiado.");
   }
 
-  function buildAnalysisSignature() {
-    const bpm = String(Math.round(Number(analysisBpm) || 0));
-    const key = analysisKey.trim().replace(/\s+/g, " ");
-    const genres = normalizeAnalysisList(analysisGenres);
-    const alternativeBpms = normalizeAnalysisList(analysisAlternativeBpms);
-    const alternativeKeys = normalizeAnalysisList(analysisAlternativeKeys);
-    const previewStart = String(clampStartSecond(Number(analysisPreviewStart)));
-    const previewDuration = String(normalizePreviewDuration(Number(analysisPreviewDuration)));
-    const notes = analysisNotes.trim().replace(/\s+/g, " ");
-
-    return {
-      bpm,
-      key,
-      genres,
-      signature: [bpm, alternativeBpms, key.toLowerCase(), alternativeKeys.toLowerCase(), genres.toLowerCase(), previewStart, previewDuration, notes.toLowerCase()].join("|"),
-    };
-  }
 
   function reprocessAnalysis() {
-    const nextAnalysis = buildAnalysisSignature();
+    const classification = classifyBeatFromRealData({
+      title,
+      audioUrl: fullAudioUrl,
+      currentGenre: analysisGenres || currentGenre,
+      currentBpm: Number(analysisBpm) || currentBpm || null,
+      currentKey: analysisKey || currentMusicalKey || null,
+      durationSeconds: audioDuration || initialDurationSeconds,
+      waveformSamples,
+      notes: analysisNotes,
+    });
+    const nextGenres = [classification.primaryGenre, ...classification.subgenres].filter((value, index, values) => value && values.indexOf(value) === index).join(", ");
     const nextCount = analysisProcessCount + 1;
-    const isStable = Boolean(lastAnalysisSignature) && lastAnalysisSignature === nextAnalysis.signature;
+    const nextSignature = [
+      analysisBpm,
+      analysisKey.toLowerCase(),
+      nextGenres.toLowerCase(),
+      classification.mood.toLowerCase(),
+      classification.energy.toLowerCase(),
+      classification.useCase.toLowerCase(),
+      String(audioDuration || initialDurationSeconds),
+      String(waveformSamples.length),
+      analysisNotes.trim().toLowerCase(),
+    ].join("|");
+    const isStable = Boolean(lastAnalysisSignature) && lastAnalysisSignature === nextSignature;
 
     setAnalysisProcessCount(nextCount);
-    setLastAnalysisSignature(nextAnalysis.signature);
-    setAnalysisGenres(nextAnalysis.genres);
+    setLastAnalysisSignature(nextSignature);
+    setAnalysisGenres(nextGenres);
     setAnalysisPreviewStart(String(clampStartSecond(Number(analysisPreviewStart))));
     setAnalysisPreviewDuration(normalizePreviewDuration(Number(analysisPreviewDuration)));
+    setAnalysisNotes(classification.reasoning);
     setAnalysisProcessMessage(
       isStable
-        ? `Coincidencia estable: BPM ${nextAnalysis.bpm || "0"} · ${nextAnalysis.key || "Sin tonalidad"} · ${nextAnalysis.genres || "Sin géneros"}`
+        ? `Coincidencia estable: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · confianza ${Math.round(classification.confidence * 100)}%`
         : nextCount === 1
-          ? "Análisis #1 generado. Revisa antes de aplicar."
-          : "Datos ajustados. Revisa antes de aplicar.",
+          ? `Análisis real generado: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · fuente ${classification.source}`
+          : `Datos reales reprocesados: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · confianza ${Math.round(classification.confidence * 100)}%`,
     );
   }
 
@@ -701,7 +704,7 @@ export function PreviewEditorForm({
               <BrainCircuit className="h-4 w-4 text-emerald-300" aria-hidden="true" />
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">AI Beat Analysis Lite</p>
-                <p className="text-[11px] text-zinc-500">Captura manual preparada para IA futura. No llama APIs externas.</p>
+                <p className="text-[11px] text-zinc-500">Análisis local con metadata, BPM, tonalidad, duración y onda real. No llama APIs externas.</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
