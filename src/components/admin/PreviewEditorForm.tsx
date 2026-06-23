@@ -390,7 +390,7 @@ export function PreviewEditorForm({
 
   async function logAnalysisChange(input: {
     blockTitle: string;
-    eventType: "ai_bpm_apply" | "ai_key_apply" | "ai_genre_apply" | "ai_preview_apply";
+    eventType: "ai_bpm_apply" | "ai_key_apply" | "ai_genre_apply" | "ai_preview_apply" | "ai_full_apply";
     description: string;
     previousValue: unknown;
     nextValue: unknown;
@@ -522,6 +522,78 @@ export function PreviewEditorForm({
       nextValue: { startSecond: nextStart, durationSeconds: nextDuration },
     });
     setStatus(`Preview sugerido aplicado: ${nextStart}s por ${nextDuration}s.`);
+    setIsApplyingAnalysis("");
+  }
+
+  async function applyFullAnalysis() {
+    const nextBpm = Number(analysisBpm);
+    const nextKey = analysisKey.trim();
+    const nextGenre = splitCommaValues(analysisGenres).join(", ");
+    const nextStart = clampStartSecond(Number(analysisPreviewStart));
+    const nextDuration = normalizePreviewDuration(Number(analysisPreviewDuration));
+
+    if (!Number.isFinite(nextBpm) || nextBpm < 40 || nextBpm > 240) {
+      setStatus("BPM inválido. Usa un número entre 40 y 240.");
+      return;
+    }
+
+    if (!nextKey) {
+      setStatus("Agrega una tonalidad principal antes de aplicar el análisis completo.");
+      return;
+    }
+
+    if (!nextGenre) {
+      setStatus("Agrega al menos un género antes de aplicar el análisis completo.");
+      return;
+    }
+
+    const roundedBpm = Math.round(nextBpm);
+    const previousValue = {
+      bpm: appliedBpm,
+      musicalKey: appliedMusicalKey,
+      genre: appliedGenre,
+      preview: { startSecond, durationSeconds },
+    };
+    const nextValue = {
+      bpm: roundedBpm,
+      musicalKey: nextKey,
+      genre: nextGenre,
+      preview: { startSecond: nextStart, durationSeconds: nextDuration },
+      notes: analysisNotes,
+    };
+
+    setIsApplyingAnalysis("full");
+    const result = await updateBeatMetadataAsAdmin(beatId, {
+      bpm: roundedBpm,
+      musicalKey: nextKey,
+      genre: nextGenre,
+    });
+
+    if (result.ok) {
+      setAppliedBpm(roundedBpm);
+      setAppliedMusicalKey(nextKey);
+      setAppliedGenre(nextGenre);
+      setStartSecond(nextStart);
+      setDurationSeconds(nextDuration);
+
+      if (fullAudioRef.current) {
+        fullAudioRef.current.currentTime = nextStart;
+      }
+
+      await logAnalysisChange({
+        blockTitle: "AI Lite: análisis completo aplicado",
+        eventType: "ai_full_apply",
+        description: `Se aplicó análisis completo para ${title}: ${roundedBpm} BPM · ${nextKey} · ${nextGenre} · preview ${nextStart}s/${nextDuration}s.`,
+        previousValue,
+        nextValue,
+      });
+
+      setStatus("Análisis completo aplicado al metadata del beat. Genera y guarda el preview si quieres publicar el corte sugerido.");
+      router.refresh();
+    } else {
+      setStatus(result.message ?? "No se pudo aplicar el análisis completo.");
+    }
+
     setIsApplyingAnalysis("");
   }
 
@@ -892,6 +964,9 @@ export function PreviewEditorForm({
             </button>
             <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applySuggestedPreview()} className="h-9 rounded-md border border-emerald-300/30 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-60">
               {isApplyingAnalysis === "preview" ? "Aplicando..." : "Usar preview sugerido"}
+            </button>
+            <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyFullAnalysis()} className="h-9 rounded-md border border-emerald-300/40 bg-emerald-300/10 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-60">
+              {isApplyingAnalysis === "full" ? "Aplicando..." : "Aplicar análisis completo"}
             </button>
             <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={clearAnalysis} className="h-9 rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-300 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
               Limpiar análisis
