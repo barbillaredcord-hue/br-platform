@@ -16,10 +16,10 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 
 - App: `br-platform`
 - Tipo: marketplace musical / plataforma privada de beats
-- Fase: Fase 14D - historial administrativo y continuidad
+- Fase: Fase 14G.1 - Admin UX Refinement + AI Beat Analysis Lite
 - Estado: implemented
-- Avance: 96%
-- Siguiente fase: Fase 14 M2 - estados formales de orden
+- Avance: 98%
+- Siguiente fase: Fase 14G.2 - Clasificacion musical asistida
 
 ## Oferta del producto
 
@@ -38,6 +38,13 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 - Pagos manuales por usuario + beat
 - Actividad comercial compacta
 - Usuarios comerciales
+- Home Discovery con busqueda
+- Playlist Full Beats
+- Generos multi-tag
+- Admin Beats Dashboard
+- Commercial Detail Dock
+- AI Beat Analysis Lite con Procesar de nuevo
+- Dashboard comercial compacto
 - Revocaciones de acceso
 - Panel admin B.RCEO
 - B.R Cambios con admin_change_logs
@@ -105,4 +112,4 @@ Archivos derivados:
 - `CLAUDE.md`
 - `README.md`
 
-Ultima generacion: 2026-06-22T18:26:10
+Ultima generacion: 2026-06-22T18:46:00

@@ -15,15 +15,15 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 - Tipo: marketplace musical / plataforma privada de beats
 - Owner: Fabian
 - Visibilidad: private
-- Fase: Fase 14D - historial administrativo y continuidad
+- Fase: Fase 14G.1 - Admin UX Refinement + AI Beat Analysis Lite
 - Estado: implemented
-- Avance: 96%
-- Nivel: Produccion inicial operativa: Next.js App Router en Vercel con dominio brstudios.org, Supabase Auth/Storage/Postgres, Resend SMTP, catalogo publico activo, admin con activos/inactivos, preview real, player full/preview por acceso, descargas/licencias protegidas, pagos manuales, actividad comercial, revocaciones, B.R Cambios y admin_change_logs.
+- Avance: 98%
+- Nivel: Produccion inicial operativa: Next.js App Router en Vercel con dominio brstudios.org, Supabase Auth/Storage/Postgres, Resend SMTP, Home Discovery con busqueda, playlist Full Beats, generos multi-tag, catalogo publico activo, paginas publicas compactas estilo Spotify, Admin Beats Dashboard, Commercial Detail Dock, AI Beat Analysis Lite con Procesar de nuevo, revocaciones visibles, dashboard comercial compacto, admin con activos/inactivos, preview real, waveform fallback seguro, player full/preview por acceso, descargas/licencias protegidas, pagos manuales, B.R Cambios y admin_change_logs.
 
 ## Siguiente fase
 
-- Fase: Fase 14 M2 - estados formales de orden
-- Objetivo: Formalizar estados de orden/pago y continuidad comercial sin romper beat_access, descargas, licencias ni playback.
+- Fase: Fase 14G.2 - Clasificacion musical asistida
+- Objetivo: Clasificar beats por BPM, tonalidad, generos, subgeneros y mood con asistencia progresiva sin romper metadata manual.
 
 ## Objetivo principal
 
@@ -53,6 +53,11 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.
 - Estados iniciales de orden: SQL incremental para estados de access_requests preparado.
 - Revocaciones: access_revocations y flujo de revocacion documentado/implementado.
 - Historial administrativo: admin_change_logs, B.R Cambios, historial temporal por 7 dias, soft delete y PDF manual.
+- UI publica compacta y errores de audio: Paginas publicas estilo Spotify, BeatCard compacto, HeroBeat compacto, waveform fallback y errores de audio controlados.
+- Home Discovery / Spotify Catalog: Busqueda Home, playlist Full Beats, generos multi-tag y agrupacion dinamica de catalogo.
+- Commercial Detail Dock: Dashboard comercial con dock de detalle, top usuarios, top beats, metricas y actividad compacta.
+- Admin Beats Dashboard Layout: Gestion de Beats convertida a dashboard con resumen lateral, catalogo central y panel detalle anclado.
+- Admin UX Refinement + AI Beat Analysis Lite: AI Lite con Procesar de nuevo, coincidencia estable, revocaciones visibles, paneles compactos de tops, historial admin compacto y header dashboard compacto.
 
 ## Completado
 
@@ -66,6 +71,15 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.
 - Descargas MP3 y licencias protegidas por beat_access
 - Pagos manuales con license_type y prevencion de duplicados
 - Actividad comercial server-side
+- Home Discovery Search
+- Playlist Full Beats
+- Generos multi-tag
+- Compact Public Beat Pages
+- Admin Beats Dashboard Layout
+- Commercial Detail Dock
+- AI Beat Analysis Lite Reprocess
+- Revocation UX Improvements
+- Commercial dashboard rankings
 - access_revocations
 - admin_change_logs con temporal 7 dias y permanente por anio
 - Soft delete is_deleted para B.R Cambios
@@ -80,6 +94,8 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.
 - Licencias legales avanzadas
 - Pagos automaticos completos
 - Marketplace multiusuario
+- B.R Radio
+- Portadas reales
 
 ## Riesgos
 
@@ -95,8 +111,8 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.
 
 ## Continuidad
 
-- Prioridad: Continuar Fase 14 M2 sin romper catalogo, playback, descargas/licencias ni historial administrativo.
-- Proxima accion: Disenar estados formales de orden/pago sobre access_requests u ordenes dedicadas, manteniendo beat_access como permiso real.
+- Prioridad: Continuar Fase 14G.2 sin romper catalogo, metadata manual, playback, descargas/licencias ni historial administrativo.
+- Proxima accion: Implementar clasificacion musical asistida y preparar B.R Radio / playlist publica continua.
 - Contexto: unknown
 
 ## BR.autocar como soporte interno
@@ -124,4 +140,4 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.
 - Validated pilot: 1
 - Recomendacion: Separar trabajo futuro del ecosistema BR.autocar de riesgos operativos de cada app antes de avanzar al Admin Web.
 
-Ultima generacion: 2026-06-22T18:26:10
+Ultima generacion: 2026-06-22T18:46:00
