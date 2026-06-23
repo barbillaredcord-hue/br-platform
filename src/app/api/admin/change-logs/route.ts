@@ -36,7 +36,18 @@ export async function GET(request: Request) {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     query = query
-      .in("event_type", ["active_toggle", "metadata_update", "playback_visibility_update", "beat_hidden", "preview_update"])
+      .in("event_type", [
+        "active_toggle",
+        "metadata_update",
+        "playback_visibility_update",
+        "beat_hidden",
+        "preview_update",
+        "ai_bpm_apply",
+        "ai_key_apply",
+        "ai_genre_apply",
+        "ai_preview_apply",
+        "ai_full_apply",
+      ])
       .gte("created_at", sevenDaysAgo);
   }
 
