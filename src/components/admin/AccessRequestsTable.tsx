@@ -418,6 +418,11 @@ export function AccessRequestsTable() {
                   <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${revocation ? revokedStatusStyle : statusStyles[request.status]}`}>
                     {revocation ? "Revocada" : statusLabels[request.status]}
                   </span>
+                  {revocation ? (
+                    <span className="inline-flex rounded-md border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-xs font-bold text-amber-100">
+                      Sólo preview / revisión
+                    </span>
+                  ) : null}
                   <button type="button" onClick={() => toggleExpanded(request.id)} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1.5 text-xs font-bold text-zinc-200 hover:border-cyan-300/40 hover:text-cyan-200">
                     Detalle
                     <ChevronDown className={`h-3.5 w-3.5 transition ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -441,6 +446,11 @@ export function AccessRequestsTable() {
                       <p className="font-bold text-amber-100">Revocación registrada</p>
                       <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Motivo: {revocation.reason}</p>
                       <p className="mt-1 text-zinc-500">Fecha: {getRevocationDate(revocation)}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">MP3 revocado</span>
+                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Licencia revocada</span>
+                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Sólo preview / revisión</span>
+                      </div>
                     </div>
                   ) : null}
                   {isClosedRequest(request, revocation) ? (

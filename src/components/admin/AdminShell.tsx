@@ -27,7 +27,7 @@ export function AdminShell({ title, subtitle, children, compact = false }: { tit
 
   return (
     <AdminGuard>
-      <main className={`min-h-screen bg-[#050607] px-3 pb-32 text-white md:px-6 ${compact ? "py-3" : "py-6"}`}>
+      <main className={`min-h-screen bg-[#050607] px-3 pb-32 text-white md:px-6 ${compact ? "py-2.5" : "py-6"}`}>
         <div className={`mx-auto grid gap-4 lg:grid-cols-[220px_1fr] ${compact ? "max-w-[1680px]" : "max-w-7xl lg:grid-cols-[240px_1fr]"}`}>
           <aside className="rounded-lg border border-white/10 bg-[#090b0d] p-3 lg:sticky lg:top-4 lg:h-fit">
             <button
@@ -70,10 +70,10 @@ export function AdminShell({ title, subtitle, children, compact = false }: { tit
           </aside>
 
           <section className={`min-w-0 ${compact ? "space-y-3" : "space-y-6"}`}>
-            <header className={`rounded-lg border border-white/10 bg-[#101317] ${compact ? "p-3 md:p-4" : "p-5 md:p-6"}`}>
-              <p className="mb-1 text-xs font-bold uppercase text-cyan-200">Panel privado</p>
-              <h1 className={`font-black ${compact ? "text-2xl md:text-3xl" : "text-3xl md:text-5xl"}`}>{title}</h1>
-              <p className={`max-w-2xl text-sm leading-6 text-zinc-400 ${compact ? "mt-1" : "mt-3"}`}>{subtitle}</p>
+            <header className={`rounded-lg border border-white/10 bg-[#101317] ${compact ? "p-2.5 md:p-3" : "p-5 md:p-6"}`}>
+              <p className={`${compact ? "mb-0.5 text-[10px]" : "mb-1 text-xs"} font-bold uppercase text-cyan-200`}>Panel privado</p>
+              <h1 className={`font-black ${compact ? "text-xl md:text-2xl" : "text-3xl md:text-5xl"}`}>{title}</h1>
+              <p className={`max-w-2xl text-zinc-400 ${compact ? "mt-0.5 text-xs leading-5" : "mt-3 text-sm leading-6"}`}>{subtitle}</p>
             </header>
             {children}
           </section>

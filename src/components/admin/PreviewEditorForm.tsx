@@ -23,9 +23,13 @@ function clampStartSecond(value: number) {
 
 function splitCommaValues(value: string) {
   return value
-    .split(",")
+    .split(/[,/;|]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeAnalysisList(value: string) {
+  return splitCommaValues(value).join(", ");
 }
 
 function buildWaveformSamples(buffer: AudioBuffer, sampleCount = 180) {
@@ -182,6 +186,9 @@ export function PreviewEditorForm({
   const [analysisPreviewDuration, setAnalysisPreviewDuration] = useState(15);
   const [analysisNotes, setAnalysisNotes] = useState("");
   const [isApplyingAnalysis, setIsApplyingAnalysis] = useState("");
+  const [analysisProcessCount, setAnalysisProcessCount] = useState(0);
+  const [lastAnalysisSignature, setLastAnalysisSignature] = useState("");
+  const [analysisProcessMessage, setAnalysisProcessMessage] = useState("");
 
   const hasRealPreview = Boolean(currentPreviewUrl && currentPreviewUrl !== fullAudioUrl);
 
@@ -415,7 +422,47 @@ export function PreviewEditorForm({
     setAnalysisPreviewStart("0");
     setAnalysisPreviewDuration(15);
     setAnalysisNotes("");
+    setAnalysisProcessCount(0);
+    setLastAnalysisSignature("");
+    setAnalysisProcessMessage("");
     setStatus("AI Beat Analysis Lite limpiado.");
+  }
+
+  function buildAnalysisSignature() {
+    const bpm = String(Math.round(Number(analysisBpm) || 0));
+    const key = analysisKey.trim().replace(/\s+/g, " ");
+    const genres = normalizeAnalysisList(analysisGenres);
+    const alternativeBpms = normalizeAnalysisList(analysisAlternativeBpms);
+    const alternativeKeys = normalizeAnalysisList(analysisAlternativeKeys);
+    const previewStart = String(clampStartSecond(Number(analysisPreviewStart)));
+    const previewDuration = String(normalizePreviewDuration(Number(analysisPreviewDuration)));
+    const notes = analysisNotes.trim().replace(/\s+/g, " ");
+
+    return {
+      bpm,
+      key,
+      genres,
+      signature: [bpm, alternativeBpms, key.toLowerCase(), alternativeKeys.toLowerCase(), genres.toLowerCase(), previewStart, previewDuration, notes.toLowerCase()].join("|"),
+    };
+  }
+
+  function reprocessAnalysis() {
+    const nextAnalysis = buildAnalysisSignature();
+    const nextCount = analysisProcessCount + 1;
+    const isStable = Boolean(lastAnalysisSignature) && lastAnalysisSignature === nextAnalysis.signature;
+
+    setAnalysisProcessCount(nextCount);
+    setLastAnalysisSignature(nextAnalysis.signature);
+    setAnalysisGenres(nextAnalysis.genres);
+    setAnalysisPreviewStart(String(clampStartSecond(Number(analysisPreviewStart))));
+    setAnalysisPreviewDuration(normalizePreviewDuration(Number(analysisPreviewDuration)));
+    setAnalysisProcessMessage(
+      isStable
+        ? `Coincidencia estable: BPM ${nextAnalysis.bpm || "0"} · ${nextAnalysis.key || "Sin tonalidad"} · ${nextAnalysis.genres || "Sin géneros"}`
+        : nextCount === 1
+          ? "Análisis #1 generado. Revisa antes de aplicar."
+          : "Datos ajustados. Revisa antes de aplicar.",
+    );
   }
 
   function clearGeneratedPreviewUrl() {
@@ -657,10 +704,25 @@ export function PreviewEditorForm({
                 <p className="text-[11px] text-zinc-500">Captura manual preparada para IA futura. No llama APIs externas.</p>
               </div>
             </div>
-            <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[11px] font-bold text-emerald-100">
-              Manual
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[11px] font-bold text-emerald-100">
+                {analysisProcessCount ? `Análisis #${analysisProcessCount}` : "Manual"}
+              </span>
+              <button
+                type="button"
+                onClick={reprocessAnalysis}
+                className="h-8 rounded-md border border-cyan-300/30 px-2.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/10"
+              >
+                Procesar de nuevo
+              </button>
+            </div>
           </div>
+
+          {analysisProcessMessage ? (
+            <p className="mb-3 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-semibold text-cyan-100">
+              {analysisProcessMessage}
+            </p>
+          ) : null}
 
           <div className="grid gap-3 lg:grid-cols-3">
             <label className="grid gap-1">

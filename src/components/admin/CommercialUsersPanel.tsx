@@ -61,12 +61,10 @@ type CommercialSummary = {
   total_manual_payments: number;
 };
 
+type TopActiveUser = CommercialSummary["top_active_users"][number];
 type TopDownloadedBeat = CommercialSummary["top_downloaded_beats"][number];
 
-type DetailDock =
-  | { type: "user"; user: CommercialUser }
-  | { type: "beat"; beat: TopDownloadedBeat }
-  | null;
+type DetailDock = { type: "user"; user: CommercialUser } | null;
 
 const initialForm = {
   beat_id: "",
@@ -130,6 +128,8 @@ export function CommercialUsersPanel() {
   const [isEarningsHistoryOpen, setIsEarningsHistoryOpen] = useState(false);
   const [isTopUsersOpen, setIsTopUsersOpen] = useState(false);
   const [isTopBeatsOpen, setIsTopBeatsOpen] = useState(false);
+  const [selectedTopUser, setSelectedTopUser] = useState<TopActiveUser | null>(null);
+  const [selectedTopBeat, setSelectedTopBeat] = useState<TopDownloadedBeat | null>(null);
   const [selectedUser, setSelectedUser] = useState<CommercialUser | null>(null);
   const [detailDock, setDetailDock] = useState<DetailDock>(null);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -231,11 +231,6 @@ export function CommercialUsersPanel() {
     setBeatOptions([]);
     setForm(initialForm);
     void loadBeatOptions(user.id);
-  }
-
-  function selectTopBeat(beat: TopDownloadedBeat) {
-    setDetailDock({ type: "beat", beat });
-    setIsPaymentFormOpen(false);
   }
 
   function closeDock() {
@@ -389,9 +384,8 @@ export function CommercialUsersPanel() {
               <div className="flex min-w-max gap-1.5 xl:grid xl:min-w-0 xl:grid-cols-1">
                 {summary.top_active_users.length === 0 ? <p className="rounded bg-black/20 px-2 py-1 text-[10px] text-zinc-500">Sin actividad de usuarios.</p> : null}
                 {summary.top_active_users.map((user) => {
-                  const matchedUser = users.find((item) => item.id === user.id);
                   return (
-                    <button key={user.id} type="button" onClick={() => matchedUser && selectUser(matchedUser)} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-cyan-300/40 xl:w-full">
+                    <button key={user.id} type="button" onClick={() => setSelectedTopUser(user)} className={`w-44 shrink-0 rounded-md border bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-cyan-300/40 xl:w-full ${selectedTopUser?.id === user.id ? "border-cyan-300/50" : "border-white/10"}`}>
                       <div className="flex items-center justify-between gap-2">
                         <p className="truncate font-bold text-cyan-100">{summaryUserLabel(user)}</p>
                         <span className="shrink-0 text-zinc-500">{user.activity_count}</span>
@@ -401,6 +395,33 @@ export function CommercialUsersPanel() {
                   );
                 })}
               </div>
+              {selectedTopUser ? (
+                <div className="mt-2 max-h-44 overflow-y-auto rounded-md border border-cyan-300/20 bg-cyan-300/10 p-2 text-[11px]">
+                  <p className="truncate font-bold text-cyan-100">{summaryUserLabel(selectedTopUser)}</p>
+                  <p className="truncate text-zinc-400">{selectedTopUser.email}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-1 text-zinc-300">
+                    <span>Actividad: {selectedTopUser.activity_count}</span>
+                    <span>MP3: {selectedTopUser.mp3_download_count}</span>
+                    <span>Licencias: {selectedTopUser.license_download_count}</span>
+                    <span>Pagos: {selectedTopUser.total_paid_beats}</span>
+                  </div>
+                  <p className="mt-1 font-bold text-emerald-100">Total pagado: {money(selectedTopUser.total_paid_amount)}</p>
+                  {users.find((item) => item.id === selectedTopUser.id) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const user = users.find((item) => item.id === selectedTopUser.id);
+                        if (user) {
+                          selectUser(user);
+                        }
+                      }}
+                      className="mt-2 h-8 rounded-md border border-cyan-300/30 px-2 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/10"
+                    >
+                      Seleccionar usuario
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -432,12 +453,29 @@ export function CommercialUsersPanel() {
                   );
 
                   return (
-                    <button key={beat.beat_id} type="button" onClick={() => selectTopBeat(beat)} className="w-44 shrink-0 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-emerald-300/40 xl:w-full">
+                    <button key={beat.beat_id} type="button" onClick={() => setSelectedTopBeat(beat)} className={`w-44 shrink-0 rounded-md border bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-emerald-300/40 xl:w-full ${selectedTopBeat?.beat_id === beat.beat_id ? "border-emerald-300/50" : "border-white/10"}`}>
                       {content}
                     </button>
                   );
                 })}
               </div>
+              {selectedTopBeat ? (
+                <div className="mt-2 max-h-44 overflow-y-auto rounded-md border border-emerald-300/20 bg-emerald-300/10 p-2 text-[11px]">
+                  <p className="truncate font-bold text-emerald-100">{selectedTopBeat.beat_title || selectedTopBeat.beat_slug || selectedTopBeat.beat_id}</p>
+                  <p className="truncate text-zinc-400">{selectedTopBeat.beat_slug || selectedTopBeat.beat_id}</p>
+                  <div className="mt-2 grid grid-cols-3 gap-1 text-zinc-300">
+                    <span>Total: {selectedTopBeat.total_downloads}</span>
+                    <span>MP3: {selectedTopBeat.mp3}</span>
+                    <span>Lic: {selectedTopBeat.licenses}</span>
+                  </div>
+                  {selectedTopBeat.beat_slug ? (
+                    <Link href={`/beats/${selectedTopBeat.beat_slug}`} className="mt-2 inline-flex h-8 items-center gap-1 rounded-md border border-emerald-300/30 px-2 text-[11px] font-bold text-emerald-100 hover:bg-emerald-300/10">
+                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      Link público
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -529,48 +567,11 @@ export function CommercialUsersPanel() {
             <div className="grid h-full min-h-[420px] place-items-center rounded-lg border border-white/10 bg-black/15 p-6 text-center">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-200">Detalle comercial</p>
-                <h3 className="mt-2 text-2xl font-black text-white">Selecciona un usuario o beat</h3>
+                <h3 className="mt-2 text-2xl font-black text-white">Selecciona un usuario</h3>
                 <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
-                  El detalle se ancla aquí para revisar pagos, accesos, descargas y licencias sin abrir formularios debajo de la lista.
+                  El detalle de usuarios normales se ancla aquí para revisar pagos, accesos, descargas y licencias.
                 </p>
               </div>
-            </div>
-          ) : null}
-
-          {detailDock?.type === "beat" ? (
-            <div>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">Top beat</p>
-                  <h3 className="mt-2 truncate text-2xl font-black text-white">{detailDock.beat.beat_title || detailDock.beat.beat_slug || detailDock.beat.beat_id}</h3>
-                  <p className="mt-1 truncate text-sm text-zinc-500">{detailDock.beat.beat_slug || detailDock.beat.beat_id}</p>
-                </div>
-                <button type="button" onClick={closeDock} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:border-cyan-300 hover:text-cyan-200" aria-label="Cerrar detalle">
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
-                  <p className="text-xs font-bold uppercase text-emerald-200">Total downloads</p>
-                  <p className="mt-2 text-3xl font-black text-emerald-100">{detailDock.beat.total_downloads}</p>
-                </div>
-                <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
-                  <p className="text-xs font-bold uppercase text-cyan-200">MP3</p>
-                  <p className="mt-2 text-3xl font-black text-cyan-100">{detailDock.beat.mp3}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-bold uppercase text-zinc-500">Licencias</p>
-                  <p className="mt-2 text-3xl font-black text-white">{detailDock.beat.licenses}</p>
-                </div>
-              </div>
-
-              {detailDock.beat.beat_slug ? (
-                <Link href={`/beats/${detailDock.beat.beat_slug}`} className="mt-5 inline-flex h-10 items-center gap-2 rounded-md border border-emerald-300/20 px-4 text-xs font-bold text-emerald-100 hover:border-emerald-300 hover:bg-emerald-300/10">
-                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                  Ver beat público
-                </Link>
-              ) : null}
             </div>
           ) : null}
 

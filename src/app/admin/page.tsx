@@ -17,6 +17,7 @@ export default async function AdminPage() {
     <AdminShell
       title="Dashboard Admin"
       subtitle="Panel privado para operar catálogo, accesos, solicitudes, actividad comercial, previews y auditoría administrativa de B.R."
+      compact
     >
       <AdminDashboardStats initialBeats={beats} initialUsers={users} initialRequests={requests} />
       <ProductUpdatesPanel audience="admin" />
