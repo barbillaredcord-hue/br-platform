@@ -140,4 +140,4 @@ Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.
 - Validated pilot: 1
 - Recomendacion: Separar trabajo futuro del ecosistema BR.autocar de riesgos operativos de cada app antes de avanzar al Admin Web.
 
-Ultima generacion: 2026-06-22T18:46:00
+Ultima generacion: 2026-06-23T10:26:16
