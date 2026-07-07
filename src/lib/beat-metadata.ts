@@ -44,7 +44,34 @@ export function detectBeatGenre(input: BeatMetadataInput): string {
   const text = metadataText(input).toLowerCase();
   const match = genreKeywords.find((item) => item.keywords.some((keyword) => text.includes(keyword)));
 
-  return match?.genre ?? (input.currentGenre?.trim() || "Hip Hop");
+  return match?.genre ?? "Unclassified";
+}
+
+function detectBeatGenreSignal(input: BeatMetadataInput) {
+  const text = metadataText(input).toLowerCase();
+  const match = genreKeywords.find((item) => item.keywords.some((keyword) => text.includes(keyword)));
+
+  if (input.currentGenre?.trim()) {
+    return {
+      genre: input.currentGenre.trim(),
+      source: "existing_genre_manual_review",
+      confidenceBoost: -0.04,
+    };
+  }
+
+  if (match) {
+    return {
+      genre: "Unclassified",
+      source: `metadata_keyword_candidate:${match.genre}`,
+      confidenceBoost: -0.1,
+    };
+  }
+
+  return {
+    genre: "Unclassified",
+    source: "audio_genre_not_available",
+    confidenceBoost: -0.14,
+  };
 }
 
 export function detectBeatBpm(input: BeatMetadataInput): number | null {
@@ -263,7 +290,8 @@ function detectUseCase(input: BeatClassificationInput, mood: string, energy: str
 }
 
 export function classifyBeatFromRealData(input: BeatClassificationInput): BeatClassification {
-  const primaryGenre = detectBeatGenre(input);
+  const genreSignal = detectBeatGenreSignal(input);
+  const primaryGenre = genreSignal.genre;
   const bpm = detectBeatBpm(input);
   const energyFromWaveform = detectWaveformEnergy(input.waveformSamples ?? []);
   const energy =
@@ -277,12 +305,13 @@ export function classifyBeatFromRealData(input: BeatClassificationInput): BeatCl
   const useCase = detectUseCase(input, mood, energy);
   const previewSuggestion = findBestPreviewSegment(input.waveformSamples, input.durationSeconds);
 
-  const subgenres = [primaryGenre, mood].filter((value, index, values) => value && values.indexOf(value) === index);
+  const subgenres = [primaryGenre].filter((value, index, values) => value && value !== "Unclassified" && values.indexOf(value) === index);
 
   const signals = [
     input.title ? "title" : "",
     input.fileName ? "fileName" : "",
     input.audioUrl ? "audioUrl" : "",
+    genreSignal.source,
     bpm ? "bpm" : "",
     input.currentKey ? "key" : "",
     input.durationSeconds ? "duration" : "",
@@ -290,7 +319,7 @@ export function classifyBeatFromRealData(input: BeatClassificationInput): BeatCl
     input.notes ? "notes" : "",
   ].filter(Boolean);
 
-  const confidence = Math.min(0.92, 0.45 + signals.length * 0.06);
+  const confidence = clampNumber(0.42 + signals.length * 0.05 + genreSignal.confidenceBoost, 0.18, 0.92);
 
   return {
     primaryGenre,
@@ -300,7 +329,10 @@ export function classifyBeatFromRealData(input: BeatClassificationInput): BeatCl
     useCase,
     confidence: Number(confidence.toFixed(2)),
     source: signals.join("+") || "metadata",
-    reasoning: `Clasificación basada en ${signals.join(", ") || "metadata disponible"}: ${primaryGenre}, ${mood}, ${energy}, uso recomendado ${useCase}. ${previewSuggestion.previewReason}`,
+    reasoning:
+      primaryGenre === "Unclassified"
+        ? `B.R detectó BPM, tonalidad, duración, energía y preview desde el audio, pero todavía no tiene suficiente análisis musical para determinar género real. Fuente: ${genreSignal.source}. Señales usadas: ${signals.join(", ") || "metadata disponible"}. Mood ${mood}, energía ${energy}, uso recomendado ${useCase}. ${previewSuggestion.previewReason}`
+        : `Clasificación basada en ${signals.join(", ") || "metadata disponible"}: ${primaryGenre}, ${mood}, ${energy}, uso recomendado ${useCase}. Fuente de género: ${genreSignal.source}. ${previewSuggestion.previewReason}`,
     recommendedPreviewStart: previewSuggestion.recommendedPreviewStart,
     recommendedPreviewDuration: previewSuggestion.recommendedPreviewDuration,
     previewConfidence: previewSuggestion.previewConfidence,

@@ -3,9 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrainCircuit, Save, Scissors } from "lucide-react";
-import * as Meyda from "meyda";
 import { analyze } from "web-audio-beat-detector";
 import { classifyBeatFromRealData } from "@/lib/beat-metadata";
+import { normalizeDetectedBpm } from "@/lib/music-analysis/bpm";
+import { analyzeAudioDiagnostics } from "@/lib/music-analysis/diagnostics";
+import { buildWaveformSamples } from "@/lib/music-analysis/engine";
+import { detectKeyFromAudioBuffer } from "@/lib/music-analysis/key";
+import type { KeyCandidate } from "@/lib/music-analysis/key";
+import type { AudioDiagnostics } from "@/lib/music-analysis/types";
 import { createAdminChangeLog, updateBeatMetadataAsAdmin, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
 
 function formatFileSize(size: number) {
@@ -31,107 +36,7 @@ function splitCommaValues(value: string) {
     .filter(Boolean);
 }
 
-function buildWaveformSamples(buffer: AudioBuffer, sampleCount = 180) {
-  const channelData = buffer.getChannelData(0);
-  const blockSize = Math.max(1, Math.floor(channelData.length / sampleCount));
-  const samples: number[] = [];
 
-  for (let index = 0; index < sampleCount; index += 1) {
-    const start = index * blockSize;
-    let sum = 0;
-
-    for (let sampleIndex = 0; sampleIndex < blockSize && start + sampleIndex < channelData.length; sampleIndex += 1) {
-      sum += Math.abs(channelData[start + sampleIndex]);
-    }
-
-    samples.push(Math.min(1, sum / blockSize));
-  }
-
-  const maxSample = Math.max(...samples, 0.01);
-  return samples.map((sample) => sample / maxSample);
-}
-
-const chromaNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const majorProfile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-const minorProfile = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
-
-type MutableMeyda = typeof Meyda & {
-  bufferSize: number;
-  sampleRate: number;
-  extract: (feature: "chroma", signal: Float32Array) => unknown;
-};
-
-function rotateProfile(profile: number[], steps: number) {
-  return profile.map((_, index) => profile[(index - steps + profile.length) % profile.length]);
-}
-
-function scoreProfile(chroma: number[], profile: number[]) {
-  return chroma.reduce((score, value, index) => score + value * profile[index], 0);
-}
-
-function normalizeChroma(chroma: number[]) {
-  const total = chroma.reduce((sum, value) => sum + Math.max(0, value), 0);
-
-  if (!total) {
-    return chroma.map(() => 0);
-  }
-
-  return chroma.map((value) => Math.max(0, value) / total);
-}
-
-function detectKeyFromChroma(chroma: number[]) {
-  const normalizedChroma = normalizeChroma(chroma);
-  let bestScore = -Infinity;
-  let bestKey = "";
-
-  chromaNotes.forEach((note, index) => {
-    const majorScore = scoreProfile(normalizedChroma, rotateProfile(majorProfile, index));
-    const minorScore = scoreProfile(normalizedChroma, rotateProfile(minorProfile, index));
-
-    if (majorScore > bestScore) {
-      bestScore = majorScore;
-      bestKey = `${note} Major`;
-    }
-
-    if (minorScore > bestScore) {
-      bestScore = minorScore;
-      bestKey = `${note} Minor`;
-    }
-  });
-
-  return bestKey;
-}
-
-function detectKeyFromAudioBuffer(buffer: AudioBuffer) {
-  const channelData = buffer.getChannelData(0);
-  const frameSize = 4096;
-  const hopSize = frameSize * 12;
-  const chromaTotals = new Array(12).fill(0) as number[];
-  let analyzedFrames = 0;
-  const meyda = Meyda as MutableMeyda;
-
-  meyda.bufferSize = frameSize;
-  meyda.sampleRate = buffer.sampleRate;
-
-  for (let start = 0; start + frameSize <= channelData.length; start += hopSize) {
-    const frame = channelData.slice(start, start + frameSize);
-    const features = meyda.extract("chroma", frame);
-    if (!Array.isArray(features)) {
-      continue;
-    }
-
-    features.slice(0, 12).forEach((value, index) => {
-      chromaTotals[index] += Number(value) || 0;
-    });
-    analyzedFrames += 1;
-  }
-
-  if (!analyzedFrames) {
-    return "";
-  }
-
-  return detectKeyFromChroma(chromaTotals.map((value) => value / analyzedFrames));
-}
 
 function drawWaveformCanvas(input: {
   canvas: HTMLCanvasElement;
@@ -252,6 +157,7 @@ export function PreviewEditorForm({
   const [audioDuration, setAudioDuration] = useState(0);
   const [isWaveformLoading, setIsWaveformLoading] = useState(false);
   const [waveformMessage, setWaveformMessage] = useState("");
+  const [audioDiagnostics, setAudioDiagnostics] = useState<AudioDiagnostics | null>(null);
   const [status, setStatus] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -262,6 +168,8 @@ export function PreviewEditorForm({
   const [analysisAlternativeBpms, setAnalysisAlternativeBpms] = useState("");
   const [analysisKey, setAnalysisKey] = useState(currentMusicalKey);
   const [analysisAlternativeKeys, setAnalysisAlternativeKeys] = useState("");
+  const [analysisKeyCandidates, setAnalysisKeyCandidates] = useState<KeyCandidate[]>([]);
+  const [analysisKeyStatus, setAnalysisKeyStatus] = useState("");
   const [analysisGenres, setAnalysisGenres] = useState(currentGenre);
   const [analysisPreviewStart, setAnalysisPreviewStart] = useState("0");
   const [analysisPreviewDuration, setAnalysisPreviewDuration] = useState(15);
@@ -289,18 +197,34 @@ export function PreviewEditorForm({
         const audioContext = new AudioContext();
         const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
         const samples = buildWaveformSamples(decodedBuffer);
+        const diagnostics = analyzeAudioDiagnostics(decodedBuffer, samples);
         let detectedBpm = 0;
+        let detectedAlternativeBpms: number[] = [];
+        let detectedBpmReason = "";
         let detectedKey = "";
+        let detectedAlternativeKeys: string[] = [];
+        let detectedKeyConfidence = 0;
+        let detectedKeyCandidates: KeyCandidate[] = [];
+        let detectedKeyStatus = "";
 
         try {
-          detectedBpm = Math.round(await analyze(decodedBuffer));
+          const normalizedBpm = normalizeDetectedBpm(await analyze(decodedBuffer));
+          detectedBpm = normalizedBpm.bpm;
+          detectedAlternativeBpms = normalizedBpm.alternativeBpms;
+          detectedBpmReason = normalizedBpm.reason;
         } catch (bpmError) {
           console.warn("B.R BPM detection unavailable", { title, bpmError });
         }
 
         try {
-          detectedKey = detectKeyFromAudioBuffer(decodedBuffer);
+          const keyAnalysis = detectKeyFromAudioBuffer(decodedBuffer);
+          detectedKey = keyAnalysis.primary;
+          detectedAlternativeKeys = keyAnalysis.alternatives;
+          detectedKeyConfidence = keyAnalysis.confidence;
+          detectedKeyCandidates = keyAnalysis.candidates;
+          detectedKeyStatus = keyAnalysis.reason ?? "ok";
         } catch (keyError) {
+          detectedKeyStatus = "key_detection_error";
           console.warn("B.R key detection unavailable", { title, keyError });
         }
 
@@ -312,26 +236,43 @@ export function PreviewEditorForm({
 
         setWaveformSamples(samples);
         setAudioDuration(decodedBuffer.duration);
+        setAudioDiagnostics(diagnostics);
+        setAnalysisKeyStatus(detectedKeyStatus);
 
         if (detectedBpm >= 40 && detectedBpm <= 240) {
           setAnalysisBpm(String(detectedBpm));
+          setAnalysisAlternativeBpms(detectedAlternativeBpms.join(", "));
         }
+
+        setAnalysisKeyCandidates(detectedKeyCandidates);
 
         if (detectedKey) {
           setAnalysisKey(detectedKey);
+          setAnalysisAlternativeKeys(detectedAlternativeKeys.join(", "));
         }
 
+        const bpmText = detectedAlternativeBpms.length
+          ? `${detectedBpm} BPM · alternativo ${detectedAlternativeBpms.join(", ")} (${detectedBpmReason})`
+          : `${detectedBpm} BPM`;
+
+        const keyText = detectedKey
+          ? `${detectedKey} (${Math.round(detectedKeyConfidence * 100)}%)${detectedAlternativeKeys.length ? ` · alternativas ${detectedAlternativeKeys.join(", ")}` : ""}`
+          : "";
+
         if (detectedBpm >= 40 && detectedBpm <= 240 && detectedKey) {
-          setAnalysisProcessMessage(`BPM y tonalidad detectados desde audio: ${detectedBpm} BPM · ${detectedKey}. Revisa antes de aplicar.`);
+          setAnalysisProcessMessage(`BPM y tonalidad detectados desde audio: ${bpmText} · ${keyText}. Revisa antes de aplicar.`);
         } else if (detectedBpm >= 40 && detectedBpm <= 240) {
-          setAnalysisProcessMessage(`BPM detectado desde audio: ${detectedBpm}. Revisa antes de aplicar.`);
+          setAnalysisProcessMessage(`BPM detectado desde audio: ${bpmText}. Revisa antes de aplicar.`);
         } else if (detectedKey) {
-          setAnalysisProcessMessage(`Tonalidad detectada desde audio: ${detectedKey}. Revisa antes de aplicar.`);
+          setAnalysisProcessMessage(`Tonalidad detectada desde audio: ${keyText}. Revisa antes de aplicar.`);
         }
       } catch (error) {
         console.warn("B.R waveform unavailable", { title, fullAudioUrl, error });
         if (isMounted) {
           setWaveformSamples([]);
+          setAudioDiagnostics(null);
+          setAnalysisKeyCandidates([]);
+          setAnalysisKeyStatus("waveform_load_error");
           setWaveformMessage("No se pudo leer onda; usa recorte manual.");
         }
       } finally {
@@ -602,6 +543,8 @@ export function PreviewEditorForm({
     setAnalysisAlternativeBpms("");
     setAnalysisKey(currentMusicalKey);
     setAnalysisAlternativeKeys("");
+    setAnalysisKeyCandidates([]);
+    setAnalysisKeyStatus("");
     setAnalysisGenres(currentGenre);
     setAnalysisPreviewStart("0");
     setAnalysisPreviewDuration(15);
@@ -609,6 +552,7 @@ export function PreviewEditorForm({
     setAnalysisProcessCount(0);
     setLastAnalysisSignature("");
     setAnalysisProcessMessage("");
+    setAudioDiagnostics(null);
     setStatus("AI Beat Analysis Lite limpiado.");
   }
 
@@ -616,7 +560,7 @@ export function PreviewEditorForm({
     const classification = classifyBeatFromRealData({
       title,
       audioUrl: fullAudioUrl,
-      currentGenre: analysisGenres || currentGenre,
+      currentGenre: "",
       currentBpm: Number(analysisBpm) || currentBpm || null,
       currentKey: analysisKey || currentMusicalKey || null,
       durationSeconds: audioDuration || initialDurationSeconds,
@@ -648,7 +592,7 @@ export function PreviewEditorForm({
       isStable
         ? `Coincidencia estable: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · confianza ${Math.round(classification.confidence * 100)}%`
         : nextCount === 1
-          ? `Análisis real generado: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · fuente ${classification.source}`
+          ? `Análisis real generado: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · fuente ${classification.source} · confianza ${Math.round(classification.confidence * 100)}%`
           : `Datos reales reprocesados: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · confianza ${Math.round(classification.confidence * 100)}%`,
     );
   }
@@ -960,6 +904,46 @@ export function PreviewEditorForm({
             <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.14em] text-zinc-400">
               Avanzado / ajustes manuales
             </summary>
+
+            <div className="mt-3 rounded-md border border-emerald-300/10 bg-emerald-300/5 p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-300">Diagnóstico IA del audio</p>
+              {audioDiagnostics ? (
+                <>
+                  <div className="mt-3 grid gap-2 text-xs text-zinc-300 sm:grid-cols-2 lg:grid-cols-4">
+                    <span>Duración: <strong className="text-cyan-100">{audioDiagnostics.durationSeconds}s</strong></span>
+                    <span>Sample rate: <strong className="text-cyan-100">{audioDiagnostics.sampleRate} Hz</strong></span>
+                    <span>Canales: <strong className="text-cyan-100">{audioDiagnostics.channels}</strong></span>
+                    <span>RMS: <strong className="text-cyan-100">{audioDiagnostics.rms}</strong></span>
+                    <span>Peak: <strong className="text-cyan-100">{audioDiagnostics.peak}</strong></span>
+                    <span>Rango dinámico: <strong className="text-cyan-100">{audioDiagnostics.dynamicRange}</strong></span>
+                    <span>Promedio onda: <strong className="text-cyan-100">{audioDiagnostics.waveformAverage}</strong></span>
+                    <span>Picos de onda: <strong className="text-cyan-100">{Math.round(audioDiagnostics.waveformPeakRatio * 100)}%</strong></span>
+                  </div>
+
+                  <div className="mt-3 rounded-md border border-cyan-300/10 bg-black/20 p-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-200">Ranking de tonalidad</p>
+                    {analysisKeyStatus === "ambiguous_key" ? (
+                      <p className="mt-2 text-xs font-semibold text-amber-300">
+                        La IA encontró varias tonalidades con puntuaciones muy similares. Revisa las dos primeras opciones antes de aplicar la tonalidad.
+                      </p>
+                    ) : null}
+                    {analysisKeyCandidates.length ? (
+                      <div className="mt-2 grid gap-1 text-xs text-zinc-300 sm:grid-cols-2 lg:grid-cols-4">
+                        {analysisKeyCandidates.map((candidate) => (
+                          <span key={`${candidate.key}-${candidate.score}`}>
+                            {candidate.key}: <strong className="text-cyan-100">{candidate.score.toFixed(3)}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-zinc-500">Sin ranking de tonalidad disponible{analysisKeyStatus ? ` (${analysisKeyStatus})` : ""}.</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-2 text-xs text-zinc-500">Sin diagnóstico disponible. Carga el beat completo para analizar el audio.</p>
+              )}
+            </div>
 
             <div className="mt-3 grid gap-3 lg:grid-cols-2">
               <label className="grid gap-1">
