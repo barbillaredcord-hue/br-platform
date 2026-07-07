@@ -8,9 +8,13 @@ import { classifyBeatFromRealData } from "@/lib/beat-metadata";
 import { normalizeDetectedBpm } from "@/lib/music-analysis/bpm";
 import { analyzeAudioDiagnostics } from "@/lib/music-analysis/diagnostics";
 import { buildWaveformSamples } from "@/lib/music-analysis/engine";
+import { analyzeMusicFeatures } from "@/lib/music-analysis/features";
+import type { MusicFeatures } from "@/lib/music-analysis/features";
 import { detectKeyFromAudioBuffer } from "@/lib/music-analysis/key";
-import type { KeyCandidate } from "@/lib/music-analysis/key";
+import { calculateBeatQuality } from "@/lib/music-analysis/quality";
+import type { KeyAnalysisResult, KeyCandidate } from "@/lib/music-analysis/key";
 import type { AudioDiagnostics } from "@/lib/music-analysis/types";
+import type { BeatQualityResult } from "@/lib/music-analysis/quality";
 import { createAdminChangeLog, updateBeatMetadataAsAdmin, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
 
 function formatFileSize(size: number) {
@@ -158,6 +162,8 @@ export function PreviewEditorForm({
   const [isWaveformLoading, setIsWaveformLoading] = useState(false);
   const [waveformMessage, setWaveformMessage] = useState("");
   const [audioDiagnostics, setAudioDiagnostics] = useState<AudioDiagnostics | null>(null);
+  const [beatQuality, setBeatQuality] = useState<BeatQualityResult | null>(null);
+  const [musicFeatures, setMusicFeatures] = useState<MusicFeatures | null>(null);
   const [status, setStatus] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -206,6 +212,7 @@ export function PreviewEditorForm({
         let detectedKeyConfidence = 0;
         let detectedKeyCandidates: KeyCandidate[] = [];
         let detectedKeyStatus = "";
+        let detectedKeyAnalysis: KeyAnalysisResult | undefined;
 
         try {
           const normalizedBpm = normalizeDetectedBpm(await analyze(decodedBuffer));
@@ -218,6 +225,7 @@ export function PreviewEditorForm({
 
         try {
           const keyAnalysis = detectKeyFromAudioBuffer(decodedBuffer);
+          detectedKeyAnalysis = keyAnalysis;
           detectedKey = keyAnalysis.primary;
           detectedAlternativeKeys = keyAnalysis.alternatives;
           detectedKeyConfidence = keyAnalysis.confidence;
@@ -237,6 +245,22 @@ export function PreviewEditorForm({
         setWaveformSamples(samples);
         setAudioDuration(decodedBuffer.duration);
         setAudioDiagnostics(diagnostics);
+        setBeatQuality(
+          calculateBeatQuality({
+            diagnostics,
+            bpm: detectedBpm || undefined,
+            alternativeBpms: detectedAlternativeBpms,
+            keyAnalysis: detectedKeyAnalysis,
+          }),
+        );
+        setMusicFeatures(
+          analyzeMusicFeatures({
+            buffer: decodedBuffer,
+            diagnostics,
+            bpm: detectedBpm || undefined,
+            keyAnalysis: detectedKeyAnalysis,
+          }),
+        );
         setAnalysisKeyStatus(detectedKeyStatus);
 
         if (detectedBpm >= 40 && detectedBpm <= 240) {
@@ -271,6 +295,8 @@ export function PreviewEditorForm({
         if (isMounted) {
           setWaveformSamples([]);
           setAudioDiagnostics(null);
+          setBeatQuality(null);
+          setMusicFeatures(null);
           setAnalysisKeyCandidates([]);
           setAnalysisKeyStatus("waveform_load_error");
           setWaveformMessage("No se pudo leer onda; usa recorte manual.");
@@ -553,6 +579,8 @@ export function PreviewEditorForm({
     setLastAnalysisSignature("");
     setAnalysisProcessMessage("");
     setAudioDiagnostics(null);
+    setBeatQuality(null);
+    setMusicFeatures(null);
     setStatus("AI Beat Analysis Lite limpiado.");
   }
 
@@ -567,6 +595,28 @@ export function PreviewEditorForm({
       waveformSamples,
       notes: analysisNotes,
     });
+    if (audioDiagnostics) {
+      setBeatQuality(
+        calculateBeatQuality({
+          diagnostics: audioDiagnostics,
+          bpm: Number(analysisBpm) || currentBpm || undefined,
+          alternativeBpms: splitCommaValues(analysisAlternativeBpms).map(Number).filter(Number.isFinite),
+          keyAnalysis: {
+            primary: analysisKey,
+            alternatives: splitCommaValues(analysisAlternativeKeys),
+            confidence: 0,
+            candidates: analysisKeyCandidates,
+            reason: analysisKeyStatus || undefined,
+          },
+          previewSuggestion: {
+            recommendedPreviewStart: classification.recommendedPreviewStart,
+            recommendedPreviewDuration: classification.recommendedPreviewDuration,
+            previewConfidence: classification.previewConfidence,
+            previewReason: classification.previewReason,
+          },
+        }),
+      );
+    }
     const nextGenres = [classification.primaryGenre, ...classification.subgenres].filter((value, index, values) => value && values.indexOf(value) === index).join(", ");
     const nextCount = analysisProcessCount + 1;
     const nextSignature = [
@@ -919,6 +969,45 @@ export function PreviewEditorForm({
                     <span>Promedio onda: <strong className="text-cyan-100">{audioDiagnostics.waveformAverage}</strong></span>
                     <span>Picos de onda: <strong className="text-cyan-100">{Math.round(audioDiagnostics.waveformPeakRatio * 100)}%</strong></span>
                   </div>
+
+                  {beatQuality ? (
+                    <div className="mt-3 rounded-md border border-emerald-300/10 bg-black/20 p-2">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-200">Beat Quality Score</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-300">
+                        <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 font-bold text-emerald-100">
+                          {beatQuality.score}/100 · {beatQuality.grade}
+                        </span>
+                        <span>Loudness: <strong className="text-cyan-100">{beatQuality.sections.loudness}</strong></span>
+                        <span>Dynamics: <strong className="text-cyan-100">{beatQuality.sections.dynamics}</strong></span>
+                        <span>Peak: <strong className="text-cyan-100">{beatQuality.sections.peakHealth}</strong></span>
+                        <span>Musical: <strong className="text-cyan-100">{beatQuality.sections.musicalStability}</strong></span>
+                      </div>
+                      {beatQuality.warnings.length ? (
+                        <p className="mt-2 text-xs text-amber-300">{beatQuality.warnings[0]}</p>
+                      ) : (
+                        <p className="mt-2 text-xs text-emerald-200">{beatQuality.strengths[0]}</p>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {musicFeatures ? (
+                    <div className="mt-3 rounded-md border border-purple-300/10 bg-black/20 p-2">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-purple-200">Music Features Engine</p>
+                      <div className="mt-2 grid gap-2 text-xs text-zinc-300 sm:grid-cols-2 lg:grid-cols-4">
+                        <span>Energy: <strong className="text-cyan-100">{musicFeatures.energy.score}</strong> · {musicFeatures.energy.label}</span>
+                        <span>Bass: <strong className="text-cyan-100">{musicFeatures.bass.score}</strong> · {musicFeatures.bass.label}</span>
+                        <span>Drums: <strong className="text-cyan-100">{musicFeatures.drums.score}</strong> · {musicFeatures.drums.label}</span>
+                        <span>Stereo: <strong className="text-cyan-100">{musicFeatures.stereo.score}</strong> · {musicFeatures.stereo.label}</span>
+                        <span>Danceability: <strong className="text-cyan-100">{musicFeatures.danceability.score}</strong> · {musicFeatures.danceability.label}</span>
+                        <span>Aggressive: <strong className="text-cyan-100">{musicFeatures.aggressiveness.score}</strong> · {musicFeatures.aggressiveness.label}</span>
+                        <span>Musicality: <strong className="text-cyan-100">{musicFeatures.musicality.score}</strong> · {musicFeatures.musicality.label}</span>
+                        <span>Vocals: <strong className="text-cyan-100">{Math.round(musicFeatures.vocals.vocalProbability * 100)}%</strong> · {musicFeatures.vocals.label}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-zinc-500">
+                        Frames analizados: {musicFeatures.frames.length} · Brightness: {musicFeatures.brightness.label} · Dynamics: {musicFeatures.dynamics.label}
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="mt-3 rounded-md border border-cyan-300/10 bg-black/20 p-2">
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyan-200">Ranking de tonalidad</p>
