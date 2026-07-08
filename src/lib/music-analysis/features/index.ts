@@ -1,4 +1,5 @@
 import type { KeyAnalysisResult } from "../key";
+import { analyzeSpectrum } from "../fft";
 import type { AudioDiagnostics } from "../types";
 import { analyzeAggressiveness } from "./aggressiveness";
 import { analyzeBass } from "./bass";
@@ -111,11 +112,18 @@ export function analyzeMusicFeatures(input: {
 }): MusicFeatures {
   const frames = buildFeatureFrames(input.buffer);
 
+  const fftAnalysis = analyzeSpectrum({
+    buffer: input.buffer,
+    fftSize: 2048,
+    hopSize: 4096,
+    maxFrames: 180,
+  });
+
   const energy = analyzeEnergy(input.diagnostics, frames);
-  const brightness = analyzeBrightness(frames);
+  const brightness = analyzeBrightness(frames, fftAnalysis);
   const dynamics = analyzeDynamics(input.diagnostics, frames);
   const stereo = analyzeStereo(input.buffer);
-  const bass = analyzeBass(frames);
+  const bass = analyzeBass(frames, fftAnalysis);
   const drums = analyzeDrums(frames);
   const vocals = analyzeVocals(frames, brightness);
   const danceability = analyzeDanceability(

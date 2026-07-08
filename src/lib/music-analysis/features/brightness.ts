@@ -1,5 +1,5 @@
-
-
+import { getBandEnergy } from "../fft";
+import type { FftAnalysisResult } from "../fft";
 import type { BrightnessFeature, FeatureFrame } from "./types";
 
 function clamp(value: number, min = 0, max = 100) {
@@ -15,12 +15,22 @@ function estimateSpectralCentroidFromZcr(zeroCrossingRate: number) {
   return Math.max(0, Math.min(9000, zeroCrossingRate * 22050));
 }
 
-export function analyzeBrightness(frames: FeatureFrame[]): BrightnessFeature {
+export function analyzeBrightness(frames: FeatureFrame[], fftAnalysis?: FftAnalysisResult): BrightnessFeature {
+  const fftCentroid = fftAnalysis?.spectrum.spectralCentroid ?? 0;
+  const fftHighEnergy = fftAnalysis
+    ? (getBandEnergy(fftAnalysis.bands, "presence") +
+        getBandEnergy(fftAnalysis.bands, "brilliance") +
+        getBandEnergy(fftAnalysis.bands, "air")) / 3
+    : 0;
+
   const centroidValues = frames.map((frame) => estimateSpectralCentroidFromZcr(frame.zeroCrossingRate));
-  const spectralCentroid = average(centroidValues);
-  const highFrequencyRatio = frames.length
+  const estimatedSpectralCentroid = average(centroidValues);
+  const estimatedHighFrequencyRatio = frames.length
     ? frames.filter((frame) => frame.zeroCrossingRate >= 0.12).length / frames.length
     : 0;
+
+  const spectralCentroid = fftCentroid || estimatedSpectralCentroid;
+  const highFrequencyRatio = fftAnalysis ? fftHighEnergy : estimatedHighFrequencyRatio;
 
   let score = 65;
 
@@ -42,12 +52,14 @@ export function analyzeBrightness(frames: FeatureFrame[]): BrightnessFeature {
 
   return {
     score: clamp(score),
-    confidence: frames.length ? 0.72 : 0.25,
+    confidence: fftAnalysis ? 0.88 : frames.length ? 0.72 : 0.25,
     label,
     details: [
-      `Estimated spectral centroid: ${Math.round(spectralCentroid)} Hz`,
-      `High-frequency frame ratio: ${Math.round(highFrequencyRatio * 100)}%`,
-      "Brightness is estimated from zero-crossing activity until full FFT spectral analysis is added.",
+      `${fftAnalysis ? "FFT" : "Estimated"} spectral centroid: ${Math.round(spectralCentroid)} Hz`,
+      `${fftAnalysis ? "FFT high-band energy" : "High-frequency frame ratio"}: ${Math.round(highFrequencyRatio * 100)}%`,
+      fftAnalysis
+        ? "Brightness uses FFT spectrum and high-frequency band energy."
+        : "Brightness is estimated from zero-crossing activity until FFT spectral analysis is provided.",
     ],
     spectralCentroid: Math.round(spectralCentroid),
     highFrequencyRatio: Number(highFrequencyRatio.toFixed(2)),

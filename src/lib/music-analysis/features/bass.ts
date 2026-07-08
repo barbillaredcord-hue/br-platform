@@ -1,5 +1,5 @@
-
-
+import { getBandEnergy } from "../fft";
+import type { FftAnalysisResult } from "../fft";
 import type { BassFeature, FeatureFrame } from "./types";
 
 function clamp(value: number, min = 0, max = 100) {
@@ -23,11 +23,19 @@ function estimateLowFrequencyEnergy(frames: FeatureFrame[]) {
   return Math.min(1, lowEnergy / totalEnergy);
 }
 
-export function analyzeBass(frames: FeatureFrame[]): BassFeature {
-  const lowFrequencyEnergy = estimateLowFrequencyEnergy(frames);
-  const subBassPresence = frames.length
+export function analyzeBass(frames: FeatureFrame[], fftAnalysis?: FftAnalysisResult): BassFeature {
+  const estimatedLowFrequencyEnergy = estimateLowFrequencyEnergy(frames);
+  const estimatedSubBassPresence = frames.length
     ? frames.filter((frame) => frame.energy >= 0.12 && frame.zeroCrossingRate < 0.06).length / frames.length
     : 0;
+
+  const fftSubEnergy = fftAnalysis ? getBandEnergy(fftAnalysis.bands, "sub") : 0;
+  const fftBassEnergy = fftAnalysis ? getBandEnergy(fftAnalysis.bands, "bass") : 0;
+
+  const lowFrequencyEnergy = fftAnalysis
+    ? Math.min(1, fftSubEnergy * 0.55 + fftBassEnergy * 0.45)
+    : estimatedLowFrequencyEnergy;
+  const subBassPresence = fftAnalysis ? fftSubEnergy : estimatedSubBassPresence;
 
   let score = 60;
 
@@ -48,12 +56,14 @@ export function analyzeBass(frames: FeatureFrame[]): BassFeature {
 
   return {
     score: clamp(score),
-    confidence: frames.length ? 0.62 : 0.2,
+    confidence: fftAnalysis ? 0.88 : frames.length ? 0.62 : 0.2,
     label,
     details: [
-      `Estimated low-frequency energy: ${Math.round(lowFrequencyEnergy * 100)}%`,
-      `Estimated sub-bass presence: ${Math.round(subBassPresence * 100)}%`,
-      "Bass is estimated from frame energy and low zero-crossing activity until FFT band analysis is added.",
+      `${fftAnalysis ? "FFT" : "Estimated"} low-frequency energy: ${Math.round(lowFrequencyEnergy * 100)}%`,
+      `${fftAnalysis ? "FFT" : "Estimated"} sub-bass presence: ${Math.round(subBassPresence * 100)}%`,
+      fftAnalysis
+        ? "Bass uses FFT sub and bass frequency bands."
+        : "Bass is estimated from frame energy and low zero-crossing activity until FFT band analysis is provided.",
     ],
     lowFrequencyEnergy: Number(lowFrequencyEnergy.toFixed(2)),
     subBassPresence: Number(subBassPresence.toFixed(2)),
