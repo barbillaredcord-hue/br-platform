@@ -12,6 +12,15 @@ type BeatAccessRow = {
   beat_id: string | null;
 };
 
+type RevocationRow = {
+  id: string;
+  user_id: string | null;
+  beat_id: string | null;
+  reason: string | null;
+  revoked_at: string | null;
+  created_at: string | null;
+};
+
 type ManualPaymentRow = {
   user_id: string | null;
   beat_id: string | null;
@@ -35,6 +44,19 @@ type BeatActivityUser = {
   display_name: string | null;
   last_activity_at: string | null;
   count: number;
+};
+
+type BeatAccessUser = {
+  user_id: string;
+  email: string;
+  username: string | null;
+  display_name: string | null;
+};
+
+type BeatRevokedUser = BeatAccessUser & {
+  revocation_id: string;
+  reason: string | null;
+  revoked_at: string | null;
 };
 
 type DownloadCounts = {
@@ -65,6 +87,21 @@ function getCurrentMonthKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function profileUser(input: { userId: string; profilesById: Map<string, ProfileRow> }): BeatAccessUser {
+  const profile = input.profilesById.get(input.userId);
+
+  return {
+    user_id: input.userId,
+    email: profile?.email ?? "Sin email",
+    username: profile?.username ?? null,
+    display_name: profile?.display_name ?? null,
+  };
+}
+
+function revocationKey(userId: string, beatId: string) {
+  return `${userId}:${beatId}`;
+}
+
 export async function GET(request: Request) {
   const admin = await validateAdminRequest(request);
 
@@ -72,9 +109,10 @@ export async function GET(request: Request) {
     return admin.response;
   }
 
-  const [profilesResult, accessResult, paymentsResult, activityResult] = await Promise.all([
+  const [profilesResult, accessResult, revocationsResult, paymentsResult, activityResult] = await Promise.all([
     admin.supabase.from("profiles").select("id,email,username,display_name").order("created_at", { ascending: false }),
     admin.supabase.from("beat_access").select("user_id,beat_id"),
+    admin.supabase.from("access_revocations").select("id,user_id,beat_id,reason,revoked_at,created_at"),
     admin.supabase.from("manual_payments").select("user_id,beat_id,amount,created_at"),
     admin.supabase.from("commercial_activity").select("user_id,event_type,beat_id,beat_title,beat_slug,created_at").in("event_type", ["mp3_download", "license_download"]),
   ]);
@@ -89,6 +127,11 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, message: "No se pudieron cargar los accesos." }, { status: 500 });
   }
 
+  if (revocationsResult.error) {
+    console.error("B.R commercial users revocations error", revocationsResult.error);
+    return Response.json({ ok: false, message: "No se pudieron cargar las revocaciones." }, { status: 500 });
+  }
+
   if (paymentsResult.error) {
     console.error("B.R commercial users payments error", paymentsResult.error);
     return Response.json({ ok: false, message: "No se pudieron cargar los pagos." }, { status: 500 });
@@ -101,11 +144,15 @@ export async function GET(request: Request) {
 
   const profiles = (profilesResult.data ?? []) as ProfileRow[];
   const accessRows = (accessResult.data ?? []) as BeatAccessRow[];
+  const revocationRows = (revocationsResult.data ?? []) as RevocationRow[];
   const paymentRows = (paymentsResult.data ?? []) as ManualPaymentRow[];
   const activityRows = (activityResult.data ?? []) as ActivityRow[];
 
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const accessByUser = new Map<string, Set<string>>();
+  const activeAccessUsersByBeat = new Map<string, Map<string, BeatAccessUser>>();
+  const revokedUsersByBeat = new Map<string, Map<string, BeatRevokedUser>>();
+  const revocationKeys = new Set<string>();
   const paidByUser = new Map<string, Set<string>>();
   const totalsByUser = new Map<string, number>();
   const downloadCountsByUser = new Map<string, DownloadCounts>();
@@ -117,6 +164,27 @@ export async function GET(request: Request) {
   let earningsCurrentMonth = 0;
   const earningsByMonth = new Map<string, number>();
 
+  revocationRows.forEach((row) => {
+    if (!row.user_id || !row.beat_id) {
+      return;
+    }
+
+    relevantUserIds.add(row.user_id);
+    revocationKeys.add(revocationKey(row.user_id, row.beat_id));
+
+    const beatUsers = revokedUsersByBeat.get(row.beat_id) ?? new Map<string, BeatRevokedUser>();
+    const baseUser = profileUser({ userId: row.user_id, profilesById });
+
+    beatUsers.set(row.user_id, {
+      ...baseUser,
+      revocation_id: row.id,
+      reason: row.reason,
+      revoked_at: row.revoked_at ?? row.created_at,
+    });
+
+    revokedUsersByBeat.set(row.beat_id, beatUsers);
+  });
+
   accessRows.forEach((row) => {
     if (!row.user_id || !row.beat_id) {
       return;
@@ -124,9 +192,17 @@ export async function GET(request: Request) {
 
     relevantUserIds.add(row.user_id);
 
+    if (revocationKeys.has(revocationKey(row.user_id, row.beat_id))) {
+      return;
+    }
+
     const beatIds = accessByUser.get(row.user_id) ?? new Set<string>();
     beatIds.add(row.beat_id);
     accessByUser.set(row.user_id, beatIds);
+
+    const beatUsers = activeAccessUsersByBeat.get(row.beat_id) ?? new Map<string, BeatAccessUser>();
+    beatUsers.set(row.user_id, profileUser({ userId: row.user_id, profilesById }));
+    activeAccessUsersByBeat.set(row.beat_id, beatUsers);
   });
 
   paymentRows.forEach((row) => {
@@ -278,6 +354,8 @@ export async function GET(request: Request) {
       return {
         ...beat,
         total_downloads: beat.mp3 + beat.licenses,
+        active_access_users: Array.from(activeAccessUsersByBeat.get(beat.beat_id)?.values() ?? []).sort((a, b) => a.email.localeCompare(b.email)),
+        revoked_users: Array.from(revokedUsersByBeat.get(beat.beat_id)?.values() ?? []).sort((a, b) => a.email.localeCompare(b.email)),
         mp3_users: Array.from(beatUsers?.mp3_users.values() ?? []).sort((a, b) => b.count - a.count || a.email.localeCompare(b.email)),
         license_users: Array.from(beatUsers?.license_users.values() ?? []).sort((a, b) => b.count - a.count || a.email.localeCompare(b.email)),
       };
