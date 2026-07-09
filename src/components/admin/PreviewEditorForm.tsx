@@ -33,11 +33,16 @@ function clampStartSecond(value: number) {
   return Math.max(0, Math.round(value || 0));
 }
 
+
 function splitCommaValues(value: string) {
   return value
     .split(/[,/;|]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function getTopRankedKey(analysisKey: string, candidates: KeyCandidate[]) {
+  return candidates[0]?.key?.trim() || analysisKey.trim();
 }
 
 
@@ -184,9 +189,15 @@ export function PreviewEditorForm({
   const [analysisProcessCount, setAnalysisProcessCount] = useState(0);
   const [lastAnalysisSignature, setLastAnalysisSignature] = useState("");
   const [analysisProcessMessage, setAnalysisProcessMessage] = useState("");
+  const [analysisReloadKey, setAnalysisReloadKey] = useState(0);
 
   const hasRealPreview = Boolean(currentPreviewUrl && currentPreviewUrl !== fullAudioUrl);
 
+  function requestAudioAnalysis() {
+    setAnalysisReloadKey((value) => value + 1);
+  }
+
+  
   useEffect(() => {
     let isMounted = true;
 
@@ -313,7 +324,19 @@ export function PreviewEditorForm({
     return () => {
       isMounted = false;
     };
-  }, [fullAudioUrl, title]);
+  }, [analysisReloadKey, fullAudioUrl, title]);
+
+  useEffect(() => {
+    function handlePageShow() {
+      requestAudioAnalysis();
+    }
+
+    window.addEventListener("pageshow", handlePageShow);
+
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, []);
 
   useEffect(() => {
     if (!waveformCanvasRef.current || waveformSamples.length === 0) {
@@ -411,7 +434,7 @@ export function PreviewEditorForm({
   }
 
   async function applyAnalysisKey() {
-    const nextKey = analysisKey.trim();
+    const nextKey = getTopRankedKey(analysisKey, analysisKeyCandidates);
 
     if (!nextKey) {
       setStatus("Agrega una tonalidad principal.");
@@ -430,6 +453,7 @@ export function PreviewEditorForm({
         nextValue: { musicalKey: nextKey, alternatives: splitCommaValues(analysisAlternativeKeys) },
       });
       setAppliedMusicalKey(nextKey);
+      setAnalysisKey(nextKey);
       setStatus("Tonalidad aplicada desde AI Beat Analysis Lite.");
       router.refresh();
     } else {
@@ -494,7 +518,7 @@ export function PreviewEditorForm({
 
   async function applyFullAnalysis() {
     const nextBpm = Number(analysisBpm);
-    const nextKey = analysisKey.trim();
+    const nextKey = getTopRankedKey(analysisKey, analysisKeyCandidates);
     const nextGenre = splitCommaValues(analysisGenres).join(", ");
     const nextStart = clampStartSecond(Number(analysisPreviewStart));
     const nextDuration = normalizePreviewDuration(Number(analysisPreviewDuration));
@@ -530,36 +554,68 @@ export function PreviewEditorForm({
     };
 
     setIsApplyingAnalysis("full");
-    const result = await updateBeatMetadataAsAdmin(beatId, {
-      bpm: roundedBpm,
-      musicalKey: nextKey,
-      genre: nextGenre,
+
+    const bpmResult = await updateBeatMetadataAsAdmin(beatId, { bpm: roundedBpm });
+
+    if (!bpmResult.ok) {
+      setStatus(bpmResult.message ?? "No se pudo guardar el BPM del análisis completo.");
+      setIsApplyingAnalysis("");
+      return;
+    }
+
+    const keyResult = await updateBeatMetadataAsAdmin(beatId, { musicalKey: nextKey });
+
+    if (!keyResult.ok) {
+      setStatus(keyResult.message ?? "El BPM se guardó, pero no se pudo guardar la tonalidad.");
+      setIsApplyingAnalysis("");
+      return;
+    }
+
+    const genreResult = await updateBeatMetadataAsAdmin(beatId, { genre: nextGenre });
+
+    if (!genreResult.ok) {
+      setStatus(genreResult.message ?? "El BPM y la tonalidad se guardaron, pero no se pudieron guardar los géneros.");
+      setIsApplyingAnalysis("");
+      return;
+    }
+
+    const savedBpm = genreResult.beat?.bpm ?? keyResult.beat?.bpm ?? bpmResult.beat?.bpm ?? roundedBpm;
+    const savedKey = genreResult.beat?.musical_key ?? keyResult.beat?.musical_key ?? nextKey;
+    const savedGenre = genreResult.beat?.genre ?? nextGenre;
+
+    setAppliedBpm(savedBpm);
+    setAnalysisBpm(String(savedBpm));
+    setAppliedMusicalKey(savedKey);
+    setAnalysisKey(savedKey);
+    setAppliedGenre(savedGenre);
+    setAnalysisGenres(savedGenre);
+    setStartSecond(nextStart);
+    setDurationSeconds(nextDuration);
+
+    if (fullAudioRef.current) {
+      fullAudioRef.current.currentTime = nextStart;
+    }
+
+    await logAnalysisChange({
+      blockTitle: "AI Lite: análisis completo aplicado",
+      eventType: "ai_full_apply",
+      description: `Se aplicó análisis completo para ${title}: ${savedBpm} BPM · ${savedKey} · ${savedGenre} · preview ${nextStart}s/${nextDuration}s.`,
+      previousValue,
+      nextValue: {
+        ...nextValue,
+        bpm: savedBpm,
+        musicalKey: savedKey,
+        genre: savedGenre,
+      },
     });
 
-    if (result.ok) {
-      setAppliedBpm(roundedBpm);
-      setAppliedMusicalKey(nextKey);
-      setAppliedGenre(nextGenre);
-      setStartSecond(nextStart);
-      setDurationSeconds(nextDuration);
+    setStatus(`Análisis completo aplicado: BPM ${savedBpm}, tonalidad ${savedKey}, géneros ${savedGenre}.`);
+    router.refresh();
+    requestAudioAnalysis();
 
-      if (fullAudioRef.current) {
-        fullAudioRef.current.currentTime = nextStart;
-      }
-
-      await logAnalysisChange({
-        blockTitle: "AI Lite: análisis completo aplicado",
-        eventType: "ai_full_apply",
-        description: `Se aplicó análisis completo para ${title}: ${roundedBpm} BPM · ${nextKey} · ${nextGenre} · preview ${nextStart}s/${nextDuration}s.`,
-        previousValue,
-        nextValue,
-      });
-
-      setStatus("Análisis completo aplicado al metadata del beat. Genera y guarda el preview si quieres publicar el corte sugerido.");
-      router.refresh();
-    } else {
-      setStatus(result.message ?? "No se pudo aplicar el análisis completo.");
-    }
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 900);
 
     setIsApplyingAnalysis("");
   }
@@ -892,7 +948,10 @@ export function PreviewEditorForm({
               </span>
               <button
                 type="button"
-                onClick={reprocessAnalysis}
+                onClick={() => {
+                  requestAudioAnalysis();
+                  reprocessAnalysis();
+                }}
                 className="h-8 rounded-md border border-cyan-300/30 px-2.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/10"
               >
                 Analizar Beat
@@ -913,7 +972,7 @@ export function PreviewEditorForm({
             </label>
             <label className="grid gap-1">
               <span className="text-xs uppercase text-zinc-500">Tonalidad principal</span>
-              <input value={analysisKey} onChange={(event) => setAnalysisKey(event.target.value)} placeholder="F minor" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
+              <input value={getTopRankedKey(analysisKey, analysisKeyCandidates)} onChange={(event) => setAnalysisKey(event.target.value)} placeholder="F minor" className="h-9 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-300" />
             </label>
             <label className="grid gap-1 lg:col-span-3">
               <span className="text-xs uppercase text-zinc-500">Géneros sugeridos</span>
@@ -1050,7 +1109,7 @@ export function PreviewEditorForm({
                 {isApplyingAnalysis === "bpm" ? "Aplicando..." : "Aplicar solo BPM"}
               </button>
               <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisKey()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
-                {isApplyingAnalysis === "key" ? "Aplicando..." : "Aplicar solo tonalidad"}
+                {isApplyingAnalysis === "key" ? "Aplicando..." : "Aplicar tonalidad principal"}
               </button>
               <button type="button" disabled={Boolean(isApplyingAnalysis)} onClick={() => void applyAnalysisGenres()} className="h-9 rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">
                 {isApplyingAnalysis === "genre" ? "Aplicando..." : "Aplicar solo géneros"}

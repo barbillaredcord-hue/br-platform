@@ -105,8 +105,12 @@ export type AccessRevocationRow = {
 const answeredRequestVisibleMs = 3 * 24 * 60 * 60 * 1000;
 
 let supabaseClient: SupabaseClient | null = null;
+let supabaseBrowserSessionClient: SupabaseClient | null = null;
 
 function getSupabaseClient() {
+  if (typeof window !== "undefined") {
+    return getSupabaseBrowserSessionClient();
+  }
   if (supabaseClient) {
     return supabaseClient;
   }
@@ -132,7 +136,13 @@ function getSupabaseBrowserSessionClient() {
     return null;
   }
 
-  return createSupabaseBrowserClient() as SupabaseClient | null;
+  if (supabaseBrowserSessionClient) {
+    return supabaseBrowserSessionClient;
+  }
+
+  supabaseBrowserSessionClient = createSupabaseBrowserClient() as SupabaseClient | null;
+
+  return supabaseBrowserSessionClient;
 }
 
 async function getAuthenticatedBrowserClient() {
@@ -472,8 +482,8 @@ export async function beatSlugExists(slug: string, supabaseOverride?: SupabaseCl
   return !error && Boolean(data?.id);
 }
 
-async function resolveBeatId(beatId: string) {
-  const supabase = getSupabaseClient();
+async function resolveBeatId(beatId: string, supabaseOverride?: SupabaseClient | null) {
+  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase) {
     return beatId;
@@ -536,7 +546,7 @@ export async function getUserAccessRevocations(userId: string, supabaseOverride?
 
 export async function getAccessRevocationsForBeat(beatId: string, supabaseOverride?: SupabaseClient | null) {
   const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-  const resolvedBeatId = await resolveBeatId(beatId);
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
 
   if (!supabase || !resolvedBeatId) {
     return [];
@@ -586,7 +596,7 @@ export async function getUsersWithAccessToBeat(beatId: string): Promise<User[]> 
 export async function createAccessRequest(userId: string, beatId: string, message?: string) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
-  const resolvedBeatId = await resolveBeatId(beatId);
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
 
   if (!supabase) {
     return { ok: false, message: authClient.message };
@@ -712,7 +722,7 @@ export async function getAccessRequestsForUser(userId: string) {
 
 export async function getAccessRequestForBeat(userId: string, beatId: string) {
   const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-  const resolvedBeatId = await resolveBeatId(beatId);
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
 
   if (!supabase || !userId || !resolvedBeatId) {
     return null;
@@ -763,6 +773,16 @@ export async function approveAccessRequest(requestId: string) {
     return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
   }
 
+  if (accessError) {
+    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
+  }
+
+  await supabase
+    .from("access_revocations")
+    .delete()
+    .eq("user_id", request.user_id)
+    .eq("beat_id", request.beat_id);
+
   const { error: updateError } = await supabase.from("access_requests").update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId);
 
   return updateError ? { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." } : { ok: true };
@@ -792,10 +812,31 @@ export async function rejectAccessRequest(requestId: string) {
     .eq("user_id", request.user_id)
     .eq("beat_id", request.beat_id);
 
+  const rejectionReason = "Solicitud de acceso rechazada por B.R Admin.";
+
+  const { error: revocationError } = await supabase.from("access_revocations").insert({
+    user_id: request.user_id,
+    beat_id: request.beat_id,
+    reason: rejectionReason,
+    revoked_by: authClient.sessionInfo.userId,
+  });
+
+  if (revocationError) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("B.R rejected request revocation insert error", revocationError);
+    }
+
+    return {
+      ok: false,
+      message: `No se pudo registrar la solicitud rechazada como revocación: ${revocationError.message}`,
+    };
+  }
+
   const { error } = await supabase
     .from("access_requests")
     .update({
       status: "rejected",
+      message: rejectionReason,
       responded_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -824,7 +865,7 @@ export async function markAccessRequestContacted(requestId: string, currentMessa
 export async function grantBeatAccess(userId: string, beatId: string) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
-  const resolvedBeatId = await resolveBeatId(beatId);
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
 
   if (!supabase) {
     return { ok: false, message: authClient.message };
@@ -848,6 +889,12 @@ export async function grantBeatAccess(userId: string, beatId: string) {
   }
 
   await supabase
+    .from("access_revocations")
+    .delete()
+    .eq("user_id", userId)
+    .eq("beat_id", resolvedBeatId);
+
+  await supabase
     .from("access_requests")
     .update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("user_id", userId)
@@ -860,7 +907,7 @@ export async function grantBeatAccess(userId: string, beatId: string) {
 export async function revokeBeatAccess(userId: string, beatId: string, reason = "Acceso revocado por B.R Admin.") {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
-  const resolvedBeatId = await resolveBeatId(beatId);
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
   const cleanReason = reason.trim();
 
   if (!supabase) {
@@ -1224,7 +1271,7 @@ export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetad
     return { ok: false, message: "Beat inválido." };
   }
 
-  const resolvedBeatId = await resolveBeatId(beatId);
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
 
   if (!resolvedBeatId) {
     return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
@@ -1267,7 +1314,12 @@ export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetad
     return { ok: false, message: "No hay cambios para guardar." };
   }
 
-  const { error } = await supabase.from("beats").update(payload).eq("id", resolvedBeatId);
+  const { data: updatedBeat, error } = await supabase
+    .from("beats")
+    .update(payload)
+    .eq("id", resolvedBeatId)
+    .select("id,slug,genre,bpm,musical_key,is_active")
+    .maybeSingle<Pick<BeatRowDb, "id" | "slug" | "genre" | "bpm" | "musical_key" | "is_active">>();
 
   if (error) {
     if (process.env.NODE_ENV === "development") {
@@ -1277,7 +1329,11 @@ export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetad
     return { ok: false, message: "No se pudo actualizar la metadata." };
   }
 
-  return { ok: true, message: "Metadata actualizada." };
+  if (!updatedBeat) {
+    return { ok: false, message: "Supabase no confirmó la actualización del beat. Revisa RLS/permisos o el ID del beat." };
+  }
+
+  return { ok: true, message: "Metadata actualizada.", beat: updatedBeat };
 }
 
 function slugify(value: string) {

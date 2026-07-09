@@ -61,23 +61,45 @@ function revocationMatchesBeat(revocation: AccessRevocationRow, beatId: string) 
   return revocation.beat_id === beatId || revokedBeat?.slug === beatId;
 }
 
+function dismissedBeatRevocationKey(userId?: string | null) {
+  return `br:dismissed-revocations:${userId || "guest"}`;
+}
+
+function getDismissedBeatRevocations(userId?: string | null) {
+  if (typeof window === "undefined") {
+    return [] as string[];
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(dismissedBeatRevocationKey(userId));
+    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
+
+    return Array.isArray(parsedValue) ? parsedValue.map(String) : [];
+  } catch {
+    return [] as string[];
+  }
+}
+
 export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   const savedBeatId = beat.dbId ?? beat.id;
   const [isSaved, setIsSaved] = useState(false);
   const [requestStatus, setRequestStatus] = useState<AccessRequestStatus | null>(null);
   const [revocation, setRevocation] = useState<AccessRevocationRow | null>(null);
+  const [dismissedRevokedBeatIds, setDismissedRevokedBeatIds] = useState<string[]>([]);
 
   const { currentUser, isEmailConfirmed } = useUser();
   const isAdmin = currentUser?.role === "admin";
   const hasBeatAccess = userCanAccessBeat(currentUser, beat);
   const hasRevocation = Boolean(revocation);
-  const hasPlaybackAccess = (isAdmin || hasBeatAccess) && !hasRevocation;
-  const isPublicPlayback = beat.playbackVisibility === "public" && !hasRevocation;
+  const showRevokedNotice = hasRevocation && !dismissedRevokedBeatIds.includes(savedBeatId) && !dismissedRevokedBeatIds.includes(String(revocation?.id ?? ""));
+  const isPublicPlayback = beat.playbackVisibility === "public";
+  const hasFullPlayback = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation);
+  const hasPlaybackAccess = hasFullPlayback;
   const canPreviewPrivate = Boolean(currentUser && isEmailConfirmed);
   const previewSeconds = getPreviewSeconds(beat);
-  const canShowPlayButton = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation) || (!hasRevocation && canPreviewPrivate);
-  const playbackMode = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation) ? "full" : "preview";
-  const playbackLabel = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation) ? "Full" : `Preview ${previewSeconds}s`;
+  const canShowPlayButton = isAdmin || isPublicPlayback || hasRevocation || (hasBeatAccess && !hasRevocation) || canPreviewPrivate;
+  const playbackMode = hasFullPlayback ? "full" : "preview";
+  const playbackLabel = hasFullPlayback ? "Full" : `Preview ${previewSeconds}s`;
 
   useEffect(() => {
     const syncSavedState = () => {
@@ -94,6 +116,24 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
       window.removeEventListener("storage", syncSavedState);
     };
   }, [currentUser?.id, savedBeatId]);
+
+  useEffect(() => {
+    const syncDismissedRevocations = () => {
+      setDismissedRevokedBeatIds(getDismissedBeatRevocations(currentUser?.id));
+    };
+
+    syncDismissedRevocations();
+
+    window.addEventListener("storage", syncDismissedRevocations);
+    window.addEventListener("br:revocation-dismissed", syncDismissedRevocations);
+    window.addEventListener("focus", syncDismissedRevocations);
+
+    return () => {
+      window.removeEventListener("storage", syncDismissedRevocations);
+      window.removeEventListener("br:revocation-dismissed", syncDismissedRevocations);
+      window.removeEventListener("focus", syncDismissedRevocations);
+    };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -159,7 +199,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
           <AccessStatusBadge hasAccess={hasPlaybackAccess} />
-          {hasRevocation ? (
+          {showRevokedNotice ? (
             <span className="inline-flex w-fit rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold text-amber-100">
               Acceso revocado
             </span>
@@ -171,17 +211,21 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
           ) : null}
         </div>
         <p className="mt-1.5 truncate text-[11px] font-semibold text-zinc-500 sm:mt-2 sm:text-xs">
-          {hasRevocation
-            ? "Acceso revocado: solo preview"
-            : isAdmin
-              ? "Admin: reproducción full disponible"
-              : isPublicPlayback
-                ? "Full público, descarga protegida"
-                : hasBeatAccess
-                  ? "Acceso completo activo"
-                  : canPreviewPrivate
-                    ? "Preview privado disponible"
-                  : "Inicia sesión y confirma email"}
+          {isPublicPlayback && hasRevocation
+            ? "Full público, descarga bloqueada"
+            : showRevokedNotice
+              ? "Acceso revocado: solo preview"
+              : hasRevocation
+                ? `Preview ${previewSeconds}s disponible`
+                : isAdmin
+                  ? "Admin: reproducción full disponible"
+                  : isPublicPlayback
+                    ? "Full público, descarga protegida"
+                    : hasBeatAccess
+                      ? "Acceso completo activo"
+                      : canPreviewPrivate
+                        ? "Preview privado disponible"
+                        : "Inicia sesión y confirma email"}
         </p>
       </Link>
       <div className="mt-3 grid gap-2 sm:mt-4">

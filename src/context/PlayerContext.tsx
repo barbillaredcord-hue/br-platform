@@ -160,7 +160,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const startAudio = useCallback((beat: Beat, nextMode: PlayerMode) => {
     const previewLimit = getPreviewLimit(beat);
-    const nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl || beat.fullAudioUrl;
+    const nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl;
+
+    if (!nextAudioUrl) {
+      warnAudioFailure({ beat, audioUrl: null, mode: nextMode, error: "missing_audio_url" });
+      setIsPlaying(false);
+      return;
+    }
+
     let didFinish = false;
 
     function finishAndAdvance() {

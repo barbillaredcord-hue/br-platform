@@ -25,6 +25,16 @@ type ActivityRow = {
   beat_id: string | null;
   beat_title: string | null;
   beat_slug: string | null;
+  created_at: string | null;
+};
+
+type BeatActivityUser = {
+  user_id: string;
+  email: string;
+  username: string | null;
+  display_name: string | null;
+  last_activity_at: string | null;
+  count: number;
 };
 
 type DownloadCounts = {
@@ -66,7 +76,7 @@ export async function GET(request: Request) {
     admin.supabase.from("profiles").select("id,email,username,display_name").order("created_at", { ascending: false }),
     admin.supabase.from("beat_access").select("user_id,beat_id"),
     admin.supabase.from("manual_payments").select("user_id,beat_id,amount,created_at"),
-    admin.supabase.from("commercial_activity").select("user_id,event_type,beat_id,beat_title,beat_slug").in("event_type", ["mp3_download", "license_download"]),
+    admin.supabase.from("commercial_activity").select("user_id,event_type,beat_id,beat_title,beat_slug,created_at").in("event_type", ["mp3_download", "license_download"]),
   ]);
 
   if (profilesResult.error) {
@@ -100,6 +110,7 @@ export async function GET(request: Request) {
   const totalsByUser = new Map<string, number>();
   const downloadCountsByUser = new Map<string, DownloadCounts>();
   const downloadCountsByBeat = new Map<string, { beat_id: string; beat_title: string | null; beat_slug: string | null; mp3: number; licenses: number }>();
+  const downloadUsersByBeat = new Map<string, { mp3_users: Map<string, BeatActivityUser>; license_users: Map<string, BeatActivityUser> }>();
   const relevantUserIds = new Set<string>();
   const currentMonthKey = getCurrentMonthKey();
   let earningsTotal = 0;
@@ -144,6 +155,29 @@ export async function GET(request: Request) {
     }
   });
 
+  function addBeatActivityUser(input: { beatId: string; userId: string; eventType: "mp3_download" | "license_download"; createdAt: string | null }) {
+    const beatUsers = downloadUsersByBeat.get(input.beatId) ?? {
+      mp3_users: new Map<string, BeatActivityUser>(),
+      license_users: new Map<string, BeatActivityUser>(),
+    };
+    const targetMap = input.eventType === "mp3_download" ? beatUsers.mp3_users : beatUsers.license_users;
+    const profile = profilesById.get(input.userId);
+    const existingUser = targetMap.get(input.userId);
+    const existingDate = existingUser?.last_activity_at ? new Date(existingUser.last_activity_at).getTime() : 0;
+    const nextDate = input.createdAt ? new Date(input.createdAt).getTime() : 0;
+
+    targetMap.set(input.userId, {
+      user_id: input.userId,
+      email: profile?.email ?? "Sin email",
+      username: profile?.username ?? null,
+      display_name: profile?.display_name ?? null,
+      last_activity_at: nextDate > existingDate ? input.createdAt : existingUser?.last_activity_at ?? input.createdAt,
+      count: (existingUser?.count ?? 0) + 1,
+    });
+
+    downloadUsersByBeat.set(input.beatId, beatUsers);
+  }
+
   activityRows.forEach((row) => {
     if (!row.user_id) {
       return;
@@ -178,6 +212,10 @@ export async function GET(request: Request) {
 
       if (row.event_type === "license_download") {
         beatCounts.licenses += 1;
+      }
+
+      if ((row.event_type === "mp3_download" || row.event_type === "license_download") && row.user_id) {
+        addBeatActivityUser({ beatId: row.beat_id, userId: row.user_id, eventType: row.event_type, createdAt: row.created_at });
       }
 
       downloadCountsByBeat.set(row.beat_id, beatCounts);
@@ -234,10 +272,16 @@ export async function GET(request: Request) {
     .slice(0, 5);
 
   const topDownloadedBeats = Array.from(downloadCountsByBeat.values())
-    .map((beat) => ({
-      ...beat,
-      total_downloads: beat.mp3 + beat.licenses,
-    }))
+    .map((beat) => {
+      const beatUsers = downloadUsersByBeat.get(beat.beat_id);
+
+      return {
+        ...beat,
+        total_downloads: beat.mp3 + beat.licenses,
+        mp3_users: Array.from(beatUsers?.mp3_users.values() ?? []).sort((a, b) => b.count - a.count || a.email.localeCompare(b.email)),
+        license_users: Array.from(beatUsers?.license_users.values() ?? []).sort((a, b) => b.count - a.count || a.email.localeCompare(b.email)),
+      };
+    })
     .filter((beat) => beat.total_downloads > 0)
     .sort((a, b) => b.total_downloads - a.total_downloads || (a.beat_title || a.beat_slug || a.beat_id).localeCompare(b.beat_title || b.beat_slug || b.beat_id))
     .slice(0, 5);

@@ -544,7 +544,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
             <p className="text-[10px] font-bold uppercase text-emerald-200">Activos</p>
             <p className="mt-1 text-2xl font-black text-emerald-100">{beatStats.active}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+          <div className="rounded-lg border border-white/10 bg-white/4 p-3">
             <p className="text-[10px] font-bold uppercase text-zinc-500">Públicos</p>
             <p className="mt-1 text-2xl font-black text-white">{beatStats.public}</p>
           </div>
@@ -554,7 +554,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
           </div>
         </div>
 
-        <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+        <div className="mt-3 rounded-lg border border-white/10 bg-white/3 p-3">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-200">Top acceso</p>
           <div className="mt-2 grid max-h-40 gap-1.5 overflow-y-auto pr-1">
             {topAccessBeats.map(({ beat, usersWithAccess }) => (
@@ -575,7 +575,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
           <button
             type="button"
             onClick={() => setIsHistoryOpen((current) => !current)}
-            className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left transition hover:border-cyan-300/40 hover:bg-white/[0.06]"
+            className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-white/3 px-2.5 py-1.5 text-left transition hover:border-cyan-300/40 hover:bg-white/6"
             aria-controls="beat-change-history-panel"
           >
             <span>
@@ -630,7 +630,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         {actionMessage ? <p className="mt-3 rounded-md border border-white/10 bg-white/5 p-2 text-xs text-zinc-300">{actionMessage}</p> : null}
 
         <div className="mt-3 hidden max-h-[66vh] overflow-auto rounded-lg border border-white/10 md:block">
-          <table className="w-full min-w-[920px] border-collapse text-left text-xs">
+          <table className="w-full min-w-230 border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-[#171a1f] uppercase text-zinc-500">
               <tr>
                 <th className="px-3 py-2">Beat</th>
@@ -654,7 +654,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                   <tr
                     key={beat.id}
                     onClick={() => setSelectedBeatId(beat.id)}
-                    className={`cursor-pointer border-t border-white/10 transition hover:bg-white/[0.04] ${isSelected ? "bg-cyan-300/10" : ""} ${isActive ? "" : "bg-red-950/10 opacity-70"}`}
+                    className={`cursor-pointer border-t border-white/10 transition hover:bg-white/4 ${isSelected ? "bg-cyan-300/10" : ""} ${isActive ? "" : "bg-red-950/10 opacity-70"}`}
                   >
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
@@ -683,6 +683,8 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                     </td>
                     <td className="px-3 py-2">
                       <select
+                        aria-label={`Cambiar reproducción de ${beat.name}`}
+                        title={`Cambiar reproducción de ${beat.name}`}
                         value={beat.playbackVisibility ?? "private"}
                         disabled={updatingVisibilityBeatId === (beat.dbId ?? beat.id)}
                         onChange={(event) => void updatePlaybackVisibility(beat, event.target.value === "public" ? "public" : "private")}
@@ -751,7 +753,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               B.R
             </div>
             <div className="mt-3">
-              <h3 className="break-words text-xl font-black text-white">{selectedBeat.name}</h3>
+              <h3 className="wrap-break-word text-xl font-black text-white">{selectedBeat.name}</h3>
               <p className="mt-1 break-all text-xs text-zinc-500">{selectedBeat.id}</p>
             </div>
 
@@ -776,7 +778,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               </div>
             </div>
 
-            <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+            <div className="mt-4 rounded-lg border border-white/10 bg-white/3 p-3">
               <p className="text-xs font-bold uppercase text-cyan-200">Usuarios con acceso</p>
               <div className="mt-2 grid max-h-24 gap-1 overflow-y-auto pr-1">
                 {selectedUsersWithAccess.length ? (

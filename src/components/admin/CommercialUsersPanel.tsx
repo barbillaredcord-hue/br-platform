@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, CreditCard, Download, ExternalLink, RefreshCw, UserRound, X } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { revokeBeatAccess } from "@/lib/supabase/queries";
 
 type CommercialUser = {
   id: string;
@@ -24,6 +25,15 @@ type PaymentBeatOption = {
   slug: string | null;
   genre: string | null;
   bpm: number | null;
+};
+
+type BeatActivityUser = {
+  user_id: string;
+  email: string;
+  username: string | null;
+  display_name: string | null;
+  last_activity_at: string | null;
+  count: number;
 };
 
 type EarningsSummary = {
@@ -55,6 +65,8 @@ type CommercialSummary = {
     mp3: number;
     licenses: number;
     total_downloads: number;
+    mp3_users: BeatActivityUser[];
+    license_users: BeatActivityUser[];
   }>;
   total_mp3_downloads: number;
   total_license_downloads: number;
@@ -64,7 +76,7 @@ type CommercialSummary = {
 type TopActiveUser = CommercialSummary["top_active_users"][number];
 type TopDownloadedBeat = CommercialSummary["top_downloaded_beats"][number];
 
-type DetailDock = { type: "user"; user: CommercialUser } | null;
+type DetailDock = { type: "user"; user: CommercialUser } | { type: "beat"; beat: TopDownloadedBeat } | null;
 
 const initialForm = {
   beat_id: "",
@@ -89,6 +101,36 @@ function userLabel(user: CommercialUser) {
 
 function summaryUserLabel(user: CommercialSummary["top_active_users"][number]) {
   return user.display_name || user.username || user.email || user.id;
+}
+
+function topBeatLabel(beat: TopDownloadedBeat) {
+  return beat.beat_title || beat.beat_slug || beat.beat_id;
+}
+
+function findTopBeat(beats: TopDownloadedBeat[], beatId: string) {
+  return beats.find((beat) => beat.beat_id === beatId);
+}
+
+function beatActivityUserLabel(user: BeatActivityUser) {
+  return user.display_name || user.username || user.email || user.user_id;
+}
+
+function formatActivityDate(value?: string | null) {
+  if (!value) {
+    return "Sin fecha";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Sin fecha";
+  }
+
+  return date.toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function money(value: number) {
@@ -130,6 +172,7 @@ export function CommercialUsersPanel() {
   const [isTopBeatsOpen, setIsTopBeatsOpen] = useState(false);
   const [selectedTopUser, setSelectedTopUser] = useState<TopActiveUser | null>(null);
   const [selectedTopBeat, setSelectedTopBeat] = useState<TopDownloadedBeat | null>(null);
+  const [selectedBeatActivityTab, setSelectedBeatActivityTab] = useState<"all" | "mp3" | "licenses">("all");
   const [selectedUser, setSelectedUser] = useState<CommercialUser | null>(null);
   const [detailDock, setDetailDock] = useState<DetailDock>(null);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -141,6 +184,33 @@ export function CommercialUsersPanel() {
   const [isSaving, setIsSaving] = useState(false);
 
   const selectedBeat = useMemo(() => beatOptions.find((beat) => beat.id === form.beat_id) ?? null, [beatOptions, form.beat_id]);
+
+  const visibleBeatActivityUsers = useMemo(() => {
+    if (detailDock?.type !== "beat") {
+      return [] as BeatActivityUser[];
+    }
+
+    const usersById = new Map<string, BeatActivityUser>();
+    const sourceUsers = selectedBeatActivityTab === "all"
+      ? [...detailDock.beat.mp3_users, ...detailDock.beat.license_users]
+      : selectedBeatActivityTab === "mp3"
+        ? detailDock.beat.mp3_users
+        : detailDock.beat.license_users;
+
+    sourceUsers.forEach((user) => {
+      const existingUser = usersById.get(user.user_id);
+      const existingDate = existingUser?.last_activity_at ? new Date(existingUser.last_activity_at).getTime() : 0;
+      const nextDate = user.last_activity_at ? new Date(user.last_activity_at).getTime() : 0;
+
+      usersById.set(user.user_id, {
+        ...user,
+        count: (existingUser?.count ?? 0) + user.count,
+        last_activity_at: nextDate > existingDate ? user.last_activity_at : existingUser?.last_activity_at ?? user.last_activity_at,
+      });
+    });
+
+    return Array.from(usersById.values()).sort((firstUser, secondUser) => secondUser.count - firstUser.count || beatActivityUserLabel(firstUser).localeCompare(beatActivityUserLabel(secondUser)));
+  }, [detailDock, selectedBeatActivityTab]);
 
   async function getToken() {
     const supabase = createSupabaseBrowserClient();
@@ -181,7 +251,25 @@ export function CommercialUsersPanel() {
 
       setUsers(payload.users ?? []);
       setEarnings(payload.earnings ?? { total: 0, current_month: 0, current_month_key: "", history: [] });
-      setSummary(payload.summary ?? emptyCommercialSummary);
+      const nextSummary = payload.summary ?? emptyCommercialSummary;
+      setSummary(nextSummary);
+
+      setDetailDock((current) => {
+        if (current?.type !== "beat") {
+          return current;
+        }
+
+        const refreshedBeat = findTopBeat(nextSummary.top_downloaded_beats, current.beat.beat_id);
+        return refreshedBeat ? { type: "beat", beat: refreshedBeat } : current;
+      });
+
+      setSelectedTopBeat((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return findTopBeat(nextSummary.top_downloaded_beats, current.beat_id) ?? current;
+      });
     } catch {
       setMessage("No se pudieron cargar los usuarios comerciales.");
     } finally {
@@ -226,6 +314,8 @@ export function CommercialUsersPanel() {
 
   function selectUser(user: CommercialUser) {
     setSelectedUser(user);
+    setSelectedTopBeat(null);
+    setSelectedBeatActivityTab("all");
     setDetailDock({ type: "user", user });
     setIsPaymentFormOpen(false);
     setBeatOptions([]);
@@ -233,9 +323,22 @@ export function CommercialUsersPanel() {
     void loadBeatOptions(user.id);
   }
 
+  function selectTopBeat(beat: TopDownloadedBeat) {
+    setSelectedTopBeat(beat);
+    setSelectedBeatActivityTab("all");
+    setSelectedTopUser(null);
+    setSelectedUser(null);
+    setDetailDock({ type: "beat", beat });
+    setIsPaymentFormOpen(false);
+    setBeatOptions([]);
+    setForm(initialForm);
+  }
+
   function closeDock() {
     setDetailDock(null);
     setSelectedUser(null);
+    setSelectedTopBeat(null);
+    setSelectedBeatActivityTab("all");
     setIsPaymentFormOpen(false);
     setBeatOptions([]);
     setForm(initialForm);
@@ -299,6 +402,41 @@ export function CommercialUsersPanel() {
     }
   }
 
+  async function revokeTopBeatUserAccess(user: BeatActivityUser, beat: TopDownloadedBeat) {
+    setMessage(`Revocando acceso de ${beatActivityUserLabel(user)}...`);
+
+    try {
+      const result = await revokeBeatAccess(user.user_id, beat.beat_id, `Revocado desde Detalle comercial por actividad en ${topBeatLabel(beat)}.`);
+
+      if (!result.ok) {
+        setMessage(result.message ?? "No se pudo revocar el acceso.");
+        return;
+      }
+
+      setMessage(`Acceso revocado para ${beatActivityUserLabel(user)}.`);
+      await loadUsers();
+      setDetailDock((current) => {
+        if (current?.type !== "beat") {
+          return current;
+        }
+
+        return {
+          type: "beat",
+          beat: {
+            ...current.beat,
+            mp3_users: current.beat.mp3_users.filter((item) => item.user_id !== user.user_id),
+            license_users: current.beat.license_users.filter((item) => item.user_id !== user.user_id),
+          },
+        };
+      });
+      window.dispatchEvent(new Event("br-commercial-activity-refresh"));
+      window.dispatchEvent(new Event("br-access-requests-refresh"));
+      window.dispatchEvent(new Event("br:revocation-dismissed"));
+    } catch {
+      setMessage("No se pudo revocar el acceso.");
+    }
+  }
+
   function downloadMonthlyStatement(month: string, amount: number) {
     window.location.assign(`/admin/reports/earnings/${encodeURIComponent(month)}?amount=${encodeURIComponent(String(amount))}`);
   }
@@ -339,7 +477,7 @@ export function CommercialUsersPanel() {
           <p className="mt-1 text-xs text-zinc-500">Pagos manuales registrados</p>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 sm:col-span-3 xl:col-span-1 2xl:col-span-1">
+        <div className="rounded-lg border border-white/10 bg-white/3 p-3 sm:col-span-3 xl:col-span-1 2xl:col-span-1">
           <p className="text-xs font-bold uppercase text-zinc-500">Historial de ganancias</p>
           <p className="mt-1 text-lg font-black text-zinc-100">{earnings.history.length}</p>
           <p className="mt-1 text-xs text-zinc-500">Meses con pagos registrados</p>
@@ -368,7 +506,7 @@ export function CommercialUsersPanel() {
       </div>
 
       <div className="mt-3 grid gap-2 xl:grid-cols-2">
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+        <div className="rounded-lg border border-white/10 bg-white/3 p-2.5">
           <button type="button" onClick={() => setIsTopUsersOpen((current) => !current)} className="flex w-full items-center justify-between gap-2 text-left">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-200">Top usuarios</p>
@@ -426,7 +564,7 @@ export function CommercialUsersPanel() {
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+        <div className="rounded-lg border border-white/10 bg-white/3 p-2.5">
           <button type="button" onClick={() => setIsTopBeatsOpen((current) => !current)} className="flex w-full items-center justify-between gap-2 text-left">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-200">Top beats</p>
@@ -453,7 +591,7 @@ export function CommercialUsersPanel() {
                   );
 
                   return (
-                    <button key={beat.beat_id} type="button" onClick={() => setSelectedTopBeat(beat)} className={`w-44 shrink-0 rounded-md border bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-emerald-300/40 xl:w-full ${selectedTopBeat?.beat_id === beat.beat_id ? "border-emerald-300/50" : "border-white/10"}`}>
+                    <button key={beat.beat_id} type="button" onClick={() => selectTopBeat(beat)} className={`w-44 shrink-0 rounded-md border bg-black/20 px-2 py-1.5 text-left text-[10px] text-zinc-300 hover:border-emerald-300/40 xl:w-full ${selectedTopBeat?.beat_id === beat.beat_id ? "border-emerald-300/50" : "border-white/10"}`}>
                       {content}
                     </button>
                   );
@@ -500,10 +638,10 @@ export function CommercialUsersPanel() {
               </button>
             </div>
 
-            <div className="mt-5 max-h-[420px] space-y-3 overflow-y-auto pr-2">
+            <div className="mt-5 max-h-105 space-y-3 overflow-y-auto pr-2">
               {earnings.history.length === 0 ? <p className="rounded-md border border-white/10 p-4 text-sm text-zinc-400">Sin pagos registrados.</p> : null}
               {earnings.history.map((item) => (
-                <div key={item.month} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div key={item.month} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-bold text-zinc-100">{formatMonthLabel(item.month)}</p>
                     <p className="mt-1 text-xs text-zinc-500">Total mensual: {money(item.amount)}</p>
@@ -525,7 +663,7 @@ export function CommercialUsersPanel() {
 
       {message ? <p className="mt-3 rounded-md border border-cyan-300/20 bg-cyan-950/20 p-2 text-xs font-semibold text-cyan-100">{message}</p> : null}
 
-      <div className="mt-3 grid max-h-[360px] gap-1.5 overflow-y-auto pr-1">
+      <div className="mt-3 grid max-h-90 gap-1.5 overflow-y-auto pr-1">
         {users.length === 0 ? <p className="rounded-md border border-white/10 p-2.5 text-xs text-zinc-400">Sin usuarios comerciales todavía.</p> : null}
 
         {users.map((user) => (
@@ -534,7 +672,7 @@ export function CommercialUsersPanel() {
             type="button"
             onClick={() => selectUser(user)}
             className={`rounded-lg border p-2.5 text-left transition ${
-              selectedUser?.id === user.id ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-white/[0.03] hover:border-cyan-300/40"
+              selectedUser?.id === user.id ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-white/3 hover:border-cyan-300/40"
             }`}
           >
             <div className="grid gap-2">
@@ -562,14 +700,14 @@ export function CommercialUsersPanel() {
 
         </div>
 
-        <aside className="min-h-[520px] rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.12),transparent_34%),#0b0f13] p-4 shadow-2xl shadow-black/20">
+        <aside className="min-h-130 rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.12),transparent_34%),#0b0f13] p-4 shadow-2xl shadow-black/20">
           {!detailDock ? (
-            <div className="grid h-full min-h-[420px] place-items-center rounded-lg border border-white/10 bg-black/15 p-6 text-center">
+            <div className="grid h-full min-h-105 place-items-center rounded-lg border border-white/10 bg-black/15 p-6 text-center">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-200">Detalle comercial</p>
-                <h3 className="mt-2 text-2xl font-black text-white">Selecciona un usuario</h3>
+                <h3 className="mt-2 text-2xl font-black text-white">Selecciona un usuario o top beat</h3>
                 <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
-                  El detalle de usuarios normales se ancla aquí para revisar pagos, accesos, descargas y licencias.
+                  El detalle comercial se ancla aquí para revisar pagos, accesos, descargas, licencias y actividad por beat.
                 </p>
               </div>
             </div>
@@ -593,7 +731,7 @@ export function CommercialUsersPanel() {
                   <p className="text-[10px] font-bold uppercase text-emerald-200">Total registrado</p>
                   <p className="mt-2 text-xl font-black text-emerald-100">{money(detailDock.user.total_paid_amount)}</p>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                <div className="rounded-lg border border-white/10 bg-white/4 p-3">
                   <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos completos</p>
                   <p className="mt-2 text-xl font-black text-white">{detailDock.user.total_paid_beats}</p>
                 </div>
@@ -666,6 +804,113 @@ export function CommercialUsersPanel() {
                   </button>
                 </div>
               ) : null}
+            </div>
+          ) : null}
+
+          {detailDock?.type === "beat" ? (
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">Top beat comercial</p>
+                  <h3 className="mt-2 truncate text-2xl font-black text-white">{topBeatLabel(detailDock.beat)}</h3>
+                  <p className="mt-1 truncate text-sm text-zinc-500">{detailDock.beat.beat_slug || detailDock.beat.beat_id}</p>
+                </div>
+                <button type="button" onClick={closeDock} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:border-emerald-300 hover:text-emerald-200" aria-label="Cerrar detalle de beat">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <button type="button" onClick={() => setSelectedBeatActivityTab("all")} className={`rounded-lg border p-3 text-left transition ${selectedBeatActivityTab === "all" ? "border-emerald-300 bg-emerald-300/10" : "border-emerald-300/20 bg-emerald-300/10 hover:border-emerald-300"}`}>
+                  <p className="text-[10px] font-bold uppercase text-emerald-200">Descargas totales</p>
+                  <p className="mt-2 text-xl font-black text-emerald-100">{detailDock.beat.total_downloads}</p>
+                  <p className="mt-1 text-[10px] text-zinc-400">Ver todos</p>
+                </button>
+                <button type="button" onClick={() => setSelectedBeatActivityTab("mp3")} className={`rounded-lg border p-3 text-left transition ${selectedBeatActivityTab === "mp3" ? "border-cyan-300 bg-cyan-300/10" : "border-cyan-300/20 bg-cyan-300/10 hover:border-cyan-300"}`}>
+                  <p className="text-[10px] font-bold uppercase text-cyan-200">MP3</p>
+                  <p className="mt-2 text-xl font-black text-cyan-100">{detailDock.beat.mp3}</p>
+                  <p className="mt-1 text-[10px] text-zinc-400">Ver usuarios</p>
+                </button>
+                <button type="button" onClick={() => setSelectedBeatActivityTab("licenses")} className={`rounded-lg border p-3 text-left transition ${selectedBeatActivityTab === "licenses" ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-black/20 hover:border-cyan-300"}`}>
+                  <p className="text-[10px] font-bold uppercase text-zinc-500">Licencias</p>
+                  <p className="mt-2 text-xl font-black text-cyan-100">{detailDock.beat.licenses}</p>
+                  <p className="mt-1 text-[10px] text-zinc-400">Ver usuarios</p>
+                </button>
+              </div>
+
+              <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-3">
+                <p className="text-xs font-bold uppercase text-zinc-400">Resumen de actividad</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">
+                  Este beat concentra {detailDock.beat.total_downloads} actividad(es): {detailDock.beat.mp3} descarga(s) MP3 y {detailDock.beat.licenses} licencia(s).
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-md border border-white/10 bg-white/5 p-3">
+                    <p className="text-[10px] font-bold uppercase text-zinc-500">ID</p>
+                    <p className="mt-1 break-all text-xs text-zinc-300">{detailDock.beat.beat_id}</p>
+                  </div>
+                  <div className="rounded-md border border-white/10 bg-white/5 p-3">
+                    <p className="text-[10px] font-bold uppercase text-zinc-500">Slug</p>
+                    <p className="mt-1 break-all text-xs text-zinc-300">{detailDock.beat.beat_slug || "Sin slug"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-zinc-400">Usuarios con actividad</p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {selectedBeatActivityTab === "all" ? "Todas las descargas/licencias" : selectedBeatActivityTab === "mp3" ? "Descargas MP3" : "Licencias descargadas"} · Puedes revocar acceso sin borrar el historial.
+                    </p>
+                  </div>
+                  <div className="inline-flex rounded-md border border-white/10 bg-white/5 p-1">
+                    <button type="button" onClick={() => setSelectedBeatActivityTab("all")} className={`h-8 rounded px-3 text-xs font-bold ${selectedBeatActivityTab === "all" ? "bg-cyan-300 text-black" : "text-zinc-300 hover:text-cyan-200"}`}>
+                      Todo
+                    </button>
+                    <button type="button" onClick={() => setSelectedBeatActivityTab("mp3")} className={`h-8 rounded px-3 text-xs font-bold ${selectedBeatActivityTab === "mp3" ? "bg-cyan-300 text-black" : "text-zinc-300 hover:text-cyan-200"}`}>
+                      MP3
+                    </button>
+                    <button type="button" onClick={() => setSelectedBeatActivityTab("licenses")} className={`h-8 rounded px-3 text-xs font-bold ${selectedBeatActivityTab === "licenses" ? "bg-cyan-300 text-black" : "text-zinc-300 hover:text-cyan-200"}`}>
+                      Licencias
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1">
+                  {visibleBeatActivityUsers.length === 0 ? (
+                    <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">Sin usuarios en esta sección.</p>
+                  ) : null}
+
+                  {visibleBeatActivityUsers.map((user) => (
+                    <article key={`${selectedBeatActivityTab}-${detailDock.beat.beat_id}-${user.user_id}`} className="rounded-md border border-white/10 bg-white/5 p-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-white">{beatActivityUserLabel(user)}</p>
+                          <p className="mt-1 truncate text-xs text-zinc-500">{user.email}</p>
+                          <p className="mt-1 text-[11px] text-zinc-400">
+                            {user.count} evento(s) · Último: {formatActivityDate(user.last_activity_at)}
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => void revokeTopBeatUserAccess(user, detailDock.beat)} className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
+                          Revocar acceso
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                {detailDock.beat.beat_slug ? (
+                  <Link href={`/beats/${detailDock.beat.beat_slug}`} className="inline-flex h-9 items-center gap-2 rounded-md border border-emerald-300/30 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10">
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    Abrir página pública
+                  </Link>
+                ) : null}
+                <button type="button" onClick={() => setIsTopBeatsOpen(true)} className="inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-200 hover:border-emerald-300 hover:text-emerald-100">
+                  Ver top beats
+                </button>
+              </div>
             </div>
           ) : null}
         </aside>

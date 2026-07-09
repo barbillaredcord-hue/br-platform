@@ -104,6 +104,22 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "No tienes acceso para descargar este beat." }, { status: 403 });
   }
 
+  const { data: revocationRow, error: revocationError } = await supabase
+    .from("access_revocations")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("beat_id", beat.id)
+    .maybeSingle();
+
+  if (revocationError) {
+    console.error("B.R download revocation lookup error", revocationError);
+    return Response.json({ ok: false, message: "No se pudo validar si el acceso fue revocado." }, { status: 500 });
+  }
+
+  if (revocationRow) {
+    return Response.json({ ok: false, message: "Tu acceso a este beat fue revocado. No puedes descargarlo." }, { status: 403 });
+  }
+
   const { data: paymentRow, error: paymentError } = await supabase
     .from("manual_payments")
     .select("id")

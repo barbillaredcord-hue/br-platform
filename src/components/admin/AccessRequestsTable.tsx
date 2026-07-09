@@ -363,12 +363,12 @@ export function AccessRequestsTable() {
     .sort((a, b) => new Date(a.created_at ?? a.updated_at ?? 0).getTime() - new Date(b.created_at ?? b.updated_at ?? 0).getTime());
 
   const revokedItems = items
-    .filter((request) => Boolean(findRevocationForRequest(request)))
+    .filter((request) => Boolean(findRevocationForRequest(request)) || request.status === "rejected")
     .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
 
   const historyItems = items
     .filter((request) => !activeItems.some((activeRequest) => activeRequest.id === request.id))
-    .filter((request) => !findRevocationForRequest(request))
+    .filter((request) => !revokedItems.some((revokedRequest) => revokedRequest.id === request.id))
     .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
 
 
@@ -392,17 +392,18 @@ export function AccessRequestsTable() {
           const expanded = expandedIds.includes(request.id);
           const draft = getPaymentDraft(request.id);
           const revocation = findRevocationForRequest(request);
-          const canOpenPayment = !revocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid");
+          const isRejectedWithoutRevocation = !revocation && request.status === "rejected";
+          const canOpenPayment = !revocation && !isRejectedWithoutRevocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid");
           const showPaymentForm = canOpenPayment && paymentOpenIds.includes(request.id);
-          const showReject = !revocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending");
+          const showReject = !revocation && !isRejectedWithoutRevocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending");
 
           return (
-            <article key={request.id} className={`rounded-lg border p-2 ${revocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#15181c]"}`}>
+            <article key={request.id} className={`rounded-lg border p-2 ${revocation || isRejectedWithoutRevocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#15181c]"}`}>
               <div className="grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto] md:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate text-sm font-bold text-white">{getRequestUser(request)}</p>
-                    {isContacted(request) && !revocation ? <span className="rounded-full border border-emerald-300/30 px-2 py-0.5 text-[11px] font-bold text-emerald-200">Contactado</span> : null}
+                    {isContacted(request) && !revocation && !isRejectedWithoutRevocation ? <span className="rounded-full border border-emerald-300/30 px-2 py-0.5 text-[11px] font-bold text-emerald-200">Contactado</span> : null}
                   </div>
                   <p className="mt-1 truncate text-xs text-zinc-500">{profile?.email || "Sin email"}</p>
                 </div>
@@ -415,10 +416,10 @@ export function AccessRequestsTable() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                  <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${revocation ? revokedStatusStyle : statusStyles[request.status]}`}>
-                    {revocation ? "Revocada" : statusLabels[request.status]}
+                  <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${revocation || isRejectedWithoutRevocation ? revokedStatusStyle : statusStyles[request.status]}`}>
+                    {revocation || isRejectedWithoutRevocation ? "Revocada" : statusLabels[request.status]}
                   </span>
-                  {revocation ? (
+                  {revocation || isRejectedWithoutRevocation ? (
                     <span className="inline-flex rounded-md border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-xs font-bold text-amber-100">
                       Sólo preview / revisión
                     </span>
@@ -449,6 +450,16 @@ export function AccessRequestsTable() {
                       <div className="mt-2 flex flex-wrap gap-2">
                         <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">MP3 revocado</span>
                         <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Licencia revocada</span>
+                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Sólo preview / revisión</span>
+                      </div>
+                    </div>
+                  ) : isRejectedWithoutRevocation ? (
+                    <div className="rounded-md border border-amber-300/20 bg-amber-300/10 p-3 md:col-span-2">
+                      <p className="font-bold text-amber-100">Solicitud rechazada</p>
+                      <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Esta solicitud fue rechazada antes de registrar una revocación formal.</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">MP3 bloqueado</span>
+                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Licencia bloqueada</span>
                         <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Sólo preview / revisión</span>
                       </div>
                     </div>
@@ -562,7 +573,7 @@ export function AccessRequestsTable() {
         </div>
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Revocadas</p>
-          <p className="mt-1 text-2xl font-black text-amber-200">{items.filter((request) => findRevocationForRequest(request)).length}</p>
+          <p className="mt-1 text-2xl font-black text-amber-200">{revokedItems.length}</p>
         </div>
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Historial</p>
@@ -576,11 +587,13 @@ export function AccessRequestsTable() {
             <h2 className="text-lg font-bold">Activas</h2>
             <span className="text-xs font-semibold text-cyan-200">{activeItems.length}</span>
           </div>
-          {renderCards(activeItems)}
+          <div className="max-h-105 overflow-y-auto pr-1">
+            {renderCards(activeItems)}
+          </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+          <div className="rounded-lg border border-white/10 bg-white/3 p-2.5">
             <button
               type="button"
               onClick={() => setIsHistoryOpen((current) => !current)}
@@ -596,13 +609,13 @@ export function AccessRequestsTable() {
               </span>
             </button>
             {isHistoryOpen ? (
-              <div className="mt-2 max-h-[420px] overflow-y-auto pr-1">
+              <div className="mt-2 max-h-105 overflow-y-auto pr-1">
                 {renderCards(historyItems)}
               </div>
             ) : null}
           </div>
 
-          <div className="rounded-lg border border-amber-300/20 bg-amber-300/[0.04] p-2.5">
+          <div className="rounded-lg border border-amber-300/20 bg-amber-300/4 p-2.5">
             <button
               type="button"
               onClick={() => setIsRevokedOpen((current) => !current)}
@@ -618,7 +631,7 @@ export function AccessRequestsTable() {
               </span>
             </button>
             {isRevokedOpen ? (
-              <div className="mt-2 max-h-[420px] overflow-y-auto pr-1">
+              <div className="mt-2 max-h-105 overflow-y-auto pr-1">
                 {renderCards(revokedItems)}
               </div>
             ) : null}

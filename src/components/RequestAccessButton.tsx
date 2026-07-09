@@ -46,11 +46,39 @@ function revocationMatchesBeat(revocation: AccessRevocationRow, beatId: string) 
   return revocation.beat_id === beatId || beat?.slug === beatId;
 }
 
+function dismissedRequestRevocationKey(userId?: string | null) {
+  return `br:dismissed-request-revocation:${userId || "guest"}`;
+}
+
+function getDismissedRequestRevocations(userId?: string | null) {
+  if (typeof window === "undefined") {
+    return [] as string[];
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(dismissedRequestRevocationKey(userId));
+    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
+
+    return Array.isArray(parsedValue) ? parsedValue.map(String) : [];
+  } catch {
+    return [] as string[];
+  }
+}
+
+function saveDismissedRequestRevocations(userId: string | null | undefined, revocationIds: string[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(dismissedRequestRevocationKey(userId), JSON.stringify(Array.from(new Set(revocationIds))));
+}
+
 export function RequestAccessButton({ beatId }: { beatId: string }) {
   const router = useRouter();
   const { currentUser, refreshCurrentUser } = useUser();
   const [existingRequest, setExistingRequest] = useState<AccessRequestRow | null>(null);
   const [revocation, setRevocation] = useState<AccessRevocationRow | null>(null);
+  const [dismissedRevocationIds, setDismissedRevocationIds] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
@@ -68,6 +96,10 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
       setIsLoadingRequest(true);
     }
 
+    const userRevocations = await getUserAccessRevocations(currentUser.id);
+    const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, beatId)) ?? null;
+    setRevocation(foundRevocation);
+
     const directRequest = await getAccessRequestForBeat(currentUser.id, beatId);
 
     if (directRequest) {
@@ -81,10 +113,6 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
 
     setExistingRequest(fallbackRequest);
     setIsLoadingRequest(false);
-
-    const userRevocations = await getUserAccessRevocations(currentUser.id);
-    const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, beatId)) ?? null;
-    setRevocation(foundRevocation);
   }, [beatId, currentUser, existingRequest]);
 
   useEffect(() => {
@@ -94,6 +122,20 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
 
     return () => window.clearTimeout(loadId);
   }, [refreshRequest]);
+
+  useEffect(() => {
+    const syncId = window.setTimeout(() => {
+      setDismissedRevocationIds(getDismissedRequestRevocations(currentUser?.id));
+    }, 0);
+
+    return () => window.clearTimeout(syncId);
+  }, [currentUser?.id]);
+
+  function dismissRevocationNotice(revocationId: string) {
+    const nextIds = Array.from(new Set([...dismissedRevocationIds, revocationId]));
+    setDismissedRevocationIds(nextIds);
+    saveDismissedRequestRevocations(currentUser?.id, nextIds);
+  }
 
   async function handleRequest() {
     if (!currentUser) {
@@ -146,8 +188,10 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
   }
 
   const requestMessage = getRequestMessage(existingRequest);
-  const isBlockedByActiveRequest = Boolean(existingRequest && activeStatuses.includes(existingRequest.status));
-  const canRetry = Boolean(existingRequest && retryStatuses.includes(existingRequest.status));
+  const hasRevocation = Boolean(revocation);
+  const showRevocationNotice = Boolean(revocation && !dismissedRevocationIds.includes(String(revocation.id)));
+  const isBlockedByActiveRequest = Boolean(!hasRevocation && existingRequest && activeStatuses.includes(existingRequest.status));
+  const canRetry = Boolean(hasRevocation || (existingRequest && retryStatuses.includes(existingRequest.status)));
 
   if (isLoadingRequest) {
     return (
@@ -157,12 +201,15 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
     );
   }
 
-  if (revocation) {
+  if (showRevocationNotice && revocation) {
     return (
       <div className="grid gap-3 rounded-md border border-amber-300/20 bg-amber-300/10 p-3">
         <p className="text-sm font-bold text-amber-100">Acceso revocado</p>
         <p className="text-xs leading-5 text-zinc-300">Motivo: {revocation.reason}</p>
         <p className="text-xs leading-5 text-zinc-400">Puedes volver a solicitar acceso o pedir una revisión con B.R.</p>
+        <button type="button" onClick={() => dismissRevocationNotice(String(revocation.id))} className="h-9 w-fit rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
+          Ya lo vi
+        </button>
 
         {currentUser?.phone ? (
           <p className="text-xs font-semibold text-amber-100">Teléfono: {currentUser.phone}</p>
@@ -196,7 +243,7 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
     );
   }
 
-  if (isBlockedByActiveRequest || existingRequest?.status === "fulfilled" || existingRequest?.status === "approved") {
+  if (!hasRevocation && (isBlockedByActiveRequest || existingRequest?.status === "fulfilled" || existingRequest?.status === "approved")) {
     return (
       <div className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3">
         <p className="text-sm font-semibold text-cyan-100">{requestMessage}</p>
@@ -234,7 +281,7 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
         disabled={isSubmitting}
         className="rounded-md border border-cyan-300/30 px-5 py-3 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? "Enviando..." : canRetry ? "Solicitar nuevamente" : "Solicitar acceso"}
+        {isSubmitting ? "Enviando..." : hasRevocation ? "Pedir revisión" : canRetry ? "Solicitar nuevamente" : "Solicitar acceso"}
       </button>
 
       <p className="text-xs leading-5 text-zinc-400">

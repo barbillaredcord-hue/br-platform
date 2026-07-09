@@ -36,6 +36,33 @@ function revocationMatchesRequest(revocation: AccessRevocationRow, request: Acce
   return revocation.beat_id === request.beat_id || beat?.slug === request.beat_id;
 }
 
+function dismissedRevocationStorageKey(userId?: string | null) {
+  return `br:dismissed-revocations:${userId || "guest"}`;
+}
+
+function getDismissedRevocationIds(userId?: string | null) {
+  if (typeof window === "undefined") {
+    return [] as string[];
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(dismissedRevocationStorageKey(userId));
+    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
+
+    return Array.isArray(parsedValue) ? parsedValue.map(String) : [];
+  } catch {
+    return [] as string[];
+  }
+}
+
+function saveDismissedRevocationIds(userId: string | null | undefined, ids: string[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(dismissedRevocationStorageKey(userId), JSON.stringify(Array.from(new Set(ids))));
+}
+
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     pending: "Pendiente",
@@ -130,21 +157,45 @@ export function AccountOverview() {
 }
 
 export function AccountBeats() {
-  const { accessibleBeats, revocations } = useAccountData();
+  const { accessibleBeats, currentUser, revocations } = useAccountData();
+  const [dismissedRevocationIds, setDismissedRevocationIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const syncId = window.setTimeout(() => {
+      setDismissedRevocationIds(getDismissedRevocationIds(currentUser?.id));
+    }, 0);
+
+    return () => window.clearTimeout(syncId);
+  }, [currentUser?.id]);
+
+  function dismissRevocationNotice(revocationId: string) {
+    const nextIds = Array.from(new Set([...dismissedRevocationIds, revocationId]));
+    setDismissedRevocationIds(nextIds);
+    saveDismissedRevocationIds(currentUser?.id, nextIds);
+  }
+
+  const visibleRevocations = revocations.filter((revocation) => !dismissedRevocationIds.includes(String(revocation.id)));
 
   return (
     <section className="grid gap-3">
       <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
       {accessibleBeats.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">Aún no tienes beats con acceso completo.</p> : null}
-      {revocations.length ? (
+      {visibleRevocations.length ? (
         <div className="grid gap-3">
-          {revocations.map((revocation) => (
+          {visibleRevocations.map((revocation) => (
             <article key={revocation.id} className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
-              <p className="text-xs font-bold uppercase text-amber-200">Acceso revocado</p>
-              <p className="mt-2 font-bold text-amber-50">{revokedBeatName(revocation)}</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">Motivo: {revocation.reason}</p>
-              <p className="mt-1 text-xs text-zinc-500">Fecha: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
-              <p className="mt-3 text-xs leading-5 text-zinc-400">El acceso completo, la descarga MP3 y la licencia quedan bloqueados. Contacta a B.R si necesitas aclarar esta revocación.</p>
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase text-amber-200">Acceso revocado</p>
+                  <p className="mt-2 font-bold text-amber-50">{revokedBeatName(revocation)}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">Motivo: {revocation.reason}</p>
+                  <p className="mt-1 text-xs text-zinc-500">Fecha: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
+                  <p className="mt-3 text-xs leading-5 text-zinc-400">El aviso se puede ocultar, pero el acceso completo, la descarga MP3 y la licencia seguirán bloqueados salvo que B.R restaure el acceso.</p>
+                </div>
+                <button type="button" onClick={() => dismissRevocationNotice(String(revocation.id))} className="h-9 w-fit rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
+                  Ya lo vi
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -181,7 +232,22 @@ export function AccountBeats() {
 }
 
 export function AccountRequests() {
-  const { requests, revocations } = useAccountData();
+  const { currentUser, requests, revocations } = useAccountData();
+  const [dismissedRevocationIds, setDismissedRevocationIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const syncId = window.setTimeout(() => {
+      setDismissedRevocationIds(getDismissedRevocationIds(currentUser?.id));
+    }, 0);
+
+    return () => window.clearTimeout(syncId);
+  }, [currentUser?.id]);
+
+  function dismissRevocationNotice(revocationId: string) {
+    const nextIds = Array.from(new Set([...dismissedRevocationIds, revocationId]));
+    setDismissedRevocationIds(nextIds);
+    saveDismissedRevocationIds(currentUser?.id, nextIds);
+  }
 
   function findRevocationForRequest(request: AccessRequestRow) {
     return revocations.find((revocation) => revocationMatchesRequest(revocation, request)) ?? null;
@@ -193,18 +259,24 @@ export function AccountRequests() {
       {requests.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">No hay solicitudes todavía.</p> : null}
       {requests.map((request) => {
         const revocation = findRevocationForRequest(request);
+        const showRevocationNotice = Boolean(revocation && !dismissedRevocationIds.includes(String(revocation.id)));
 
         return (
-          <article key={request.id} className={`rounded-lg border p-4 ${revocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#101317]"}`}>
+          <article key={request.id} className={`rounded-lg border p-4 ${showRevocationNotice ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#101317]"}`}>
             <p className="font-bold">{requestBeatName(request)}</p>
             <p className={`mt-1 text-sm font-semibold ${revocation ? "text-amber-100" : "text-cyan-200"}`}>{revocation ? "Revocada" : statusLabel(request.status)}</p>
-            {revocation ? (
+            {showRevocationNotice && revocation ? (
               <>
                 <p className="mt-2 text-sm leading-6 text-zinc-300">Motivo: {revocation.reason}</p>
-      z          <p className="mt-1 text-xs text-zinc-500">Revocada: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
-                <Link href={revokedBeatHref(revocation, request.beat_id)} className="mt-3 inline-flex h-10 w-fit items-center justify-center rounded-md border border-amber-300/30 px-4 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
-                  Pedir revisión
-                </Link>
+                <p className="mt-1 text-xs text-zinc-500">Revocada: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link href={revokedBeatHref(revocation, request.beat_id)} className="inline-flex h-10 w-fit items-center justify-center rounded-md border border-amber-300/30 px-4 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
+                    Pedir revisión
+                  </Link>
+                  <button type="button" onClick={() => dismissRevocationNotice(String(revocation.id))} className="inline-flex h-10 w-fit items-center justify-center rounded-md border border-white/10 px-4 text-xs font-bold text-zinc-200 hover:border-amber-300 hover:text-amber-100">
+                    Ya lo vi
+                  </button>
+                </div>
               </>
             ) : null}
             <p className="mt-1 text-xs text-zinc-500">Solicitud: {request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
