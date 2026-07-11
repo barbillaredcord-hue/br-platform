@@ -7,6 +7,12 @@ type ProfileRow = {
   display_name: string | null;
 };
 
+type BeatRow = {
+  id: string;
+  title: string | null;
+  slug: string | null;
+};
+
 type BeatAccessRow = {
   user_id: string | null;
   beat_id: string | null;
@@ -22,9 +28,26 @@ type RevocationRow = {
 };
 
 type ManualPaymentRow = {
+  id: string;
   user_id: string | null;
   beat_id: string | null;
+  beat_title: string | null;
   amount: number | string | null;
+  currency: string | null;
+  payment_method: string | null;
+  note: string | null;
+  created_at: string | null;
+};
+
+type CommercialPayment = {
+  id: string;
+  beat_id: string;
+  beat_title: string;
+  beat_slug: string | null;
+  amount: number;
+  currency: string;
+  payment_method: string | null;
+  note: string | null;
   created_at: string | null;
 };
 
@@ -98,10 +121,6 @@ function profileUser(input: { userId: string; profilesById: Map<string, ProfileR
   };
 }
 
-function revocationKey(userId: string, beatId: string) {
-  return `${userId}:${beatId}`;
-}
-
 export async function GET(request: Request) {
   const admin = await validateAdminRequest(request);
 
@@ -109,17 +128,23 @@ export async function GET(request: Request) {
     return admin.response;
   }
 
-  const [profilesResult, accessResult, revocationsResult, paymentsResult, activityResult] = await Promise.all([
+  const [profilesResult, beatsResult, accessResult, revocationsResult, paymentsResult, activityResult] = await Promise.all([
     admin.supabase.from("profiles").select("id,email,username,display_name").order("created_at", { ascending: false }),
+    admin.supabase.from("beats").select("id,title,slug"),
     admin.supabase.from("beat_access").select("user_id,beat_id"),
     admin.supabase.from("access_revocations").select("id,user_id,beat_id,reason,revoked_at,created_at"),
-    admin.supabase.from("manual_payments").select("user_id,beat_id,amount,created_at"),
+    admin.supabase.from("manual_payments").select("id,user_id,beat_id,beat_title,amount,currency,payment_method,note,created_at"),
     admin.supabase.from("commercial_activity").select("user_id,event_type,beat_id,beat_title,beat_slug,created_at").in("event_type", ["mp3_download", "license_download"]),
   ]);
 
   if (profilesResult.error) {
     console.error("B.R commercial users profiles error", profilesResult.error);
     return Response.json({ ok: false, message: "No se pudieron cargar los usuarios." }, { status: 500 });
+  }
+
+  if (beatsResult.error) {
+    console.error("B.R commercial users beats error", beatsResult.error);
+    return Response.json({ ok: false, message: "No se pudieron cargar los beats." }, { status: 500 });
   }
 
   if (accessResult.error) {
@@ -143,18 +168,20 @@ export async function GET(request: Request) {
   }
 
   const profiles = (profilesResult.data ?? []) as ProfileRow[];
+  const beats = (beatsResult.data ?? []) as BeatRow[];
   const accessRows = (accessResult.data ?? []) as BeatAccessRow[];
   const revocationRows = (revocationsResult.data ?? []) as RevocationRow[];
   const paymentRows = (paymentsResult.data ?? []) as ManualPaymentRow[];
   const activityRows = (activityResult.data ?? []) as ActivityRow[];
 
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const beatsById = new Map(beats.map((beat) => [beat.id, beat]));
   const accessByUser = new Map<string, Set<string>>();
   const activeAccessUsersByBeat = new Map<string, Map<string, BeatAccessUser>>();
   const revokedUsersByBeat = new Map<string, Map<string, BeatRevokedUser>>();
-  const revocationKeys = new Set<string>();
   const paidByUser = new Map<string, Set<string>>();
   const totalsByUser = new Map<string, number>();
+  const paymentsByUser = new Map<string, CommercialPayment[]>();
   const downloadCountsByUser = new Map<string, DownloadCounts>();
   const downloadCountsByBeat = new Map<string, { beat_id: string; beat_title: string | null; beat_slug: string | null; mp3: number; licenses: number }>();
   const downloadUsersByBeat = new Map<string, { mp3_users: Map<string, BeatActivityUser>; license_users: Map<string, BeatActivityUser> }>();
@@ -170,7 +197,6 @@ export async function GET(request: Request) {
     }
 
     relevantUserIds.add(row.user_id);
-    revocationKeys.add(revocationKey(row.user_id, row.beat_id));
 
     const beatUsers = revokedUsersByBeat.get(row.beat_id) ?? new Map<string, BeatRevokedUser>();
     const baseUser = profileUser({ userId: row.user_id, profilesById });
@@ -192,10 +218,6 @@ export async function GET(request: Request) {
 
     relevantUserIds.add(row.user_id);
 
-    if (revocationKeys.has(revocationKey(row.user_id, row.beat_id))) {
-      return;
-    }
-
     const beatIds = accessByUser.get(row.user_id) ?? new Set<string>();
     beatIds.add(row.beat_id);
     accessByUser.set(row.user_id, beatIds);
@@ -212,11 +234,29 @@ export async function GET(request: Request) {
 
     relevantUserIds.add(row.user_id);
 
+    const beat = beatsById.get(row.beat_id);
+    const normalizedAmount = Number(row.amount);
+    const userPayments = paymentsByUser.get(row.user_id) ?? [];
+
+    userPayments.push({
+      id: row.id,
+      beat_id: row.beat_id,
+      beat_title: row.beat_title || beat?.title || beat?.slug || row.beat_id,
+      beat_slug: beat?.slug ?? null,
+      amount: Number.isFinite(normalizedAmount) ? normalizedAmount : 0,
+      currency: row.currency || "MXN",
+      payment_method: row.payment_method,
+      note: row.note,
+      created_at: row.created_at,
+    });
+
+    paymentsByUser.set(row.user_id, userPayments);
+
     const beatIds = paidByUser.get(row.user_id) ?? new Set<string>();
     beatIds.add(row.beat_id);
     paidByUser.set(row.user_id, beatIds);
 
-    const amount = Number(row.amount);
+    const amount = normalizedAmount;
 
     if (Number.isFinite(amount)) {
       totalsByUser.set(row.user_id, (totalsByUser.get(row.user_id) ?? 0) + amount);
@@ -317,6 +357,11 @@ export async function GET(request: Request) {
         mp3_download_count: downloads.mp3,
         license_download_count: downloads.licenses,
         total_paid_amount: totalsByUser.get(userId) ?? 0,
+        payments: (paymentsByUser.get(userId) ?? []).sort((firstPayment, secondPayment) => {
+          const firstDate = firstPayment.created_at ? new Date(firstPayment.created_at).getTime() : 0;
+          const secondDate = secondPayment.created_at ? new Date(secondPayment.created_at).getTime() : 0;
+          return secondDate - firstDate;
+        }),
       };
     })
     .sort((a, b) => {
@@ -347,21 +392,51 @@ export async function GET(request: Request) {
     .sort((a, b) => b.activity_count - a.activity_count || b.total_paid_amount - a.total_paid_amount || a.email.localeCompare(b.email))
     .slice(0, 5);
 
-  const topDownloadedBeats = Array.from(downloadCountsByBeat.values())
-    .map((beat) => {
-      const beatUsers = downloadUsersByBeat.get(beat.beat_id);
+  const commercialBeatIds = new Set<string>([
+    ...downloadCountsByBeat.keys(),
+    ...activeAccessUsersByBeat.keys(),
+    ...revokedUsersByBeat.keys(),
+  ]);
+
+  const topDownloadedBeats = Array.from(commercialBeatIds)
+    .map((beatId) => {
+      const beat = beatsById.get(beatId);
+      const downloads = downloadCountsByBeat.get(beatId) ?? {
+        beat_id: beatId,
+        beat_title: beat?.title ?? null,
+        beat_slug: beat?.slug ?? null,
+        mp3: 0,
+        licenses: 0,
+      };
+      const beatUsers = downloadUsersByBeat.get(beatId);
+      const activeUsers = activeAccessUsersByBeat.get(beatId) ?? new Map<string, BeatAccessUser>();
+      const revokedUsers = Array.from(revokedUsersByBeat.get(beatId)?.values() ?? [])
+        .filter((user) => !activeUsers.has(user.user_id))
+        .sort((a, b) => a.email.localeCompare(b.email));
 
       return {
-        ...beat,
-        total_downloads: beat.mp3 + beat.licenses,
-        active_access_users: Array.from(activeAccessUsersByBeat.get(beat.beat_id)?.values() ?? []).sort((a, b) => a.email.localeCompare(b.email)),
-        revoked_users: Array.from(revokedUsersByBeat.get(beat.beat_id)?.values() ?? []).sort((a, b) => a.email.localeCompare(b.email)),
+        ...downloads,
+        beat_title: downloads.beat_title ?? beat?.title ?? null,
+        beat_slug: downloads.beat_slug ?? beat?.slug ?? null,
+        total_downloads: downloads.mp3 + downloads.licenses,
+        active_access_users: Array.from(activeUsers.values()).sort((a, b) => a.email.localeCompare(b.email)),
+        revoked_users: revokedUsers,
         mp3_users: Array.from(beatUsers?.mp3_users.values() ?? []).sort((a, b) => b.count - a.count || a.email.localeCompare(b.email)),
         license_users: Array.from(beatUsers?.license_users.values() ?? []).sort((a, b) => b.count - a.count || a.email.localeCompare(b.email)),
       };
     })
-    .filter((beat) => beat.total_downloads > 0)
-    .sort((a, b) => b.total_downloads - a.total_downloads || (a.beat_title || a.beat_slug || a.beat_id).localeCompare(b.beat_title || b.beat_slug || b.beat_id))
+    .filter((beat) => beat.total_downloads > 0 || beat.active_access_users.length > 0 || beat.revoked_users.length > 0)
+    .sort((a, b) => {
+      if (b.total_downloads !== a.total_downloads) {
+        return b.total_downloads - a.total_downloads;
+      }
+
+      if (b.active_access_users.length !== a.active_access_users.length) {
+        return b.active_access_users.length - a.active_access_users.length;
+      }
+
+      return (a.beat_title || a.beat_slug || a.beat_id).localeCompare(b.beat_title || b.beat_slug || b.beat_id);
+    })
     .slice(0, 5);
 
   const earningsHistory = Array.from(earningsByMonth.entries())

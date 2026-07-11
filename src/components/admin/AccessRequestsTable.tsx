@@ -194,9 +194,12 @@ export function AccessRequestsTable() {
     if (result.ok) {
       setItems((current) => current.map((item): AccessRequestRow => (item.id === id ? { ...item, status: "rejected", updated_at: new Date().toISOString() } : item)));
     }
-    setMessage(result.ok ? "Solicitud rechazada." : result.message ?? "No se pudo actualizar la información. Intenta de nuevo.");
-    await refresh();
-    router.refresh();
+    setMessage(result.ok ? (result.message ?? "Solicitud rechazada.") : result.message ?? "No se pudo actualizar la información. Intenta de nuevo.");
+
+    if (result.ok) {
+      await refresh();
+      router.refresh();
+    }
   }
 
   function getPaymentDraft(requestId: string) {
@@ -281,6 +284,9 @@ export function AccessRequestsTable() {
           });
           setPaymentOpenIds((current) => current.filter((id) => id !== request.id));
           setMessage(payload?.message ?? "Pago ya registrado. Solicitud marcada como completada.");
+          window.dispatchEvent(new Event("br-access-state-changed"));
+          window.dispatchEvent(new Event("br-access-requests-refresh"));
+          window.dispatchEvent(new Event("br-commercial-activity-refresh"));
           await refresh();
           router.refresh();
           return;
@@ -298,6 +304,8 @@ export function AccessRequestsTable() {
       });
       setPaymentOpenIds((current) => current.filter((id) => id !== request.id));
       setMessage(payload.message ?? "Pago confirmado, acceso liberado y licencia registrada.");
+      window.dispatchEvent(new Event("br-access-state-changed"));
+      window.dispatchEvent(new Event("br-access-requests-refresh"));
       window.dispatchEvent(new Event("br-commercial-activity-refresh"));
       await refresh();
       router.refresh();
@@ -339,6 +347,7 @@ export function AccessRequestsTable() {
     const text = encodeURIComponent("Hola, te contacto de B.R por tu solicitud de acceso a este beat.");
     window.open(`https://wa.me/${phone}?text=${text}`, "_blank", "noopener,noreferrer");
     setMessage(result.message ?? "Cliente contactado. Solicitud marcada como pago pendiente.");
+    window.dispatchEvent(new Event("br-access-requests-refresh"));
     await refresh();
     router.refresh();
   }
@@ -349,10 +358,22 @@ export function AccessRequestsTable() {
       void refresh();
     }, 0);
 
+    const handleAccessStateChanged = () => {
+      void refresh();
+      router.refresh();
+    };
+
+    window.addEventListener("br-access-state-changed", handleAccessStateChanged);
+    window.addEventListener("br-access-requests-refresh", handleAccessStateChanged);
+    window.addEventListener("br-commercial-activity-refresh", handleAccessStateChanged);
+
     return () => {
       window.clearTimeout(loadId);
+      window.removeEventListener("br-access-state-changed", handleAccessStateChanged);
+      window.removeEventListener("br-access-requests-refresh", handleAccessStateChanged);
+      window.removeEventListener("br-commercial-activity-refresh", handleAccessStateChanged);
     };
-  }, [pathname]);
+  }, [pathname, router]);
 
   function findRevocationForRequest(request: AccessRequestRow) {
     return revocations.find((revocation) => revocationMatchesRequest(revocation, request)) ?? null;
@@ -495,7 +516,7 @@ export function AccessRequestsTable() {
               ) : null}
 
               <div className="mt-2 flex flex-wrap justify-end gap-2">
-                {!revocation ? (
+                {!revocation && !isRejectedWithoutRevocation ? (
                   <button type="button" onClick={() => void contactRequest(request)} className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-300/10">
                     <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
                     Contactar

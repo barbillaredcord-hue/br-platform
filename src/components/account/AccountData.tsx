@@ -11,8 +11,7 @@ import { BeatCard } from "@/components/BeatCard";
 import { ProductUpdatesPanel } from "@/components/ProductUpdatesPanel";
 import DownloadBeatButton from "@/components/DownloadBeatButton";
 import DownloadLicenseButton from "@/components/DownloadLicenseButton";
-import { deleteOwnAccount, getBeats, getAccessRequestsForUser, getUserAccessRevocations, updateProfile, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
-import { userCanAccessBeat } from "@/lib/access";
+import { acknowledgeAccessRevocation, deleteOwnAccount, getBeats, getAccessRequestsForUser, getUserAccessibleBeats, getUserAccessRevocations, updateProfile, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
 import { getSavedBeatIds, SAVED_BEATS_EVENT } from "@/lib/saved-beats";
 
 function requestBeatName(request: AccessRequestRow) {
@@ -20,10 +19,6 @@ function requestBeatName(request: AccessRequestRow) {
   return beat?.title || beat?.slug || request.beat_id;
 }
 
-function revokedBeatName(revocation: AccessRevocationRow) {
-  const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
-  return beat?.title || beat?.slug || revocation.beat_id;
-}
 
 function revokedBeatHref(revocation: AccessRevocationRow, fallbackBeatId: string) {
   const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
@@ -36,32 +31,6 @@ function revocationMatchesRequest(revocation: AccessRevocationRow, request: Acce
   return revocation.beat_id === request.beat_id || beat?.slug === request.beat_id;
 }
 
-function dismissedRevocationStorageKey(userId?: string | null) {
-  return `br:dismissed-revocations:${userId || "guest"}`;
-}
-
-function getDismissedRevocationIds(userId?: string | null) {
-  if (typeof window === "undefined") {
-    return [] as string[];
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(dismissedRevocationStorageKey(userId));
-    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
-
-    return Array.isArray(parsedValue) ? parsedValue.map(String) : [];
-  } catch {
-    return [] as string[];
-  }
-}
-
-function saveDismissedRevocationIds(userId: string | null | undefined, ids: string[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(dismissedRevocationStorageKey(userId), JSON.stringify(Array.from(new Set(ids))));
-}
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -82,13 +51,28 @@ function useAccountData() {
   const pathname = usePathname();
   const { currentUser, refreshCurrentUser } = useUser();
   const [beats, setBeats] = useState<Beat[]>([]);
+  const [accessibleBeats, setAccessibleBeats] = useState<Beat[]>([]);
   const [requests, setRequests] = useState<AccessRequestRow[]>([]);
   const [revocations, setRevocations] = useState<AccessRevocationRow[]>([]);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setRefreshVersion((value) => value + 1);
+
+    window.addEventListener("br-access-state-changed", refresh);
+    window.addEventListener("br-access-requests-refresh", refresh);
+
+    return () => {
+      window.removeEventListener("br-access-state-changed", refresh);
+      window.removeEventListener("br-access-requests-refresh", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentUser?.id) {
       const clearId = window.setTimeout(() => {
         setBeats([]);
+        setAccessibleBeats([]);
         setRequests([]);
         setRevocations([]);
       }, 0);
@@ -98,12 +82,19 @@ function useAccountData() {
 
     let cancelled = false;
     const loadId = window.setTimeout(() => {
-      void Promise.all([refreshCurrentUser(), getBeats(), getAccessRequestsForUser(currentUser.id), getUserAccessRevocations(currentUser.id)]).then(([, beatsResult, userRequests, userRevocations]) => {
+      void Promise.all([
+        refreshCurrentUser(),
+        getBeats(),
+        getUserAccessibleBeats(currentUser.id),
+        getAccessRequestsForUser(currentUser.id),
+        getUserAccessRevocations(currentUser.id),
+      ]).then(([, beatsResult, userAccessibleBeats, userRequests, userRevocations]) => {
         if (cancelled) {
           return;
         }
 
         setBeats(beatsResult.beats);
+        setAccessibleBeats(userAccessibleBeats);
         setRequests(userRequests);
         setRevocations(userRevocations);
       });
@@ -113,9 +104,8 @@ function useAccountData() {
       cancelled = true;
       window.clearTimeout(loadId);
     };
-  }, [currentUser?.id, pathname, refreshCurrentUser]);
+  }, [currentUser?.id, pathname, refreshCurrentUser, refreshVersion]);
 
-  const accessibleBeats = useMemo(() => beats.filter((beat) => userCanAccessBeat(currentUser, beat)), [beats, currentUser]);
 
   return { accessibleBeats, beats, currentUser, requests, revocations };
 }
@@ -157,49 +147,12 @@ export function AccountOverview() {
 }
 
 export function AccountBeats() {
-  const { accessibleBeats, currentUser, revocations } = useAccountData();
-  const [dismissedRevocationIds, setDismissedRevocationIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    const syncId = window.setTimeout(() => {
-      setDismissedRevocationIds(getDismissedRevocationIds(currentUser?.id));
-    }, 0);
-
-    return () => window.clearTimeout(syncId);
-  }, [currentUser?.id]);
-
-  function dismissRevocationNotice(revocationId: string) {
-    const nextIds = Array.from(new Set([...dismissedRevocationIds, revocationId]));
-    setDismissedRevocationIds(nextIds);
-    saveDismissedRevocationIds(currentUser?.id, nextIds);
-  }
-
-  const visibleRevocations = revocations.filter((revocation) => !dismissedRevocationIds.includes(String(revocation.id)));
+  const { accessibleBeats } = useAccountData();
 
   return (
     <section className="grid gap-3">
       <Link href="/account" className="inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a mi cuenta</Link>
       {accessibleBeats.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">Aún no tienes beats con acceso completo.</p> : null}
-      {visibleRevocations.length ? (
-        <div className="grid gap-3">
-          {visibleRevocations.map((revocation) => (
-            <article key={revocation.id} className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-xs font-bold uppercase text-amber-200">Acceso revocado</p>
-                  <p className="mt-2 font-bold text-amber-50">{revokedBeatName(revocation)}</p>
-                  <p className="mt-2 text-sm leading-6 text-zinc-300">Motivo: {revocation.reason}</p>
-                  <p className="mt-1 text-xs text-zinc-500">Fecha: {revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
-                  <p className="mt-3 text-xs leading-5 text-zinc-400">El aviso se puede ocultar, pero el acceso completo, la descarga MP3 y la licencia seguirán bloqueados salvo que B.R restaure el acceso.</p>
-                </div>
-                <button type="button" onClick={() => dismissRevocationNotice(String(revocation.id))} className="h-9 w-fit rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
-                  Ya lo vi
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : null}
       {accessibleBeats.map((beat) => (
         <article key={beat.id} className="rounded-lg border border-white/10 bg-[#101317] p-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -209,20 +162,8 @@ export function AccountBeats() {
             </div>
             <div className="flex flex-wrap gap-2">
               <PlayButton beat={beat} mode="full" queue={accessibleBeats} showPauseState>Full</PlayButton>
-              <DownloadBeatButton
-                beatId={beat.dbId ?? beat.id}
-                fileName={beat.name}
-                className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Descargar MP3
-              </DownloadBeatButton>
-              <DownloadLicenseButton
-                beatId={beat.dbId ?? beat.id}
-                fileName={beat.name}
-                className="inline-flex h-11 items-center gap-2 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Licencia
-              </DownloadLicenseButton>
+              <DownloadBeatButton beatId={beat.dbId ?? beat.id} fileName={beat.name} className="inline-flex h-11 items-center gap-2 rounded-md border border-cyan-300/30 px-4 text-sm font-bold text-cyan-200 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60">Descargar MP3</DownloadBeatButton>
+              <DownloadLicenseButton beatId={beat.dbId ?? beat.id} fileName={beat.name} className="inline-flex h-11 items-center gap-2 rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-60">Licencia</DownloadLicenseButton>
             </div>
           </div>
         </article>
@@ -233,24 +174,27 @@ export function AccountBeats() {
 
 export function AccountRequests() {
   const { currentUser, requests, revocations } = useAccountData();
-  const [dismissedRevocationIds, setDismissedRevocationIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    const syncId = window.setTimeout(() => {
-      setDismissedRevocationIds(getDismissedRevocationIds(currentUser?.id));
-    }, 0);
-
-    return () => window.clearTimeout(syncId);
-  }, [currentUser?.id]);
-
-  function dismissRevocationNotice(revocationId: string) {
-    const nextIds = Array.from(new Set([...dismissedRevocationIds, revocationId]));
-    setDismissedRevocationIds(nextIds);
-    saveDismissedRevocationIds(currentUser?.id, nextIds);
-  }
+  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+  const [acknowledgeMessage, setAcknowledgeMessage] = useState("");
 
   function findRevocationForRequest(request: AccessRequestRow) {
     return revocations.find((revocation) => revocationMatchesRequest(revocation, request)) ?? null;
+  }
+
+  async function dismissRevocationNotice(revocationId: string) {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    setAcknowledgingId(revocationId);
+    setAcknowledgeMessage("");
+    const result = await acknowledgeAccessRevocation(currentUser.id, revocationId);
+
+    if (!result.ok) {
+      setAcknowledgeMessage(result.message ?? "No se pudo ocultar el aviso. Intenta de nuevo.");
+    }
+
+    setAcknowledgingId(null);
   }
 
   return (
@@ -259,7 +203,7 @@ export function AccountRequests() {
       {requests.length === 0 ? <p className="rounded-lg border border-white/10 bg-[#101317] p-5 text-sm text-zinc-400">No hay solicitudes todavía.</p> : null}
       {requests.map((request) => {
         const revocation = findRevocationForRequest(request);
-        const showRevocationNotice = Boolean(revocation && !dismissedRevocationIds.includes(String(revocation.id)));
+        const showRevocationNotice = Boolean(revocation && !revocation.acknowledged_by_user);
 
         return (
           <article key={request.id} className={`rounded-lg border p-4 ${showRevocationNotice ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#101317]"}`}>
@@ -273,12 +217,18 @@ export function AccountRequests() {
                   <Link href={revokedBeatHref(revocation, request.beat_id)} className="inline-flex h-10 w-fit items-center justify-center rounded-md border border-amber-300/30 px-4 text-xs font-bold text-amber-100 hover:bg-amber-300/10">
                     Pedir revisión
                   </Link>
-                  <button type="button" onClick={() => dismissRevocationNotice(String(revocation.id))} className="inline-flex h-10 w-fit items-center justify-center rounded-md border border-white/10 px-4 text-xs font-bold text-zinc-200 hover:border-amber-300 hover:text-amber-100">
-                    Ya lo vi
+                  <button
+                    type="button"
+                    onClick={() => void dismissRevocationNotice(String(revocation.id))}
+                    disabled={acknowledgingId === String(revocation.id)}
+                    className="inline-flex h-10 w-fit items-center justify-center rounded-md border border-white/10 px-4 text-xs font-bold text-zinc-200 hover:border-amber-300 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {acknowledgingId === String(revocation.id) ? "Guardando..." : "Ya lo vi"}
                   </button>
                 </div>
               </>
             ) : null}
+            {acknowledgeMessage ? <p className="mt-2 text-xs font-semibold text-red-200">{acknowledgeMessage}</p> : null}
             <p className="mt-1 text-xs text-zinc-500">Solicitud: {request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha"}</p>
           </article>
         );

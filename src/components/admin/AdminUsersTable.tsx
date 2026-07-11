@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
@@ -27,35 +27,41 @@ export function AdminUsersTable() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    async function loadData() {
-      const supabase = createSupabaseBrowserClient();
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    const supabase = createSupabaseBrowserClient();
 
-      if (!supabase) {
-        setError("Supabase no está configurado.");
-        setEmptyReason("Revisa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.");
-        setIsLoading(false);
-        return;
-      }
-
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError || !sessionData.session) {
-        setError("Sesión no cargada. Vuelve a iniciar sesión.");
-        setEmptyReason(sessionError?.message ?? "No hay sesión Supabase activa en el navegador.");
-        setIsLoading(false);
-        return;
-      }
-
-      const [profilesResult, beatsResult, requestsResult] = await Promise.all([getProfilesResult(supabase), getBeats(), getAccessRequests()]);
-      setUsers(profilesResult.users);
-      setBeats(beatsResult.beats);
-      setRequests(requestsResult);
-      setError(profilesResult.error);
-      setEmptyReason(profilesResult.emptyReason);
+    if (!supabase) {
+      setError("Supabase no está configurado.");
+      setEmptyReason("Revisa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.");
       setIsLoading(false);
+      return;
     }
 
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session) {
+      setError("Sesión no cargada. Vuelve a iniciar sesión.");
+      setEmptyReason(sessionError?.message ?? "No hay sesión Supabase activa en el navegador.");
+      setIsLoading(false);
+      return;
+    }
+
+    const [profilesResult, beatsResult, requestsResult] = await Promise.all([
+      getProfilesResult(supabase),
+      getBeats(),
+      getAccessRequests(),
+    ]);
+
+    setUsers(profilesResult.users);
+    setBeats(beatsResult.beats);
+    setRequests(requestsResult);
+    setError(profilesResult.error);
+    setEmptyReason(profilesResult.emptyReason);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
     const loadId = window.setTimeout(() => {
       void loadData();
     }, 0);
@@ -63,7 +69,23 @@ export function AdminUsersTable() {
     return () => {
       window.clearTimeout(loadId);
     };
-  }, [pathname]);
+  }, [loadData, pathname]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadData();
+    };
+
+    window.addEventListener("br-access-state-changed", refresh);
+    window.addEventListener("br-access-requests-refresh", refresh);
+    window.addEventListener("br-commercial-activity-refresh", refresh);
+
+    return () => {
+      window.removeEventListener("br-access-state-changed", refresh);
+      window.removeEventListener("br-access-requests-refresh", refresh);
+      window.removeEventListener("br-commercial-activity-refresh", refresh);
+    };
+  }, [loadData]);
 
   async function deleteUser(user: User) {
     const confirmed = window.confirm(`Eliminar usuario ${user.email}? Esta acción eliminará su cuenta y accesos.`);
@@ -85,6 +107,17 @@ export function AdminUsersTable() {
   function getUserRequests(userId: string) {
     return requests.filter((request) => request.user_id === userId && isRecentAnsweredRequest(request));
   }
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredUsers = useMemo(
+    () =>
+      users.filter((user) =>
+        [user.email, user.username, user.name, user.phone ?? ""].some((value) =>
+          value.toLowerCase().includes(normalizedSearch),
+        ),
+      ),
+    [normalizedSearch, users],
+  );
 
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-[#101317]">
@@ -120,12 +153,12 @@ export function AdminUsersTable() {
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Teléfono</th>
               <th className="px-4 py-3">Rol</th>
-              <th className="px-4 py-3">Accesos</th>
+              <th className="px-4 py-3">Accesos activos</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {users.filter((user) => [user.email, user.username, user.name, user.phone ?? ""].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
+            {filteredUsers.map((user) => {
               const authorizedBeats = getAuthorizedBeats(user, beats);
               return (
                 <Fragment key={user.id}>
@@ -156,7 +189,7 @@ export function AdminUsersTable() {
                     </td>
                   </tr>
                   {expandedUserId === user.id ? (
-                    <tr className="border-t border-cyan-300/20 bg-white/[0.03]">
+                    <tr className="border-t border-cyan-300/20 bg-white/3">
                       <td colSpan={7} className="px-4 py-4">
                         <div className="grid gap-4 md:grid-cols-3">
                           <div>
@@ -167,7 +200,7 @@ export function AdminUsersTable() {
                             <p className="mt-1 text-sm text-zinc-400">{user.phone || "Sin teléfono"}</p>
                           </div>
                           <div>
-                            <p className="text-xs uppercase text-zinc-500">Beats con acceso</p>
+                            <p className="text-xs uppercase text-zinc-500">Beats con acceso activo</p>
                             <div className="mt-2 max-h-36 overflow-y-auto rounded-md border border-white/10 bg-black/20 p-2">
                               {authorizedBeats.length ? (
                                 <div className="grid gap-2">
@@ -200,7 +233,7 @@ export function AdminUsersTable() {
         </table>
       </div>
       <div className="grid gap-3 p-4 md:hidden">
-        {users.filter((user) => [user.email, user.username, user.name, user.phone ?? ""].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))).map((user) => {
+        {filteredUsers.map((user) => {
           const authorizedBeats = getAuthorizedBeats(user, beats);
           return (
             <article key={user.id} className="rounded-lg border border-white/10 bg-[#15181c] p-4">
@@ -223,7 +256,7 @@ export function AdminUsersTable() {
               {expandedUserId === user.id ? (
                 <div className="mt-4 grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
                   <div>
-                    <p className="text-xs uppercase text-zinc-500">Beats con acceso</p>
+                    <p className="text-xs uppercase text-zinc-500">Beats con acceso activo</p>
                     <div className="mt-2 max-h-36 overflow-y-auto rounded-md border border-white/10 bg-black/20 p-2">
                       {authorizedBeats.length ? (
                         <div className="grid gap-2">

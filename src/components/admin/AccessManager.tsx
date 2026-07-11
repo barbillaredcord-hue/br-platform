@@ -60,8 +60,22 @@ export function AccessManager() {
       void refresh();
     }, 0);
 
-    return () => window.clearTimeout(loadId);
-  }, [pathname]);
+    const handleAccessStateChanged = () => {
+      void refresh();
+      router.refresh();
+    };
+
+    window.addEventListener("br-access-state-changed", handleAccessStateChanged);
+    window.addEventListener("br-access-requests-refresh", handleAccessStateChanged);
+    window.addEventListener("br-commercial-activity-refresh", handleAccessStateChanged);
+
+    return () => {
+      window.clearTimeout(loadId);
+      window.removeEventListener("br-access-state-changed", handleAccessStateChanged);
+      window.removeEventListener("br-access-requests-refresh", handleAccessStateChanged);
+      window.removeEventListener("br-commercial-activity-refresh", handleAccessStateChanged);
+    };
+  }, [pathname, router]);
 
   const selectedBeat = useMemo(() => beats.find((beat) => getBeatKey(beat) === selectedBeatId || beat.id === selectedBeatId) ?? beats[0], [beats, selectedBeatId]);
   const selectedBeatKey = selectedBeat ? getBeatKey(selectedBeat) : "";
@@ -116,6 +130,7 @@ export function AccessManager() {
     const actionKey = `${user.id}:${selectedBeatKey}`;
     setProcessingKey(actionKey);
     setMessage("Procesando...");
+    closeRevocation();
     const result = hasAccess ? await revokeBeatAccess(user.id, selectedBeatKey, revocationReason) : await grantBeatAccess(user.id, selectedBeatKey);
 
     if (result.ok) {
@@ -126,9 +141,17 @@ export function AccessManager() {
       }
     }
 
-    setMessage(result.ok ? (hasAccess ? "Acceso revocado y motivo registrado." : "Acceso concedido.") : result.message ?? "No se pudo actualizar la información. Intenta de nuevo.");
-    await refresh();
-    router.refresh();
+    setMessage(
+      result.ok
+        ? (result.message ?? (hasAccess ? "Acceso revocado y motivo registrado." : "Acceso concedido."))
+        : result.message ?? "No se pudo actualizar la información. Intenta de nuevo."
+    );
+
+    if (result.ok) {
+      await refresh();
+      router.refresh();
+    }
+
     setProcessingKey("");
     closeRevocation();
   }
@@ -152,13 +175,13 @@ export function AccessManager() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(260px,340px)_1fr]">
-      <section className="rounded-lg border border-white/10 bg-[#101317] p-4">
+      <section className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-[#101317] p-4 lg:h-[calc(100vh-14rem)]">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold">Beats</h2>
           <span className="text-xs font-semibold text-cyan-200">{beats.length} activos</span>
         </div>
-        <input value={beatSearch} onChange={(event) => setBeatSearch(event.target.value)} placeholder="Buscar beat" className="mb-3 h-10 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
-        <div className="grid max-h-[620px] gap-2 overflow-y-auto pr-1">
+        <input value={beatSearch} onChange={(event) => setBeatSearch(event.target.value)} placeholder="Buscar beat" className="mb-3 h-10 w-full shrink-0 rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300" />
+        <div className="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1">
           {filteredBeats.map((beat) => {
             const active = getBeatKey(beat) === selectedBeatKey;
             const count = users.filter((user) => userHasAccess(user, beat)).length;

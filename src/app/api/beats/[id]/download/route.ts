@@ -6,12 +6,107 @@ type RouteContext = {
   }>;
 };
 
+type StorageObjectLocation = {
+  bucket: string;
+  path: string;
+};
+
 function safeFileName(input?: string | null) {
   return (input || "br-beat")
     .toLowerCase()
     .replace(/[^a-z0-9-_]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "") || "br-beat";
+}
+
+function getStorageObjectLocation(value: string): StorageObjectLocation | null {
+  try {
+    const url = new URL(value);
+    const markers = [
+      "/storage/v1/object/public/",
+      "/storage/v1/object/sign/",
+      "/storage/v1/object/authenticated/",
+      "/storage/v1/object/",
+    ];
+    const marker = markers.find((candidate) => url.pathname.includes(candidate));
+
+    if (!marker) {
+      return null;
+    }
+
+    const objectPath = decodeURIComponent(url.pathname.split(marker)[1] || "");
+    const [bucket, ...pathParts] = objectPath.split("/");
+    const path = pathParts.join("/");
+
+    if (!bucket || !path) {
+      return null;
+    }
+
+    return { bucket, path };
+  } catch {
+    return null;
+  }
+}
+
+async function loadFullAudio(
+  supabase: NonNullable<ReturnType<typeof createSupabaseServiceClient>>,
+  fullAudioUrl: string,
+) {
+  let directStatus: number | null = null;
+
+  try {
+    const response = await fetch(fullAudioUrl, { cache: "no-store" });
+    directStatus = response.status;
+
+    if (response.ok && response.body) {
+      return {
+        body: response.body,
+        contentType: response.headers.get("content-type") || "audio/mpeg",
+      };
+    }
+  } catch (error) {
+    console.error("B.R direct full audio fetch error", error);
+  }
+
+  const storageObject = getStorageObjectLocation(fullAudioUrl);
+
+  if (!storageObject) {
+    console.error("B.R full audio URL is not a recognized Supabase Storage URL", {
+      fullAudioUrl,
+      directStatus,
+    });
+    return null;
+  }
+
+  const candidatePaths = Array.from(
+    new Set([
+      storageObject.path,
+      storageObject.path.replace(/^public\//, ""),
+      storageObject.path.replace(/^private\//, ""),
+    ]),
+  ).filter(Boolean);
+
+  for (const path of candidatePaths) {
+    const { data, error } = await supabase.storage
+      .from(storageObject.bucket)
+      .download(path);
+
+    if (!error && data) {
+      return {
+        body: data.stream(),
+        contentType: data.type || "audio/mpeg",
+      };
+    }
+
+    console.error("B.R storage full audio download error", {
+      bucket: storageObject.bucket,
+      path,
+      directStatus,
+      error,
+    });
+  }
+
+  return null;
 }
 
 async function logDownloadActivity(
@@ -60,7 +155,7 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "Beat no válido." }, { status: 400 });
   }
 
-  const beatSelect = "id,title,slug,full_audio_url,is_active";
+  const beatSelect = "id,title,slug,full_audio_url";
 
   let { data: beat, error: beatError } = await supabase
     .from("beats")
@@ -84,8 +179,12 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "No se pudo validar el beat." }, { status: 500 });
   }
 
-  if (!beat || !beat.is_active || !beat.full_audio_url) {
+  if (!beat) {
     return Response.json({ ok: false, message: "Beat no disponible." }, { status: 404 });
+  }
+
+  if (!beat.full_audio_url) {
+    return Response.json({ ok: false, message: "Este beat no tiene audio completo disponible." }, { status: 404 });
   }
 
   const { data: accessRow, error: accessError } = await supabase
@@ -104,27 +203,14 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "No tienes acceso para descargar este beat." }, { status: 403 });
   }
 
-  const { data: revocationRow, error: revocationError } = await supabase
-    .from("access_revocations")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("beat_id", beat.id)
-    .maybeSingle();
-
-  if (revocationError) {
-    console.error("B.R download revocation lookup error", revocationError);
-    return Response.json({ ok: false, message: "No se pudo validar si el acceso fue revocado." }, { status: 500 });
-  }
-
-  if (revocationRow) {
-    return Response.json({ ok: false, message: "Tu acceso a este beat fue revocado. No puedes descargarlo." }, { status: 403 });
-  }
 
   const { data: paymentRow, error: paymentError } = await supabase
     .from("manual_payments")
     .select("id")
     .eq("user_id", user.id)
     .eq("beat_id", beat.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (paymentError) {
@@ -136,10 +222,22 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "El pago todavía no ha sido liberado para este beat." }, { status: 403 });
   }
 
-  const audioResponse = await fetch(beat.full_audio_url);
+  const audioFile = await loadFullAudio(supabase, beat.full_audio_url);
 
-  if (!audioResponse.ok || !audioResponse.body) {
-    return Response.json({ ok: false, message: "No se pudo preparar la descarga." }, { status: 502 });
+  if (!audioFile) {
+    console.error("B.R full audio unavailable", {
+      beatId: beat.id,
+      beatSlug: beat.slug,
+      fullAudioUrl: beat.full_audio_url,
+    });
+
+    return Response.json(
+      {
+        ok: false,
+        message: "El archivo de audio completo no existe en la ruta guardada. Vuelve a subir el Full Audio de este beat desde Administración.",
+      },
+      { status: 502 },
+    );
   }
 
   await logDownloadActivity(supabase, {
@@ -150,9 +248,9 @@ export async function GET(request: Request, context: RouteContext) {
 
   const filename = `${safeFileName(beat.slug || beat.title)}.mp3`;
 
-  return new Response(audioResponse.body, {
+  return new Response(audioFile.body, {
     headers: {
-      "Content-Type": audioResponse.headers.get("content-type") || "audio/mpeg",
+      "Content-Type": audioFile.contentType,
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "private, no-store",
     },

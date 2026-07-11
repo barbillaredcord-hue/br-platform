@@ -110,12 +110,25 @@ export async function POST(request: Request) {
     .eq("beat_id", beat.id)
     .maybeSingle<{ id: string }>();
 
+  const { data: existingAccess, error: existingAccessError } = await admin.supabase
+    .from("beat_access")
+    .select("user_id,beat_id")
+    .eq("user_id", profile.id)
+    .eq("beat_id", beat.id)
+    .maybeSingle<{ user_id: string; beat_id: string }>();
+
   if (existingPaymentError) {
     console.error("B.R manual payment duplicate lookup error", existingPaymentError);
     return Response.json({ ok: false, message: "No se pudo validar si el pago ya existe." }, { status: 500 });
   }
 
+  if (existingAccessError) {
+    console.error("B.R manual payment access lookup error", existingAccessError);
+    return Response.json({ ok: false, message: "No se pudo validar el acceso actual del usuario." }, { status: 500 });
+  }
+
   const shouldInsertPayment = !existingPayment;
+  const shouldCreateAccess = !existingAccess;
 
   const { error: accessUpsertError } = await admin.supabase.from("beat_access").upsert(
     {
@@ -129,6 +142,29 @@ export async function POST(request: Request) {
   if (accessUpsertError) {
     console.error("B.R manual payment access upsert error", accessUpsertError);
     return Response.json({ ok: false, message: "No se pudo liberar el acceso del usuario al beat." }, { status: 500 });
+  }
+
+  const { error: revocationCleanupError } = await admin.supabase
+    .from("access_revocations")
+    .delete()
+    .eq("user_id", profile.id)
+    .eq("beat_id", beat.id);
+
+  if (revocationCleanupError) {
+    console.error("B.R manual payment revocation cleanup error", revocationCleanupError);
+
+    if (shouldCreateAccess) {
+      await admin.supabase
+        .from("beat_access")
+        .delete()
+        .eq("user_id", profile.id)
+        .eq("beat_id", beat.id);
+    }
+
+    return Response.json(
+      { ok: false, message: "El acceso se liberó, pero no se pudo limpiar la revocación anterior." },
+      { status: 500 },
+    );
   }
 
   const paymentRow = {
@@ -168,16 +204,28 @@ export async function POST(request: Request) {
 
     if (paymentError) {
       console.error("B.R manual payment insert error", paymentError);
+      if (shouldCreateAccess) {
+        await admin.supabase
+          .from("beat_access")
+          .delete()
+          .eq("user_id", profile.id)
+          .eq("beat_id", beat.id);
+      }
       return Response.json({ ok: false, message: "No se pudo registrar el pago." }, { status: 500 });
     }
   }
 
+  const requestCompletedAt = new Date().toISOString();
   const { error: requestUpdateError } = await admin.supabase
     .from("access_requests")
-    .update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({
+      status: "fulfilled",
+      responded_at: requestCompletedAt,
+      updated_at: requestCompletedAt,
+    })
     .eq("user_id", profile.id)
     .eq("beat_id", beat.id)
-    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved"]);
+    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved", "rejected"]);
 
   if (requestUpdateError) {
     console.error("B.R manual payment access request update error", requestUpdateError);
@@ -198,6 +246,9 @@ export async function POST(request: Request) {
       created_by_admin: admin.requester.id,
       license_type: licenseType,
       access_granted: true,
+      access_was_created: shouldCreateAccess,
+      payment_was_created: shouldInsertPayment,
+      previous_revocation_cleared: true,
     },
   });
 
@@ -207,6 +258,11 @@ export async function POST(request: Request) {
 
   return Response.json({
     ok: true,
-    message: existingPayment ? "Pago ya registrado. Acceso liberado y solicitud completada." : "Pago confirmado, acceso liberado y licencia registrada.",
+    access_created: shouldCreateAccess,
+    payment_created: shouldInsertPayment,
+    revocation_cleared: true,
+    message: existingPayment
+      ? "Pago ya registrado. Acceso sincronizado, revocación anterior limpiada y solicitud completada."
+      : "Pago confirmado, acceso liberado, revocación anterior limpiada y licencia registrada.",
   });
 }

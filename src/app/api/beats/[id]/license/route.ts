@@ -13,7 +13,6 @@ type BeatLicenseRow = {
   genre: string | null;
   bpm: number | null;
   musical_key: string | null;
-  is_active: boolean | null;
 };
 
 type LicenseType = "basic" | "premium" | "exclusive";
@@ -105,7 +104,12 @@ async function logLicenseActivity(
     beat_id: input.beat.id,
     beat_title: input.beat.title ?? null,
     beat_slug: input.beat.slug ?? null,
-    metadata: { source: "license_api", license_type: input.licenseType },
+    metadata: {
+      source: "license_api",
+      license_type: input.licenseType,
+      access_verified_by: "beat_access",
+      payment_verified: true,
+    },
   });
 
   if (error) {
@@ -140,7 +144,7 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "Beat no válido." }, { status: 400 });
   }
 
-  const beatSelect = "id,title,slug,genre,bpm,musical_key,is_active";
+  const beatSelect = "id,title,slug,genre,bpm,musical_key";
 
   let { data: beat, error: beatError } = await supabase
     .from("beats")
@@ -164,7 +168,7 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "No se pudo validar el beat." }, { status: 500 });
   }
 
-  if (!beat || !beat.is_active) {
+  if (!beat) {
     return Response.json({ ok: false, message: "Beat no disponible." }, { status: 404 });
   }
 
@@ -184,27 +188,12 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ ok: false, message: "No tienes acceso para descargar esta licencia." }, { status: 403 });
   }
 
-  const { data: revocationRow, error: revocationError } = await supabase
-    .from("access_revocations")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("beat_id", beat.id)
-    .maybeSingle();
-
-  if (revocationError) {
-    console.error("B.R license revocation lookup error", revocationError);
-    return Response.json({ ok: false, message: "No se pudo validar si el acceso fue revocado." }, { status: 500 });
-  }
-
-  if (revocationRow) {
-    return Response.json({ ok: false, message: "Tu acceso a este beat fue revocado. No puedes descargar la licencia." }, { status: 403 });
-  }
-
   const { data: paymentRow, error: paymentError } = await supabase
     .from("manual_payments")
     .select("id")
     .eq("user_id", user.id)
     .eq("beat_id", beat.id)
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -554,7 +543,13 @@ export async function GET(request: Request, context: RouteContext) {
 </html>`;
 
   const filename = `${safeFileName(beat.slug || beat.title)}-${licenseType}-license.html`;
-
+  const responseHeaders = {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Disposition": `inline; filename="${filename}"`,
+    "Cache-Control": "private, no-store, max-age=0",
+    Pragma: "no-cache",
+    Expires: "0",
+  };
   await logLicenseActivity(supabase, {
     userId: user.id,
     userEmail: user.email,
@@ -563,10 +558,6 @@ export async function GET(request: Request, context: RouteContext) {
   });
 
   return new Response(licenseHtml, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "private, no-store",
-    },
+    headers: responseHeaders,
   });
 }

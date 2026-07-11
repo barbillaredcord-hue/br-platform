@@ -12,6 +12,7 @@ import { PlayButton } from "../PlayButton";
 
 type AdminBeat = Beat & { isActive?: boolean | null };
 type MetadataField = "genre" | "bpm" | "musicalKey";
+type BeatCatalogFilter = "total" | "active" | "public" | "private";
 const beatHistoryEventTypes = new Set(["active_toggle", "metadata_update", "playback_visibility_update", "beat_hidden", "preview_update"]);
 const beatHistoryStorageKey = "br-admin-beat-change-history";
 const beatHistoryRetentionMs = 7 * 24 * 60 * 60 * 1000;
@@ -168,6 +169,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
   const [changeEvents, setChangeEvents] = useState<AdminChangeLog[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedBeatId, setSelectedBeatId] = useState("");
+  const [catalogFilter, setCatalogFilter] = useState<BeatCatalogFilter>("total");
 
   const loadChangeEvents = useCallback(async () => {
     const result = await getAdminChangeLogs({ temporary: true });
@@ -244,12 +246,36 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
 
   const filteredBeats = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const beatsByCatalogFilter = adminBeats.filter((beat) => {
+      const adminBeat = beat as AdminBeat;
+      const isActive = adminBeat.isActive ?? true;
+      const isPublic = beat.playbackVisibility === "public";
+
+      if (catalogFilter === "active") {
+        return isActive;
+      }
+
+      if (catalogFilter === "public") {
+        return isPublic;
+      }
+
+      if (catalogFilter === "private") {
+        return !isPublic;
+      }
+
+      return true;
+    });
+
     if (!term) {
-      return adminBeats;
+      return beatsByCatalogFilter;
     }
 
-    return adminBeats.filter((beat) => [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) => value.toLowerCase().includes(term)));
-  }, [adminBeats, search]);
+    return beatsByCatalogFilter.filter((beat) =>
+      [beat.name, beat.id, beat.genre, String(beat.bpm)].some((value) =>
+        value.toLowerCase().includes(term),
+      ),
+    );
+  }, [adminBeats, catalogFilter, search]);
 
   const beatStats = useMemo(() => {
     const activeBeats = adminBeats.filter((beat) => (beat as AdminBeat).isActive ?? true);
@@ -529,6 +555,11 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     );
   }
 
+  function selectCatalogFilter(filter: BeatCatalogFilter) {
+    setCatalogFilter(filter);
+    setSelectedBeatId("");
+  }
+
   const selectedAdminBeat = selectedBeat as AdminBeat | null;
   const selectedUsersWithAccess = selectedBeat ? getUsersWithBeatAccess(selectedBeat, localUsers) : [];
 
@@ -536,22 +567,42 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
     <section className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
       <aside className="min-w-0 rounded-xl border border-white/10 bg-[#101317] p-3">
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
+          <button
+            type="button"
+            onClick={() => selectCatalogFilter("total")}
+            aria-pressed={catalogFilter === "total"}
+            className={`rounded-lg border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:scale-[1.01] ${catalogFilter === "total" ? "border-cyan-300 bg-cyan-300/15 shadow-[0_0_22px_rgba(103,232,249,0.12)] ring-1 ring-cyan-300/30" : "border-cyan-300/20 bg-cyan-300/10 hover:border-cyan-300"}`}
+          >
             <p className="text-[10px] font-bold uppercase text-cyan-200">Total</p>
             <p className="mt-1 text-2xl font-black text-cyan-100">{beatStats.total}</p>
-          </div>
-          <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
+          </button>
+          <button
+            type="button"
+            onClick={() => selectCatalogFilter("active")}
+            aria-pressed={catalogFilter === "active"}
+            className={`rounded-lg border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:scale-[1.01] ${catalogFilter === "active" ? "border-emerald-300 bg-emerald-300/15 shadow-[0_0_22px_rgba(110,231,183,0.12)] ring-1 ring-emerald-300/30" : "border-emerald-300/20 bg-emerald-300/10 hover:border-emerald-300"}`}
+          >
             <p className="text-[10px] font-bold uppercase text-emerald-200">Activos</p>
             <p className="mt-1 text-2xl font-black text-emerald-100">{beatStats.active}</p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/4 p-3">
-            <p className="text-[10px] font-bold uppercase text-zinc-500">Públicos</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => selectCatalogFilter("public")}
+            aria-pressed={catalogFilter === "public"}
+            className={`rounded-lg border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:scale-[1.01] ${catalogFilter === "public" ? "border-white/40 bg-white/10 shadow-[0_0_22px_rgba(255,255,255,0.08)] ring-1 ring-white/20" : "border-white/10 bg-white/4 hover:border-white/30"}`}
+          >
+            <p className="text-[10px] font-bold uppercase text-zinc-400">Públicos</p>
             <p className="mt-1 text-2xl font-black text-white">{beatStats.public}</p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-            <p className="text-[10px] font-bold uppercase text-zinc-500">Privados</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => selectCatalogFilter("private")}
+            aria-pressed={catalogFilter === "private"}
+            className={`rounded-lg border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:scale-[1.01] ${catalogFilter === "private" ? "border-zinc-400 bg-black/35 shadow-[0_0_22px_rgba(161,161,170,0.08)] ring-1 ring-zinc-400/20" : "border-white/10 bg-black/20 hover:border-zinc-400"}`}
+          >
+            <p className="text-[10px] font-bold uppercase text-zinc-400">Privados</p>
             <p className="mt-1 text-2xl font-black text-white">{beatStats.private}</p>
-          </div>
+          </button>
         </div>
 
         <div className="mt-3 rounded-lg border border-white/10 bg-white/3 p-3">
@@ -626,6 +677,22 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
           <span className="text-xs font-semibold text-cyan-200">{filteredBeats.length} / {adminBeats.length} beats</span>
         </div>
 
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-xs">
+          <span className="inline-flex items-center gap-2 font-bold text-zinc-300">
+            <span className={`h-2 w-2 rounded-full ${catalogFilter === "total" ? "bg-cyan-300" : catalogFilter === "active" ? "bg-emerald-300" : catalogFilter === "public" ? "bg-white" : "bg-zinc-500"}`} />
+            Mostrando: {catalogFilter === "total" ? "Todos" : catalogFilter === "active" ? "Activos" : catalogFilter === "public" ? "Públicos" : "Privados"} ({filteredBeats.length})
+          </span>
+          {catalogFilter !== "total" ? (
+            <button
+              type="button"
+              onClick={() => selectCatalogFilter("total")}
+              className="font-bold text-cyan-200 hover:text-cyan-100"
+            >
+              Mostrar todos
+            </button>
+          ) : null}
+        </div>
+
         {catalogLoadMessage ? <p className="mt-3 rounded-md border border-red-300/20 bg-red-950/20 p-2 text-xs text-red-100">{catalogLoadMessage}</p> : null}
         {actionMessage ? <p className="mt-3 rounded-md border border-white/10 bg-white/5 p-2 text-xs text-zinc-300">{actionMessage}</p> : null}
 
@@ -654,7 +721,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                   <tr
                     key={beat.id}
                     onClick={() => setSelectedBeatId(beat.id)}
-                    className={`cursor-pointer border-t border-white/10 transition hover:bg-white/4 ${isSelected ? "bg-cyan-300/10" : ""} ${isActive ? "" : "bg-red-950/10 opacity-70"}`}
+                    className={`cursor-pointer border-t border-white/10 transition duration-200 hover:bg-white/4 ${isSelected ? "bg-cyan-300/10 shadow-[inset_3px_0_0_#67e8f9]" : ""} ${isActive ? "" : "bg-red-950/10 opacity-70"}`}
                   >
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
@@ -721,7 +788,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
             const isSelected = selectedBeat?.id === beat.id;
 
             return (
-              <article key={beat.id} onClick={() => setSelectedBeatId(beat.id)} className={`rounded-lg border p-3 ${isSelected ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-[#15181c]"} ${isActive ? "" : "opacity-70"}`}>
+              <article key={beat.id} onClick={() => setSelectedBeatId(beat.id)} className={`rounded-lg border p-3 transition duration-200 ${isSelected ? "border-cyan-300 bg-cyan-300/10 shadow-[0_0_20px_rgba(103,232,249,0.1)]" : "border-white/10 bg-[#15181c] hover:border-cyan-300/30"} ${isActive ? "" : "opacity-70"}`}>
                 <div className="flex items-start gap-3">
                   <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#67e8f9,#0f172a)] text-[10px] font-black">
                     B.R
