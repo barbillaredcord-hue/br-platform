@@ -1,5 +1,5 @@
 export interface CommercialPaymentLike {
-  amount?: number | null;
+  amount?: number | string | null;
   created_at?: string | null;
 }
 
@@ -21,16 +21,10 @@ export function buildRevenueSummary(
     now.getMonth(),
     now.getDate(),
   ).getTime();
-
-  const startMonth = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    1,
-  ).getTime();
-
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const last7 = now.getTime() - 7 * 24 * 60 * 60 * 1000;
   const last30 = now.getTime() - 30 * 24 * 60 * 60 * 1000;
-
+  const nowTimestamp = now.getTime();
   const summary: RevenueSummary = {
     today: 0,
     last7Days: 0,
@@ -49,14 +43,14 @@ export function buildRevenueSummary(
       continue;
     }
 
-    paymentCount++;
+    paymentCount += 1;
     summary.total += amount;
 
     const timestamp = payment.created_at
       ? new Date(payment.created_at).getTime()
       : Number.NaN;
 
-    if (!Number.isFinite(timestamp)) {
+    if (!Number.isFinite(timestamp) || timestamp > nowTimestamp) {
       continue;
     }
 
@@ -77,8 +71,7 @@ export function buildRevenueSummary(
     }
   }
 
-  summary.averagePayment =
-    paymentCount > 0 ? summary.total / paymentCount : 0;
+  summary.averagePayment = paymentCount > 0 ? summary.total / paymentCount : 0;
 
   return summary;
 }

@@ -1,4 +1,10 @@
 import { validateAdminRequest } from "@/lib/supabase/admin";
+import {
+  buildCommercialRankings,
+  buildCommercialTrends,
+  buildConversionSummary,
+  buildRevenueSummary,
+} from "@/lib/commercial";
 
 type ProfileRow = {
   id: string;
@@ -443,9 +449,22 @@ export async function GET(request: Request) {
     .map(([month, amount]) => ({ month, amount }))
     .sort((a, b) => b.month.localeCompare(a.month));
 
+  const analytics = {
+    revenue: buildRevenueSummary(
+      paymentRows.map((payment) => ({
+        amount: Number(payment.amount ?? 0),
+        created_at: payment.created_at,
+      })),
+    ),
+    conversion: buildConversionSummary(users),
+    rankings: buildCommercialRankings(profiles, paymentRows, beats),
+    trends: buildCommercialTrends(paymentRows),
+  };
+
   return Response.json({
     ok: true,
     users,
+    analytics,
     earnings: {
       total: earningsTotal,
       current_month: earningsCurrentMonth,
