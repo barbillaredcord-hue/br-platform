@@ -17,11 +17,23 @@ type BeatRow = {
   id: string;
   title: string | null;
   slug: string | null;
+  genre: string | null;
+  bpm: number | null;
 };
 
 type BeatAccessRow = {
   user_id: string | null;
   beat_id: string | null;
+  granted_at: string | null;
+};
+
+type CommercialAccessBeat = {
+  beat_id: string;
+  beat_title: string | null;
+  beat_slug: string | null;
+  genre: string | null;
+  bpm: number | null;
+  granted_at: string | null;
 };
 
 type RevocationRow = {
@@ -136,8 +148,8 @@ export async function GET(request: Request) {
 
   const [profilesResult, beatsResult, accessResult, revocationsResult, paymentsResult, activityResult] = await Promise.all([
     admin.supabase.from("profiles").select("id,email,username,display_name").order("created_at", { ascending: false }),
-    admin.supabase.from("beats").select("id,title,slug"),
-    admin.supabase.from("beat_access").select("user_id,beat_id"),
+    admin.supabase.from("beats").select("id,title,slug,genre,bpm"),
+    admin.supabase.from("beat_access").select("user_id,beat_id,granted_at"),
     admin.supabase.from("access_revocations").select("id,user_id,beat_id,reason,revoked_at,created_at"),
     admin.supabase.from("manual_payments").select("id,user_id,beat_id,beat_title,amount,currency,payment_method,note,created_at"),
     admin.supabase.from("commercial_activity").select("user_id,event_type,beat_id,beat_title,beat_slug,created_at").in("event_type", ["mp3_download", "license_download"]),
@@ -182,7 +194,7 @@ export async function GET(request: Request) {
 
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const beatsById = new Map(beats.map((beat) => [beat.id, beat]));
-  const accessByUser = new Map<string, Set<string>>();
+  const activeAccessesByUser = new Map<string, CommercialAccessBeat[]>();
   const activeAccessUsersByBeat = new Map<string, Map<string, BeatAccessUser>>();
   const revokedUsersByBeat = new Map<string, Map<string, BeatRevokedUser>>();
   const paidByUser = new Map<string, Set<string>>();
@@ -224,9 +236,17 @@ export async function GET(request: Request) {
 
     relevantUserIds.add(row.user_id);
 
-    const beatIds = accessByUser.get(row.user_id) ?? new Set<string>();
-    beatIds.add(row.beat_id);
-    accessByUser.set(row.user_id, beatIds);
+    const beat = beatsById.get(row.beat_id);
+    const activeAccesses = activeAccessesByUser.get(row.user_id) ?? [];
+    activeAccesses.push({
+      beat_id: row.beat_id,
+      beat_title: beat?.title ?? null,
+      beat_slug: beat?.slug ?? null,
+      genre: beat?.genre ?? null,
+      bpm: beat?.bpm ?? null,
+      granted_at: row.granted_at,
+    });
+    activeAccessesByUser.set(row.user_id, activeAccesses);
 
     const beatUsers = activeAccessUsersByBeat.get(row.beat_id) ?? new Map<string, BeatAccessUser>();
     beatUsers.set(row.user_id, profileUser({ userId: row.user_id, profilesById }));
@@ -347,22 +367,68 @@ export async function GET(request: Request) {
   const users = Array.from(relevantUserIds)
     .map((userId) => {
       const profile = profilesById.get(userId);
-      const accessBeatIds = accessByUser.get(userId) ?? new Set<string>();
+      const activeAccesses = (activeAccessesByUser.get(userId) ?? []).sort(
+        (firstAccess, secondAccess) => {
+          const firstDate = firstAccess.granted_at
+            ? new Date(firstAccess.granted_at).getTime()
+            : 0;
+          const secondDate = secondAccess.granted_at
+            ? new Date(secondAccess.granted_at).getTime()
+            : 0;
+          return secondDate - firstDate;
+        },
+      );
+      const accessBeatIds = new Set(
+        activeAccesses.map((access) => access.beat_id),
+      );
       const paidBeatIds = paidByUser.get(userId) ?? new Set<string>();
       const downloads = getDownloadCounts(downloadCountsByUser.get(userId));
       const pendingPaymentBeats = Array.from(accessBeatIds).filter((beatId) => !paidBeatIds.has(beatId)).length;
+      const activeAccessesByBeatId = new Map(
+        activeAccesses.map((access) => [access.beat_id, access]),
+      );
+      const revocations = revocationRows
+        .filter((revocation) => revocation.user_id === userId && revocation.beat_id)
+        .map((revocation) => {
+          const beat = beatsById.get(revocation.beat_id as string);
+          const restoredAccess = activeAccessesByBeatId.get(
+            revocation.beat_id as string,
+          );
+
+          return {
+            id: revocation.id,
+            beat_id: revocation.beat_id as string,
+            beat_title: beat?.title ?? null,
+            beat_slug: beat?.slug ?? null,
+            revoked_at: revocation.revoked_at ?? revocation.created_at,
+            reason: revocation.reason,
+            restored_at: restoredAccess?.granted_at ?? null,
+            status: restoredAccess ? ("restored" as const) : ("revoked" as const),
+          };
+        })
+        .sort((firstRevocation, secondRevocation) => {
+          const firstDate = firstRevocation.revoked_at
+            ? new Date(firstRevocation.revoked_at).getTime()
+            : 0;
+          const secondDate = secondRevocation.revoked_at
+            ? new Date(secondRevocation.revoked_at).getTime()
+            : 0;
+          return secondDate - firstDate;
+        });
 
       return {
         id: userId,
         email: profile?.email ?? "Sin email",
         username: profile?.username ?? null,
         display_name: profile?.display_name ?? null,
-        total_access_beats: accessBeatIds.size,
+        total_access_beats: activeAccesses.length,
         total_paid_beats: paidBeatIds.size,
         pending_payment_beats: pendingPaymentBeats,
         mp3_download_count: downloads.mp3,
         license_download_count: downloads.licenses,
         total_paid_amount: totalsByUser.get(userId) ?? 0,
+        active_accesses: activeAccesses,
+        revocations,
         payments: (paymentsByUser.get(userId) ?? []).sort((firstPayment, secondPayment) => {
           const firstDate = firstPayment.created_at ? new Date(firstPayment.created_at).getTime() : 0;
           const secondDate = secondPayment.created_at ? new Date(secondPayment.created_at).getTime() : 0;
