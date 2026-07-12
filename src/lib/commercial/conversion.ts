@@ -31,18 +31,31 @@ export function buildConversionSummary(
   let usersWithAccess = 0;
   let usersWithPayments = 0;
   let usersWithPendingPayments = 0;
+
   let totalAccesses = 0;
   let totalPaidBeats = 0;
   let totalPendingBeats = 0;
 
   for (const user of users) {
-    const accesses    const accesses    const accesses    const_a    const accesses    cons
-    const paid = Math    const p 0,    const paid = Math    const p 0, ??    const paid = Math    const p 0at    const paid = Math    const p 0,  ding_pa    const paid = Math    const p 0,lA    const paid sses;
-                          ;
-                         pend                         pend                            
-           if (paid > 0) {
-                           1;
-                                    us                                  
+    const accesses = Number(user.total_access_beats ?? 0);
+    const paid = Number(user.total_paid_beats ?? 0);
+    const pending = Number(user.pending_payment_beats ?? 0);
+
+    totalAccesses += accesses;
+    totalPaidBeats += paid;
+    totalPendingBeats += pending;
+
+    if (accesses > 0) {
+      usersWithAccess++;
+    }
+
+    if (paid > 0) {
+      usersWithPayments++;
+    }
+
+    if (pending > 0) {
+      usersWithPendingPayments++;
+    }
   }
 
   return {
@@ -50,10 +63,16 @@ export function buildConversionSummary(
     usersWithAccess,
     usersWithPayments,
     usersWithPendingPayments,
-                                           totalP                                      Ra                                       ,
-      usersWithAccess,
+    totalAccesses,
+    totalPaidBeats,
+    totalPendingBeats,
+    userPaymentConversionRate: percentage(
+      usersWithPayments,
+      users.length,
     ),
-    accessToPaymentC    accessToPaymentC    acc      accessToPaymentC      totalAccesses,
+    accessToPaymentConversionRate: percentage(
+      totalPaidBeats,
+      totalAccesses,
     ),
   };
 }
