@@ -127,6 +127,12 @@ type DetailDock =
 
 type PaymentDateFilter = "today" | "7days" | "30days" | "all";
 
+type UserCommercialSection =
+  | "active-accesses"
+  | "revocations"
+  | "payments"
+  | "payment-options";
+
 const initialForm = {
   beat_id: "",
   amount: "",
@@ -229,9 +235,8 @@ export function CommercialUsersPanel() {
   const [detailDock, setDetailDock] = useState<DetailDock>(null);
 
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
-  const [isPaymentsListOpen, setIsPaymentsListOpen] = useState(false);
-  const [isActiveAccessListOpen, setIsActiveAccessListOpen] = useState(false);
-  const [isRevocationListOpen, setIsRevocationListOpen] = useState(false);
+  const [openUserCommercialSection, setOpenUserCommercialSection] =
+    useState<UserCommercialSection | null>(null);
 
   const [selectedPayment, setSelectedPayment] = useState<CommercialPayment | null>(null);
   const [paymentSearch, setPaymentSearch] = useState("");
@@ -489,9 +494,7 @@ export function CommercialUsersPanel() {
 
   function resetUserDetailState() {
     setIsPaymentFormOpen(false);
-    setIsPaymentsListOpen(false);
-    setIsActiveAccessListOpen(false);
-    setIsRevocationListOpen(false);
+    setOpenUserCommercialSection(null);
     setSelectedPayment(null);
     setPaymentSearch("");
     setPaymentDateFilter("all");
@@ -733,6 +736,25 @@ export function CommercialUsersPanel() {
     }, 0);
 
     return () => window.clearTimeout(loadId);
+  }, [loadUsers]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      void loadUsers();
+    };
+
+    window.addEventListener("br-access-state-changed", handleRefresh);
+    window.addEventListener("br-access-requests-refresh", handleRefresh);
+    window.addEventListener("br-commercial-activity-refresh", handleRefresh);
+
+    return () => {
+      window.removeEventListener("br-access-state-changed", handleRefresh);
+      window.removeEventListener("br-access-requests-refresh", handleRefresh);
+      window.removeEventListener(
+        "br-commercial-activity-refresh",
+        handleRefresh,
+      );
+    };
   }, [loadUsers]);
 
   return (
@@ -1210,391 +1232,239 @@ export function CommercialUsersPanel() {
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setIsActiveAccessListOpen((current) => !current)
-                    }
-                    className="flex w-full flex-col items-start gap-2 text-left"
-                  >
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-cyan-200">
-                        Accesos activos
-                      </p>
-                      <p className="text-xs leading-5 text-zinc-400">
-                        Beats disponibles actualmente para este usuario.
-                      </p>
-                    </div>
+                {(
+                  [
+                    {
+                      id: "active-accesses",
+                      title: "Accesos activos",
+                      description:
+                        "Beats disponibles actualmente para este usuario.",
+                      count: detailDock.user.active_accesses?.length ?? 0,
+                      color: "cyan",
+                    },
+                    {
+                      id: "revocations",
+                      title: "Revocaciones históricas",
+                      description:
+                        "Historial conservado aunque el acceso sea restaurado.",
+                      count: detailDock.user.revocations?.length ?? 0,
+                      color: "amber",
+                    },
+                    {
+                      id: "payments",
+                      title: "Pagos registrados",
+                      description: "Historial de pagos manuales del usuario.",
+                      count: detailDock.user.payments?.length ?? 0,
+                      color: "emerald",
+                    },
+                    {
+                      id: "payment-options",
+                      title: "Disponibles para pago",
+                      description:
+                        "Beats pendientes que pueden registrarse manualmente.",
+                      count: beatOptions.length,
+                      color: "cyan",
+                    },
+                  ] as const
+                ).map((section) => {
+                  const isActive = openUserCommercialSection === section.id;
+                  const colorClasses = {
+                    cyan: "border-cyan-300/20 bg-cyan-300/10 text-cyan-100",
+                    amber:
+                      "border-amber-300/20 bg-amber-300/10 text-amber-100",
+                    emerald:
+                      "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
+                  }[section.color];
 
-                    <span className="inline-flex items-center gap-1 text-xl font-black text-cyan-100">
-                      {isActiveAccessListOpen ? (
-                        <ChevronDown
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <ChevronRight
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {detailDock.user.active_accesses?.length ?? 0}
-                    </span>
-                  </button>
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() =>
+                        setOpenUserCommercialSection((current) =>
+                          current === section.id ? null : section.id,
+                        )
+                      }
+                      className={`flex w-full flex-col items-start gap-2 rounded-lg border p-3 text-left transition ${colorClasses} ${
+                        isActive
+                          ? "ring-2 ring-cyan-300/60"
+                          : "hover:border-white/30"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-[10px] font-bold uppercase">
+                          {section.title}
+                        </p>
+                        <p className="text-xs leading-5 text-zinc-400">
+                          {section.description}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-xl font-black">
+                        {isActive ? (
+                          <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                        )}
+                        {section.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-                  {isActiveAccessListOpen ? (
-                    <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1">
+              {openUserCommercialSection === "active-accesses" ? (
+                <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-300/5 p-3">
+                  <div className="max-h-72 overflow-y-auto pr-1">
+                    <div className="grid gap-2">
                       {(detailDock.user.active_accesses?.length ?? 0) === 0 ? (
                         <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">
                           Sin accesos activos.
                         </p>
                       ) : null}
-
                       {(detailDock.user.active_accesses ?? []).map((access) => (
-                        <article
-                          key={access.beat_id}
-                          className="rounded-md border border-white/10 bg-white/5 p-3"
-                        >
+                        <article key={access.beat_id} className="rounded-md border border-white/10 bg-white/5 p-3">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-bold text-white">
-                                {access.beat_title ||
-                                  access.beat_slug ||
-                                  access.beat_id}
+                                {access.beat_title || access.beat_slug || access.beat_id}
                               </p>
                               <p className="mt-1 text-xs text-zinc-500">
-                                {access.genre || "Sin género"} ·{" "}
-                                {access.bpm
-                                  ? `${access.bpm} BPM`
-                                  : "BPM sin definir"}
+                                {access.genre || "Sin género"} · {access.bpm ? `${access.bpm} BPM` : "BPM sin definir"}
                               </p>
                             </div>
-
                             <button
                               type="button"
-                              onClick={() =>
-                                void revokeUserBeatAccess(access)
-                              }
+                              onClick={() => void revokeUserBeatAccess(access)}
                               disabled={Boolean(isAccessMutationPending)}
                               className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              {isAccessMutationPending ===
-                              `revoke-${access.beat_id}`
-                                ? "Revocando..."
-                                : "Revocar acceso"}
+                              {isAccessMutationPending === `revoke-${access.beat_id}` ? "Revocando..." : "Revocar acceso"}
                             </button>
                           </div>
                         </article>
                       ))}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
+              ) : null}
 
-                <div className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setIsRevocationListOpen((current) => !current)
-                    }
-                    className="flex w-full flex-col items-start gap-2 text-left"
-                  >
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-amber-200">
-                        Revocaciones históricas
-                      </p>
-                      <p className="text-xs leading-5 text-zinc-400">
-                        Historial conservado aunque el acceso sea restaurado.
-                      </p>
-                    </div>
-
-                    <span className="inline-flex items-center gap-1 text-xl font-black text-amber-100">
-                      {isRevocationListOpen ? (
-                        <ChevronDown
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <ChevronRight
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {detailDock.user.revocations?.length ?? 0}
-                    </span>
-                  </button>
-
-                  {isRevocationListOpen ? (
-                    <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1">
+              {openUserCommercialSection === "revocations" ? (
+                <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3">
+                  <div className="max-h-72 overflow-y-auto pr-1">
+                    <div className="grid gap-2">
                       {(detailDock.user.revocations?.length ?? 0) === 0 ? (
-                        <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">
-                          Sin revocaciones históricas.
-                        </p>
+                        <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">Sin revocaciones históricas.</p>
                       ) : null}
-
-                      {(detailDock.user.revocations ?? []).map(
-                        (revocation) => (
-                          <article
-                            key={revocation.id}
-                            className="rounded-md border border-white/10 bg-white/5 p-3"
-                          >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-bold text-white">
-                                  {revocation.beat_title ||
-                                    revocation.beat_slug ||
-                                    revocation.beat_id}
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-500">
-                                  Fecha:{" "}
-                                  {formatActivityDate(
-                                    revocation.revoked_at,
-                                  )}
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-400">
-                                  Motivo:{" "}
-                                  {revocation.reason ||
-                                    "Sin motivo registrado"}
-                                </p>
-                                <span
-                                  className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${
-                                    revocation.status === "restored"
-                                      ? "border-emerald-300/30 text-emerald-100"
-                                      : "border-amber-300/30 text-amber-100"
-                                  }`}
-                                >
-                                  {revocation.status === "restored"
-                                    ? "Acceso restaurado"
-                                    : "Revocado"}
-                                </span>
-                              </div>
-
-                              {revocation.status !== "restored" ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void restoreUserBeatAccess(revocation)
-                                  }
-                                  disabled={Boolean(
-                                    isAccessMutationPending,
-                                  )}
-                                  className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-300/30 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  {isAccessMutationPending ===
-                                  `restore-${revocation.id}`
-                                    ? "Restaurando..."
-                                    : "Volver a dar acceso"}
-                                </button>
-                              ) : null}
+                      {(detailDock.user.revocations ?? []).map((revocation) => (
+                        <article key={revocation.id} className="rounded-md border border-white/10 bg-white/5 p-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-white">
+                                {revocation.beat_title || revocation.beat_slug || revocation.beat_id}
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-500">Fecha: {formatActivityDate(revocation.revoked_at)}</p>
+                              <p className="mt-1 text-xs text-zinc-400">Motivo: {revocation.reason || "Sin motivo registrado"}</p>
+                              <span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${revocation.status === "restored" ? "border-emerald-300/30 text-emerald-100" : "border-amber-300/30 text-amber-100"}`}>
+                                {revocation.status === "restored" ? "Acceso restaurado" : "Revocado"}
+                              </span>
                             </div>
-                          </article>
-                        ),
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setIsPaymentsListOpen((current) => !current)
-                    }
-                    className="flex w-full flex-col items-start gap-2 text-left"
-                  >
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-emerald-200">
-                        Pagos registrados
-                      </p>
-                      <p className="text-xs leading-5 text-zinc-400">
-                        Historial de pagos manuales del usuario.
-                      </p>
-                    </div>
-
-                    <span className="inline-flex items-center gap-1 text-xl font-black text-emerald-100">
-                      {isPaymentsListOpen ? (
-                        <ChevronDown
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <ChevronRight
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {detailDock.user.payments?.length ?? 0}
-                    </span>
-                  </button>
-
-                  {isPaymentsListOpen ? (
-                    <div className="mt-3">
-                      <input
-                        value={paymentSearch}
-                        onChange={(event) =>
-                          setPaymentSearch(event.target.value)
-                        }
-                        className="h-9 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300"
-                        placeholder="Buscar por beat, método, nota o monto"
-                      />
-
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {[
-                          ["today", "Hoy"],
-                          ["7days", "7 días"],
-                          ["30days", "30 días"],
-                          ["all", "Todos"],
-                        ].map(([value, label]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() =>
-                              setPaymentDateFilter(
-                                value as PaymentDateFilter,
-                              )
-                            }
-                            className={`h-8 rounded-md border px-3 text-[11px] font-bold ${
-                              paymentDateFilter === value
-                                ? "border-cyan-300 bg-cyan-300 text-black"
-                                : "border-white/10 text-zinc-300 hover:border-cyan-300/40 hover:text-cyan-100"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1">
-                        {filteredPayments.length === 0 ? (
-                          <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">
-                            No hay pagos que coincidan con la búsqueda o
-                            filtro.
-                          </p>
-                        ) : null}
-
-                        {filteredPayments.map((payment) => (
-                          <article
-                            key={payment.id}
-                            className="rounded-md border border-white/10 bg-white/5 p-3"
-                          >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-bold text-white">
-                                  {payment.beat_title ||
-                                    payment.beat_slug ||
-                                    payment.beat_id}
-                                </p>
-                                <p className="mt-1 text-xs font-bold text-emerald-100">
-                                  {money(payment.amount)}
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-500">
-                                  {formatActivityDate(
-                                    payment.created_at,
-                                  )}{" "}
-                                  ·{" "}
-                                  {payment.payment_method ||
-                                    "Método sin registrar"}
-                                </p>
-                                <p className="mt-1 truncate text-xs text-zinc-400">
-                                  {payment.note || "Sin nota"}
-                                </p>
-                              </div>
-
+                            {revocation.status !== "restored" ? (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setSelectedPayment(payment)
-                                }
-                                className="inline-flex h-9 items-center justify-center rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10"
+                                onClick={() => void restoreUserBeatAccess(revocation)}
+                                disabled={Boolean(isAccessMutationPending)}
+                                className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-300/30 px-3 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                Ver detalle
+                                {isAccessMutationPending === `restore-${revocation.id}` ? "Restaurando..." : "Volver a dar acceso"}
                               </button>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
+                            ) : null}
+                          </div>
+                        </article>
+                      ))}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
+              ) : null}
 
-                <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setIsPaymentFormOpen((current) => !current)
-                    }
-                    className="flex w-full flex-col items-start gap-2 text-left"
-                  >
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-cyan-200">
-                        Disponibles para pago
-                      </p>
-                      <p className="text-xs leading-5 text-zinc-400">
-                        Beats pendientes que pueden registrarse
-                        manualmente.
-                      </p>
+              {openUserCommercialSection === "payments" ? (
+                <div className="mt-3 rounded-lg border border-emerald-300/20 bg-emerald-300/5 p-3">
+                  <div className="max-h-72 overflow-y-auto pr-1">
+                    <input
+                      value={paymentSearch}
+                      onChange={(event) => setPaymentSearch(event.target.value)}
+                      className="h-9 w-full rounded-md border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-cyan-300"
+                      placeholder="Buscar por beat, método, nota o monto"
+                    />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {[["today", "Hoy"], ["7days", "7 días"], ["30days", "30 días"], ["all", "Todos"]].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setPaymentDateFilter(value as PaymentDateFilter)}
+                          className={`h-8 rounded-md border px-3 text-[11px] font-bold ${paymentDateFilter === value ? "border-cyan-300 bg-cyan-300 text-black" : "border-white/10 text-zinc-300 hover:border-cyan-300/40 hover:text-cyan-100"}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
+                    <div className="mt-3 grid gap-2">
+                      {filteredPayments.length === 0 ? (
+                        <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">No hay pagos que coincidan con la búsqueda o filtro.</p>
+                      ) : null}
+                      {filteredPayments.map((payment) => (
+                        <article key={payment.id} className="rounded-md border border-white/10 bg-white/5 p-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-white">{payment.beat_title || payment.beat_slug || payment.beat_id}</p>
+                              <p className="mt-1 text-xs font-bold text-emerald-100">{money(payment.amount)}</p>
+                              <p className="mt-1 text-xs text-zinc-500">{formatActivityDate(payment.created_at)} · {payment.payment_method || "Método sin registrar"}</p>
+                              <p className="mt-1 truncate text-xs text-zinc-400">{payment.note || "Sin nota"}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPayment(payment)}
+                              className="inline-flex h-9 items-center justify-center rounded-md border border-cyan-300/30 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10"
+                            >
+                              Ver detalle
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
-                    <span className="inline-flex items-center gap-1 text-xl font-black text-cyan-100">
-                      {isPaymentFormOpen ? (
-                        <ChevronDown
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <ChevronRight
-                          className="h-3 w-3"
-                          aria-hidden="true"
-                        />
-                      )}
-                      {beatOptions.length}
-                    </span>
-                  </button>
-
-                  {isPaymentFormOpen ? (
-                    <div className="mt-3 grid max-h-56 gap-2 overflow-y-auto pr-1">
+              {openUserCommercialSection === "payment-options" ? (
+                <div className="mt-3 rounded-lg border border-cyan-300/20 bg-cyan-300/5 p-3">
+                  <div className="max-h-72 overflow-y-auto pr-1">
+                    <div className="grid gap-2">
                       {isLoadingOptions ? (
-                        <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">
-                          Cargando beats pendientes...
-                        </p>
+                        <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">Cargando beats pendientes...</p>
                       ) : null}
-
                       {!isLoadingOptions && beatOptions.length === 0 ? (
-                        <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">
-                          Sin beats pendientes de pago.
-                        </p>
+                        <p className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-zinc-400">Sin beats pendientes de pago.</p>
                       ) : null}
-
                       {beatOptions.map((beat) => (
                         <button
                           key={beat.id}
                           type="button"
-                          onClick={() =>
-                            updateField("beat_id", beat.id)
-                          }
-                          className={`rounded-md border p-3 text-left transition ${
-                            form.beat_id === beat.id
-                              ? "border-cyan-300 bg-cyan-300/10"
-                              : "border-white/10 bg-white/5 hover:border-cyan-300/40"
-                          }`}
+                          onClick={() => {
+                            updateField("beat_id", beat.id);
+                            setIsPaymentFormOpen(true);
+                          }}
+                          className={`rounded-md border p-3 text-left transition ${form.beat_id === beat.id ? "border-cyan-300 bg-cyan-300/10" : "border-white/10 bg-white/5 hover:border-cyan-300/40"}`}
                         >
-                          <p className="truncate text-sm font-bold text-white">
-                            {beat.title || beat.slug || beat.id}
-                          </p>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            {beat.genre || "Sin género"} ·{" "}
-                            {beat.bpm
-                              ? `${beat.bpm} BPM`
-                              : "BPM sin definir"}
-                          </p>
+                          <p className="truncate text-sm font-bold text-white">{beat.title || beat.slug || beat.id}</p>
+                          <p className="mt-1 text-xs text-zinc-500">{beat.genre || "Sin género"} · {beat.bpm ? `${beat.bpm} BPM` : "BPM sin definir"}</p>
                         </button>
                       ))}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
-              {selectedPayment ? (
+              {openUserCommercialSection === "payments" && selectedPayment ? (
                 <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1646,12 +1516,12 @@ export function CommercialUsersPanel() {
               <div className="mt-5 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsPaymentFormOpen(true)}
+                  onClick={() => setIsPaymentFormOpen((current) => !current)}
                   className="inline-flex h-9 items-center gap-2 rounded-md bg-cyan-300 px-3 text-xs font-bold text-black hover:bg-cyan-200"
-                >
-                  <CreditCard className="h-4 w-4" aria-hidden="true" />
-                  Registro manual
-                </button>
+              >
+                 <CreditCard className="h-4 w-4" aria-hidden="true" />
+                 {isPaymentFormOpen ? "Ocultar registro" : "Registro manual"}
+              </button>
 
                 {isLoadingOptions ? (
                   <p className="text-xs text-zinc-400">
