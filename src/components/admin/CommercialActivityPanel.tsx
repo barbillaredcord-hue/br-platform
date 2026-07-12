@@ -101,7 +101,7 @@ export function CommercialActivityPanel() {
   }, [loadActivity]);
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#101317] p-2.5">
+    <section className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.10),transparent_45%),rgba(16,19,23,0.96)] p-4 shadow-[0_18px_45px_rgba(0,0,0,0.30)]">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-200">Actividad comercial</p>
@@ -115,27 +115,27 @@ export function CommercialActivityPanel() {
 
       {message ? <p className="mt-3 rounded-md border border-red-300/20 bg-red-950/20 p-2.5 text-xs text-red-100">{message}</p> : null}
 
-      <div className="mt-2 grid gap-2 sm:grid-cols-4">
-        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+      <div className="mt-4 grid gap-4 sm:grid-cols-4">
+        <div className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_45%),rgba(255,255,255,0.03)] p-3 shadow-[0_10px_25px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-1 hover:border-cyan-300/40">
           <p className="text-[10px] font-bold uppercase text-zinc-500">MP3</p>
           <p className="mt-1 text-lg font-black text-cyan-100">{activityStats.mp3Downloads}</p>
         </div>
-        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+        <div className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_45%),rgba(255,255,255,0.03)] p-3 shadow-[0_10px_25px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-1 hover:border-cyan-300/40">
           <p className="text-[10px] font-bold uppercase text-zinc-500">Licencias</p>
           <p className="mt-1 text-lg font-black text-cyan-100">{activityStats.licenseDownloads}</p>
         </div>
-        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+        <div className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_45%),rgba(255,255,255,0.03)] p-3 shadow-[0_10px_25px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-1 hover:border-cyan-300/40">
           <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos</p>
           <p className="mt-1 text-lg font-black text-emerald-100">{activityStats.manualPayments}</p>
         </div>
-        <div className="rounded-md border border-white/10 bg-white/[0.03] p-2">
+        <div className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_45%),rgba(255,255,255,0.03)] p-3 shadow-[0_10px_25px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-1 hover:border-cyan-300/40">
           <p className="text-[10px] font-bold uppercase text-zinc-500">Eventos</p>
           <p className="mt-1 text-lg font-black text-zinc-100">{activityStats.total}</p>
         </div>
       </div>
 
       <div className="mt-2 max-h-36 overflow-auto rounded-md border border-white/10 bg-black/10">
-        <div className="hidden min-w-[820px] grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 md:grid">
+        <div className="hidden min-w-205 grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 md:grid">
           <span>Fecha</span>
           <span>Evento</span>
           <span>Beat</span>
@@ -145,7 +145,7 @@ export function CommercialActivityPanel() {
           <p className="p-2.5 text-xs text-zinc-400">Sin actividad registrada.</p>
         ) : (
           activity.map((item) => (
-            <article key={item.id} className="grid min-w-[820px] gap-1.5 border-t border-white/10 px-2.5 py-1.5 text-[11px] md:grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] md:gap-3">
+            <article key={item.id} className="grid min-w-205 gap-1.5 border-t border-white/10 px-2.5 py-1.5 text-[11px] md:grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] md:gap-3">
               <p className="text-zinc-400">{formatDate(item.created_at)}</p>
               <p className="font-bold text-cyan-100">{eventLabels[item.event_type] ?? item.event_type}</p>
               <p className="truncate text-zinc-200">{item.beat_title || item.beat_slug || "Beat sin título"}</p>
