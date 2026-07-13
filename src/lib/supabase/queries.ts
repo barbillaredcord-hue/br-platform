@@ -87,9 +87,23 @@ export type AccessRequestRow = {
   updated_at: string | null;
   contacted_at?: string | null;
   responded_at?: string | null;
+  rejection_reason?: string | null;
+  rejected_at?: string | null;
+  rejected_by?: string | null;
+  review_context?: AccessRequestReviewContext | null;
+  review_revocation_id?: string | null;
+  review_requested_at?: string | null;
+  review_rejection_reason?: string | null;
+  review_rejected_at?: string | null;
+  review_rejected_by?: string | null;
+  review_rejection_acknowledged_at?: string | null;
   profiles?: Pick<ProfileRow, "email" | "username" | "display_name" | "phone"> | Pick<ProfileRow, "email" | "username" | "display_name" | "phone">[] | null;
   beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
 };
+
+export type AccessRequestReviewContext =
+  | "initial_rejection"
+  | "access_revocation";
 
 export type AccessRevocationRow = {
   id: string;
@@ -103,6 +117,87 @@ export type AccessRevocationRow = {
   acknowledged_at: string | null;
   beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
 };
+
+export const ACCESS_REVIEW_MARKER = "[revisión]";
+
+export function isAccessReviewRequest(
+  request: Pick<AccessRequestRow, "message" | "status"> | null | undefined,
+) {
+  return Boolean(
+    request?.status === "review_pending" ||
+      request?.status === "review_rejected" ||
+      request?.message?.includes(ACCESS_REVIEW_MARKER),
+  );
+}
+
+export function isOpenAccessRequest(
+  request: Pick<AccessRequestRow, "status"> | null | undefined,
+) {
+  return Boolean(
+    request &&
+      [
+        "pending",
+        "contacted",
+        "payment_pending",
+        "paid",
+        "review_pending",
+      ].includes(request.status),
+  );
+}
+
+export function isReviewPendingRequest(
+  request: Pick<AccessRequestRow, "status"> | null | undefined,
+) {
+  return request?.status === "review_pending";
+}
+
+export function isReviewRejectedRequest(
+  request: Pick<AccessRequestRow, "status"> | null | undefined,
+) {
+  return request?.status === "review_rejected";
+}
+
+export function canRequestReview(
+  request: Pick<AccessRequestRow, "status"> | null | undefined,
+  hasActiveRevocation = false,
+) {
+  if (isOpenAccessRequest(request) || isReviewRejectedRequest(request)) {
+    return false;
+  }
+
+  return request?.status === "rejected" || hasActiveRevocation;
+}
+
+export function canAcknowledgeReviewRejection(
+  request:
+    | Pick<
+        AccessRequestRow,
+        "status" | "review_rejection_acknowledged_at"
+      >
+    | null
+    | undefined,
+) {
+  return Boolean(
+    request?.status === "review_rejected" &&
+      !request.review_rejection_acknowledged_at,
+  );
+}
+
+export function canCreateNewAccessRequest(
+  request:
+    | Pick<
+        AccessRequestRow,
+        "status" | "review_rejection_acknowledged_at"
+      >
+    | null
+    | undefined,
+) {
+  return Boolean(
+    !request ||
+      (request.status === "review_rejected" &&
+        request.review_rejection_acknowledged_at),
+  );
+}
 
 const answeredRequestVisibleMs = 3 * 24 * 60 * 60 * 1000;
 
@@ -196,12 +291,59 @@ function notifyAccessStateChanged() {
   window.dispatchEvent(new Event("br-commercial-activity-refresh"));
 }
 
+const accessRequestColumns =
+  "id,user_id,beat_id,status,message,created_at,updated_at,contacted_at,responded_at,rejection_reason,rejected_at,rejected_by,review_context,review_revocation_id,review_requested_at,review_rejection_reason,review_rejected_at,review_rejected_by,review_rejection_acknowledged_at";
+
+function normalizeRequiredReason(reason: string | null | undefined) {
+  const cleanReason = reason?.trim() ?? "";
+
+  if (cleanReason.length < 5) {
+    return {
+      ok: false as const,
+      message: "El motivo debe tener al menos 5 caracteres.",
+    };
+  }
+
+  if (cleanReason.length > 500) {
+    return {
+      ok: false as const,
+      message: "El motivo no puede superar 500 caracteres.",
+    };
+  }
+
+  return { ok: true as const, reason: cleanReason };
+}
+
+async function getAuthenticatedAdminBrowserClient() {
+  const authClient = await getAuthenticatedBrowserClient();
+
+  if (!authClient.supabase || !authClient.sessionInfo.userId) {
+    return { ...authClient, isAdmin: false as const };
+  }
+
+  const { data: profile, error } = await authClient.supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", authClient.sessionInfo.userId)
+    .maybeSingle<{ role: "admin" | "user" }>();
+
+  if (error || profile?.role !== "admin") {
+    return {
+      ...authClient,
+      isAdmin: false as const,
+      message: "Esta acción requiere permisos de administrador.",
+    };
+  }
+
+  return { ...authClient, isAdmin: true as const };
+}
+
 function getFallbackRows(): BeatRow[] {
   return buildBeatRows(allBeats);
 }
 
-export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status" | "updated_at" | "created_at" | "message">) {
-  if (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending") {
+export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status" | "updated_at" | "created_at" | "message" | "review_rejection_acknowledged_at">) {
+  if (isOpenAccessRequest(request) || canAcknowledgeReviewRejection(request)) {
     return true;
   }
 
@@ -689,39 +831,26 @@ export async function createAccessRequest(userId: string, beatId: string, messag
 
   const { data: existingRequest, error: existingError } = await supabase
     .from("access_requests")
-    .select("id,status")
+    .select(accessRequestColumns)
     .eq("user_id", userId)
     .eq("beat_id", resolvedBeatId)
-    .maybeSingle<{ id: string; status: AccessRequestStatus }>();
+    .maybeSingle<AccessRequestRow>();
 
   if (existingError) {
     return { ok: false, message: "No se pudo revisar tu solicitud anterior. Intenta de nuevo." };
   }
 
   if (existingRequest) {
-    if (existingRequest.status === "rejected" || existingRequest.status === "cancelled") {
-      const { data: reopenedRequest, error: reopenError } = await supabase
-        .from("access_requests")
-        .update({
-          status: "pending",
-          message: message || null,
-          contacted_at: null,
-          responded_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingRequest.id)
-        .select("id,status")
-        .maybeSingle<{ id: string; status: AccessRequestStatus }>();
-
-      if (reopenError || reopenedRequest?.status !== "pending") {
-        return { ok: false, message: "No se pudo reenviar la solicitud. Intenta de nuevo." };
-      }
-
-      notifyAccessStateChanged();
-      return { ok: true, message: "Solicitud reenviada al admin." };
+    if (canCreateNewAccessRequest(existingRequest)) {
+      return reopenAccessRequest(existingRequest.id);
     }
 
-    return { ok: false, message: "Tu solicitud ya está en proceso. B.R te responderá pronto." };
+    return {
+      ok: false,
+      message: isOpenAccessRequest(existingRequest)
+        ? "Tu solicitud ya está en proceso. B.R te responderá pronto."
+        : "La solicitud actual no puede reabrirse desde su estado actual.",
+    };
   }
 
   const { error } = await supabase.from("access_requests").insert({
@@ -736,6 +865,172 @@ export async function createAccessRequest(userId: string, beatId: string, messag
   }
 
   return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
+}
+
+export async function createAccessReviewRequest(
+  userId: string,
+  beatId: string,
+) {
+  const existingRequest = await getAccessRequestForBeat(userId, beatId);
+
+  if (existingRequest?.status === "rejected") {
+    return requestAccessReview(userId, beatId, {
+      reviewContext: "initial_rejection",
+    });
+  }
+
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
+
+  if (!supabase || !resolvedBeatId) {
+    return {
+      ok: false,
+      message: !supabase
+        ? authClient.message
+        : "No se encontró el UUID real del beat en Supabase.",
+    };
+  }
+
+  const { data: revocation, error } = await supabase
+    .from("access_revocations")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("beat_id", resolvedBeatId)
+    .order("revoked_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (error || !revocation) {
+    return {
+      ok: false,
+      message: "No existe un rechazo o una revocación que pueda revisarse.",
+    };
+  }
+
+  return requestAccessReview(userId, resolvedBeatId, {
+    reviewContext: "access_revocation",
+    reviewRevocationId: revocation.id,
+  });
+}
+
+export async function requestAccessReview(
+  userId: string,
+  beatId: string,
+  input: {
+    reviewContext: AccessRequestReviewContext;
+    reviewRevocationId?: string | null;
+  },
+) {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+  const requesterId = authClient.sessionInfo.userId;
+  const resolvedBeatId = await resolveBeatId(beatId, supabase);
+
+  if (!supabase || !requesterId) {
+    return { ok: false, message: authClient.message };
+  }
+
+  if (requesterId !== userId) {
+    return {
+      ok: false,
+      message: "Solo el propietario puede pedir revisión de su solicitud.",
+    };
+  }
+
+  if (!resolvedBeatId) {
+    return {
+      ok: false,
+      message: "No se encontró el UUID real del beat en Supabase.",
+    };
+  }
+
+  const { data: existingRequest, error: requestError } = await supabase
+    .from("access_requests")
+    .select(accessRequestColumns)
+    .eq("user_id", userId)
+    .eq("beat_id", resolvedBeatId)
+    .maybeSingle<AccessRequestRow>();
+
+  if (requestError) {
+    return { ok: false, message: "No se pudo validar la solicitud actual." };
+  }
+
+  if (!existingRequest) {
+    return {
+      ok: false,
+      message: "No existe una solicitud previa que pueda revisarse.",
+    };
+  }
+
+  if (isReviewPendingRequest(existingRequest)) {
+    return { ok: false, message: "Ya existe una revisión pendiente." };
+  }
+
+  let reviewRevocationId: string | null = null;
+
+  if (input.reviewContext === "initial_rejection") {
+    if (existingRequest?.status !== "rejected") {
+      return {
+        ok: false,
+        message: "Solo una solicitud rechazada puede pedir esta revisión.",
+      };
+    }
+  } else {
+    if (!input.reviewRevocationId) {
+      return {
+        ok: false,
+        message: "La revisión debe vincularse a una revocación.",
+      };
+    }
+
+    const [{ data: revocation }, { data: activeAccess }] = await Promise.all([
+      supabase
+        .from("access_revocations")
+        .select("id")
+        .eq("id", input.reviewRevocationId)
+        .eq("user_id", userId)
+        .eq("beat_id", resolvedBeatId)
+        .maybeSingle<{ id: string }>(),
+      supabase
+        .from("beat_access")
+        .select("user_id,beat_id")
+        .eq("user_id", userId)
+        .eq("beat_id", resolvedBeatId)
+        .maybeSingle<{ user_id: string; beat_id: string }>(),
+    ]);
+
+    if (!revocation || activeAccess) {
+      return {
+        ok: false,
+        message: activeAccess
+          ? "El usuario ya tiene acceso activo a este beat."
+          : "No se encontró una revocación válida para revisar.",
+      };
+    }
+
+    reviewRevocationId = revocation.id;
+  }
+
+  if (!canRequestReview(existingRequest, Boolean(reviewRevocationId))) {
+    return {
+      ok: false,
+      message: "La solicitud actual no permite pedir una revisión.",
+    };
+  }
+
+  const { error } = await supabase.rpc("request_access_review", {
+    p_request_id: existingRequest.id,
+    p_review_context: input.reviewContext,
+    p_review_revocation_id: reviewRevocationId,
+  });
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  notifyAccessStateChanged();
+  return { ok: true, message: "Solicitud de revisión enviada" };
 }
 
 function normalizePhone(phone: string) {
@@ -773,7 +1068,7 @@ export async function getAccessRequests() {
 
   const { data, error } = await supabase
     .from("access_requests")
-    .select("id,user_id,beat_id,status,message,created_at,updated_at,contacted_at,responded_at,profiles(email,username,display_name,phone),beats(slug,title)")
+    .select(`${accessRequestColumns},profiles(email,username,display_name,phone),beats(slug,title)`)
     .order("created_at", { ascending: true });
 
   if (error || !data) {
@@ -792,7 +1087,7 @@ export async function getAccessRequestsForUser(userId: string) {
 
   const { data, error } = await supabase
     .from("access_requests")
-    .select("id,user_id,beat_id,status,message,created_at,updated_at,contacted_at,responded_at,beats(slug,title)")
+    .select(`${accessRequestColumns},beats(slug,title)`)
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
@@ -813,7 +1108,7 @@ export async function getAccessRequestForBeat(userId: string, beatId: string) {
 
   const { data, error } = await supabase
     .from("access_requests")
-    .select("id,user_id,beat_id,status,message,created_at,updated_at,contacted_at,responded_at,beats(slug,title)")
+    .select(`${accessRequestColumns},beats(slug,title)`)
     .eq("user_id", userId)
     .eq("beat_id", resolvedBeatId)
     .maybeSingle<AccessRequestRow>();
@@ -867,41 +1162,226 @@ export async function approveAccessRequest(requestId: string) {
   return { ok: true };
 }
 
-export async function rejectAccessRequest(requestId: string) {
-  const authClient = await getAuthenticatedBrowserClient();
+export async function rejectAccessRequest(requestId: string, reason?: string) {
+  const reasonResult = normalizeRequiredReason(reason);
+
+  if (!reasonResult.ok) {
+    return reasonResult;
+  }
+
+  const authClient = await getAuthenticatedAdminBrowserClient();
   const supabase = authClient.supabase;
 
-  if (!supabase) {
+  if (!supabase || !authClient.isAdmin || !authClient.sessionInfo.userId) {
     return { ok: false, message: authClient.message };
   }
 
   const { data: request, error: requestError } = await supabase
     .from("access_requests")
-    .select("id,user_id,beat_id")
+    .select(accessRequestColumns)
     .eq("id", requestId)
-    .maybeSingle<{ id: string; user_id: string; beat_id: string }>();
+    .maybeSingle<AccessRequestRow>();
 
   if (requestError || !request) {
     return { ok: false, message: requestError?.message ?? "Solicitud no encontrada." };
   }
 
-  const rejectionReason = "Solicitud de acceso rechazada por B.R Admin.";
-  const { error } = await supabase
+  if (
+    !["pending", "contacted", "payment_pending", "paid"].includes(
+      request.status,
+    )
+  ) {
+    return {
+      ok: false,
+      message: `No se puede rechazar una solicitud con estado ${request.status}.`,
+    };
+  }
+
+  const { data: activeAccess, error: accessError } = await supabase
+    .from("beat_access")
+    .select("user_id,beat_id")
+    .eq("user_id", request.user_id)
+    .eq("beat_id", request.beat_id)
+    .maybeSingle<{ user_id: string; beat_id: string }>();
+
+  if (accessError || activeAccess) {
+    return {
+      ok: false,
+      message: activeAccess
+        ? "La solicitud no puede rechazarse porque el acceso ya está activo."
+        : "No se pudo comprobar el acceso actual.",
+    };
+  }
+
+  const now = new Date().toISOString();
+  const { data: rejectedRequest, error } = await supabase
     .from("access_requests")
     .update({
       status: "rejected",
-      message: rejectionReason,
-      responded_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      rejection_reason: reasonResult.reason,
+      rejected_at: now,
+      rejected_by: authClient.sessionInfo.userId,
+      responded_at: now,
+      updated_at: now,
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", request.status)
+    .select("id,status")
+    .maybeSingle<{ id: string; status: AccessRequestStatus }>();
 
-  if (error) {
-    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
+  if (error || rejectedRequest?.status !== "rejected") {
+    return {
+      ok: false,
+      message: "No se pudo rechazar la solicitud desde su estado actual.",
+    };
   }
 
   notifyAccessStateChanged();
-  return { ok: true };
+  return { ok: true, message: "Solicitud rechazada." };
+}
+
+export async function rejectAccessReview(
+  requestId: string,
+  reason: string,
+) {
+  const reasonResult = normalizeRequiredReason(reason);
+
+  if (!reasonResult.ok) {
+    return reasonResult;
+  }
+
+  const authClient = await getAuthenticatedAdminBrowserClient();
+  const supabase = authClient.supabase;
+
+  if (!supabase || !authClient.isAdmin || !authClient.sessionInfo.userId) {
+    return { ok: false, message: authClient.message };
+  }
+
+  const { data: request, error: requestError } = await supabase
+    .from("access_requests")
+    .select(accessRequestColumns)
+    .eq("id", requestId)
+    .maybeSingle<AccessRequestRow>();
+
+  if (requestError || !request) {
+    return { ok: false, message: "Solicitud de revisión no encontrada." };
+  }
+
+  if (!isReviewPendingRequest(request)) {
+    return {
+      ok: false,
+      message: "Solo una revisión pendiente puede rechazarse.",
+    };
+  }
+
+  const now = new Date().toISOString();
+  const { data: rejectedReview, error } = await supabase
+    .from("access_requests")
+    .update({
+      status: "review_rejected",
+      review_rejection_reason: reasonResult.reason,
+      review_rejected_at: now,
+      review_rejected_by: authClient.sessionInfo.userId,
+      review_rejection_acknowledged_at: null,
+      responded_at: now,
+      updated_at: now,
+    })
+    .eq("id", requestId)
+    .eq("status", "review_pending")
+    .select("id,status")
+    .maybeSingle<{ id: string; status: AccessRequestStatus }>();
+
+  if (error || rejectedReview?.status !== "review_rejected") {
+    return {
+      ok: false,
+      message: "No se pudo rechazar la revisión desde su estado actual.",
+    };
+  }
+
+  notifyAccessStateChanged();
+  return { ok: true, message: "Revisión rechazada." };
+}
+
+export async function acknowledgeAccessReviewRejection(requestId: string) {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+  const requesterId = authClient.sessionInfo.userId;
+
+  if (!supabase || !requesterId) {
+    return { ok: false, message: authClient.message };
+  }
+
+  const { data: request, error: requestError } = await supabase
+    .from("access_requests")
+    .select(accessRequestColumns)
+    .eq("id", requestId)
+    .eq("user_id", requesterId)
+    .maybeSingle<AccessRequestRow>();
+
+  if (requestError || !request) {
+    return { ok: false, message: "Revisión no encontrada." };
+  }
+
+  if (!canAcknowledgeReviewRejection(request)) {
+    return {
+      ok: false,
+      message: "Este rechazo de revisión no puede aceptarse nuevamente.",
+    };
+  }
+
+  const { error } = await supabase.rpc(
+    "acknowledge_access_review_rejection",
+    {
+      p_request_id: requestId,
+    },
+  );
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  notifyAccessStateChanged();
+  return { ok: true, message: "Motivo del rechazo aceptado." };
+}
+
+export async function reopenAccessRequest(requestId: string) {
+  const authClient = await getAuthenticatedBrowserClient();
+  const supabase = authClient.supabase;
+  const requesterId = authClient.sessionInfo.userId;
+
+  if (!supabase || !requesterId) {
+    return { ok: false, message: authClient.message };
+  }
+
+  const { data: request, error: requestError } = await supabase
+    .from("access_requests")
+    .select(accessRequestColumns)
+    .eq("id", requestId)
+    .eq("user_id", requesterId)
+    .maybeSingle<AccessRequestRow>();
+
+  if (requestError || !request) {
+    return { ok: false, message: "Solicitud no encontrada." };
+  }
+
+  if (!canCreateNewAccessRequest(request)) {
+    return {
+      ok: false,
+      message:
+        "La solicitud no puede reabrirse hasta aceptar el rechazo de la revisión.",
+    };
+  }
+
+  const { error } = await supabase.rpc("reopen_access_request", {
+    p_request_id: requestId,
+  });
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  notifyAccessStateChanged();
+  return { ok: true, message: "Solicitud reenviada al admin." };
 }
 
 export async function markAccessRequestContacted(requestId: string, currentMessage?: string | null) {
@@ -962,7 +1442,7 @@ export async function grantBeatAccess(userId: string, beatId: string) {
   return { ok: true };
 }
 
-export async function revokeBeatAccess(userId: string, beatId: string, reason = "Acceso revocado por B.R Admin.") {
+export async function revokeBeatAccess(userId: string, beatId: string, reason: string) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const resolvedBeatId = await resolveBeatId(beatId, supabase);
@@ -976,8 +1456,12 @@ export async function revokeBeatAccess(userId: string, beatId: string, reason = 
     return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
   }
 
-  if (!cleanReason) {
-    return { ok: false, message: "Agrega un motivo para revocar el acceso." };
+  if (cleanReason.length < 5) {
+    return { ok: false, message: "El motivo debe tener al menos 5 caracteres." };
+  }
+
+  if (cleanReason.length > 500) {
+    return { ok: false, message: "El motivo no puede superar 500 caracteres." };
   }
 
   const { data: activeAccess, error: activeAccessError } = await supabase
@@ -1011,6 +1495,7 @@ export async function revokeBeatAccess(userId: string, beatId: string, reason = 
     beat_id: resolvedBeatId,
     reason: cleanReason,
     revoked_by: authClient.sessionInfo.userId,
+    revoked_at: new Date().toISOString(),
   });
 
   if (revocationError) {
@@ -1032,18 +1517,6 @@ export async function revokeBeatAccess(userId: string, beatId: string, reason = 
       message: `No se pudo registrar el motivo de revocación: ${revocationError.message}`,
     };
   }
-
-  await supabase
-    .from("access_requests")
-    .update({
-      status: "rejected",
-      message: `Acceso revocado por B.R Admin.\nMotivo: ${cleanReason}`,
-      responded_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId)
-    .eq("beat_id", resolvedBeatId)
-    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved", "fulfilled"]);
 
   notifyAccessStateChanged();
   return { ok: true, message: "Acceso revocado correctamente." };
