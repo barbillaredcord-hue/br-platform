@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   ChevronRight,
   Globe2,
-  Instagram,
   MessageCircle,
 } from "lucide-react";
 import {
@@ -194,7 +193,7 @@ export default function CatalogoPage() {
               <MessageCircle className="h-4 w-4" /> WhatsApp
             </a>
             <a href="https://instagram.com/brstudios_companion" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-5 py-3.5 text-sm font-bold text-zinc-200">
-              <Instagram className="h-4 w-4" /> Instagram
+              <span aria-hidden="true" className="text-[15px] leading-none">◎</span> Instagram
             </a>
             <a href="https://www.brstudios.org" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-5 py-3.5 text-sm font-bold text-zinc-200">
               <Globe2 className="h-4 w-4" /> brstudios.org
