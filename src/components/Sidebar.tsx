@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LogoMark } from "./LogoMark";
 
 const sidebarItems = [
-  { label: "Inicio", href: "/" },
+  { label: "Inicio", href: "/musica" },
   { label: "Explorar", href: "/explore" },
   { label: "Favoritos", href: "/account/saved" },
   { label: "Mis Beats", href: "/account/beats" },
