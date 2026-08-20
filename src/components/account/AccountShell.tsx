@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Lock } from "lucide-react";
 import { useEffect } from "react";
 import { useUser } from "@/context/UserContext";
+import { BR_ROUTES } from "@/lib/routes";
 
 const navItems = [
   { href: "/account", label: "Resumen" },
@@ -62,6 +63,14 @@ export function AccountShell({ title, subtitle, children }: { title: string; sub
               </Link>
             ))}
           </nav>
+          <div className="mt-6 grid gap-2 border-t border-white/10 pt-4">
+            <Link href={BR_ROUTES.musicHome} className="rounded-md px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-cyan-200">
+              Home musical
+            </Link>
+            <Link href={BR_ROUTES.centralHome} className="rounded-md px-3 py-2 text-sm font-semibold text-zinc-400 transition hover:bg-white/10 hover:text-cyan-200">
+              Ir a BR STUDIOS Central
+            </Link>
+          </div>
         </aside>
 
         <section className="min-w-0 space-y-6">

@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
+import { BR_ROUTES } from "@/lib/routes";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "B.R — Beat Room",
     short_name: "B.R",
     description: "Plataforma privada de beats, previews y accesos exclusivos.",
-    start_url: "/",
+    start_url: BR_ROUTES.musicHome,
     scope: "/",
     display: "standalone",
     background_color: "#050607",

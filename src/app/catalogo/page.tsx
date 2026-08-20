@@ -10,6 +10,7 @@ import {
   brStudioServices,
   getWhatsAppUrl,
 } from "@/lib/br-studios/catalog";
+import { BR_ROUTES } from "@/lib/routes";
 
 export const metadata: Metadata = {
   title: "Catálogo de servicios | BR STUDIOS Central",
@@ -36,7 +37,7 @@ export default function CatalogoPage() {
 
       <header className="sticky top-0 z-30 border-b border-white/[0.055] bg-[#09090b]/82 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <Link href="/central" className="group flex items-center gap-3">
+          <Link href={BR_ROUTES.centralHome} className="group flex items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.035] text-sm font-black tracking-wider shadow-[0_0_30px_rgba(108,92,255,0.10)] transition group-hover:border-violet-300/25">
               BR
             </span>
@@ -47,7 +48,7 @@ export default function CatalogoPage() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <Link href="/central" className="hidden rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-300 transition hover:border-white/20 hover:text-white sm:inline-flex">
+            <Link href={BR_ROUTES.centralHome} className="hidden rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-300 transition hover:border-white/20 hover:text-white sm:inline-flex">
               Central
             </Link>
             <a href={generalWhatsapp} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-violet-300/30 bg-gradient-to-r from-blue-500/15 to-violet-500/15 px-4 py-2 text-sm font-black text-violet-100 shadow-[0_0_28px_rgba(112,89,255,0.12)]">

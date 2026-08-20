@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LogoMark } from "@/components/LogoMark";
 import { useUser } from "@/context/UserContext";
+import { BR_ROUTES } from "@/lib/routes";
 import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
 
 const quickUsers = [
@@ -28,7 +29,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push(nextEmail.trim().toLowerCase() === (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "admin@br.local").toLowerCase() ? "/admin" : "/");
+    router.push(nextEmail.trim().toLowerCase() === (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "admin@br.local").toLowerCase() ? "/admin" : BR_ROUTES.musicHome);
   };
 
   return (

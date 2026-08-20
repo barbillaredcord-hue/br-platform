@@ -32,9 +32,9 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 - Supabase Auth con confirmacion SMTP Resend
 - Supabase Storage bucket beats
 - Solicitudes de acceso
-- beat_access como permiso real de descarga/licencia
-- Descarga MP3 protegida
-- Licencia HTML protegida por tipo basic/premium/exclusive
+- beat_access como autoridad de acceso Full activo
+- Descarga MP3 protegida por beat_access activo y manual_payments confirmado
+- Licencia HTML protegida por beat_access activo, manual_payments confirmado y tipo basic/premium/exclusive
 - Pagos manuales por usuario + beat
 - Actividad comercial compacta
 - Usuarios comerciales
@@ -119,4 +119,4 @@ Archivos derivados:
 - `CLAUDE.md`
 - `README.md`
 
-Ultima generacion: 2026-08-19T12:44:28
+Ultima generacion: 2026-08-20T08:21:28

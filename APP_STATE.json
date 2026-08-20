@@ -20,8 +20,11 @@
     "primary_product_focus": "Construir Fase 15 - Motor Comercial Inteligente / CRM como conocimiento organizado sobre personas, relaciones, oportunidades y seguimiento, sin duplicar las autoridades de Beat Room.",
     "primary_product_rule": "El foco principal de esta app es B.R. BR.autocarmation es soporte interno y no debe sustituir el objetivo del producto.",
     "catalog_visibility_rule": "is_active controla visibilidad publica. Todo beat activo aparece en catalogo publico; beats inactivos permanecen visibles para admin por /api/admin/beats. beat_access no filtra catalogo.",
-    "player_access_rule": "playback_visibility=public permite full playback publico. playback_visibility=private da preview a visitantes/usuarios sin acceso y full a usuarios con beat_access. Admin/B.RCEO reproduce full global. Descargas MP3 y licencias siempre requieren beat_access.",
+    "player_access_rule": "playback_visibility=public permite full playback publico. playback_visibility=private da preview a visitantes/usuarios sin acceso y full a usuarios con beat_access. Admin/B.RCEO reproduce full global. MP3 y licencia requieren sesion, beat_access activo y manual_payments confirmado para el mismo user_id + beat_id; el acceso Full no equivale a pago.",
     "access_request_rule": "Las nuevas solicitudes y re-solicitudes nacen en la pagina del beat. Account Requests es historial; una solicitud cerrada o rechazada no bloquea otra, mientras una solicitud activa o beat_access vigente si la bloquean.",
+    "access_request_review_rule": "access_requests conserva una sola fila por user_id + beat_id mediante transiciones controladas. review_pending -> review_approved -> fulfilled separa aceptar una revision de restaurar beat_access; review_approved no implica acceso ni pago. Rechazo inicial y access_revocations son conceptos distintos; los rechazos requieren motivo.",
+    "entitlement_authority_rule": "beat_access es autoridad de acceso Full activo; manual_payments es autoridad de pago confirmado por user_id + beat_id; access_requests es workflow; access_revocations es historial. Ninguna de las otras tres autoridades prueba un pago confirmado.",
+    "ecosystem_boundary_rule": "BR Platform / Beat Room y BR STUDIOS Central son superficies distintas del ecosistema brstudios.org. Este roadmap solo gobierna Beat Room y no fusiona ni sustituye el roadmap de BR STUDIOS Central.",
     "commercial_operation_rule": "La operacion de Beat Room se identifica por user_id + beat_id y conserva sus autoridades en access_requests, manual_payments, beat_access, commercial_activity y access_revocations. CRM solo deriva contexto; no existe una orden BR persistida y orders permanece diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout.",
     "admin_access_history_rule": "Admin Solicitudes muestra access_requests como workflow, access_revocations como historial real por revoked_at y beat_access como autoridad actual, con datos principales legibles sin depender de truncado.",
     "account_deletion_rule": "Si un usuario elimina su cuenta, se eliminan sus datos y accesos. Si vuelve con el mismo correo, B.R no garantiza recuperar accesos anteriores."
@@ -37,9 +40,9 @@
       "Supabase Auth con confirmacion SMTP Resend",
       "Supabase Storage bucket beats",
       "Solicitudes de acceso",
-      "beat_access como permiso real de descarga/licencia",
-      "Descarga MP3 protegida",
-      "Licencia HTML protegida por tipo basic/premium/exclusive",
+      "beat_access como autoridad de acceso Full activo",
+      "Descarga MP3 protegida por beat_access activo y manual_payments confirmado",
+      "Licencia HTML protegida por beat_access activo, manual_payments confirmado y tipo basic/premium/exclusive",
       "Pagos manuales por usuario + beat",
       "Actividad comercial compacta",
       "Usuarios comerciales",
@@ -89,10 +92,10 @@
     "secondary": [
       { "name": "Catalogo activo publico", "goal": "Publico ve solo is_active=true; admin ve activos e inactivos.", "progress_percent": 100, "status": "completed" },
       { "name": "Player por acceso", "goal": "Resolver preview/full por playback_visibility, beat_access y rol admin.", "progress_percent": 100, "status": "completed" },
-      { "name": "Descargas protegidas", "goal": "Descargar MP3 solo con sesion y beat_access valido.", "progress_percent": 100, "status": "completed" },
-      { "name": "Licencias protegidas", "goal": "Generar licencia solo con sesion, beat_access y tipo de licencia.", "progress_percent": 100, "status": "completed" },
+      { "name": "Descargas protegidas", "goal": "Descargar MP3 solo con sesion, beat_access activo y manual_payments confirmado para el mismo usuario y beat.", "progress_percent": 100, "status": "completed" },
+      { "name": "Licencias protegidas", "goal": "Generar licencia solo con sesion, beat_access activo, manual_payments confirmado y tipo de licencia.", "progress_percent": 100, "status": "completed" },
       { "name": "Actividad comercial", "goal": "Registrar descargas, licencias y pagos en commercial_activity.", "progress_percent": 100, "status": "completed" },
-      { "name": "Pagos manuales", "goal": "Confirmar pagos manuales y liberar beat_access.", "progress_percent": 100, "status": "completed" },
+      { "name": "Pagos manuales", "goal": "Registrar pago confirmado por usuario + beat; puede conceder acceso desde su flujo propio, pero un grant/restauracion no crea ni confirma pago.", "progress_percent": 100, "status": "completed" },
       { "name": "Preview real", "goal": "Generar previews reales de 15, 20, 25 o 30 segundos.", "progress_percent": 100, "status": "completed" },
       { "name": "Revocaciones de acceso", "goal": "Registrar access_revocations al retirar acceso.", "progress_percent": 100, "status": "completed" },
       { "name": "B.R Cambios", "goal": "Registrar historial administrativo temporal y permanente.", "progress_percent": 100, "status": "completed" },
@@ -145,7 +148,7 @@
       { "phase": "fase_14f_2", "label": "Commercial Detail Dock", "result": "Dashboard comercial con dock de detalle, top usuarios, top beats, metricas y actividad compacta." },
       { "phase": "fase_14f_3", "label": "Admin Beats Dashboard Layout", "result": "Gestion de Beats convertida a dashboard con resumen lateral, catalogo central y panel detalle anclado." },
       { "phase": "fase_14g_1", "label": "Admin UX Refinement + AI Beat Analysis Lite", "result": "AI Lite con Procesar de nuevo, coincidencia estable, revocaciones visibles, paneles compactos de tops, historial admin compacto y header dashboard compacto." },
-      { "phase": "fase_14_5_consolidacion", "label": "Fase 14.5 - Consolidacion de BR Platform / Beat Room", "result": "Seguridad de audio, Access Domain, Realtime privado, operaciones atomicas, sincronizacion transversal, estados comerciales, analisis musical v2 y regresion visual autenticada final completados." }
+      { "phase": "fase_14_5_consolidacion", "label": "Fase 14.5 - Consolidacion de BR Platform / Beat Room", "result": "Seguridad de audio, Access Domain, Realtime privado, operaciones atomicas, sincronizacion transversal, state machine de revisiones, separacion acceso/pago, analisis musical v2 y regresion funcional autenticada completados." }
     ],
     "current": {
       "phase": "fase_15_crm_inteligente",
@@ -179,18 +182,15 @@
       "subphases": [
         { "phase": "fase_15_0_crm_foundation", "label": "15.0 - CRM Foundation", "status": "completed", "goal": "Auditar datos reales, fijar identidad, autoridades, entidades minimas y metricas deterministas." },
         { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "pending_validation", "goal": "Contact 360 y relaciones explicitas implementadas; falta validacion fisica con sesion Admin conectada." },
-        { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "planned", "goal": "Persistir posibilidades comerciales separadas de solicitudes de acceso." },
-        { "phase": "fase_15_3_follow_up", "label": "15.3 - Notes y Follow-up", "status": "planned", "goal": "Agregar contexto humano y seguimiento accionable con autoria y visibilidad." },
-        { "phase": "fase_15_4_commercial_timeline", "label": "15.4 - Commercial Timeline", "status": "planned", "goal": "Unificar cronologia derivada sin duplicar historiales fuente." },
-        { "phase": "fase_15_5_crm_dashboard", "label": "15.5 - CRM Dashboard", "status": "planned", "goal": "Exponer el dominio validado en una superficie administrativa minima." },
-        { "phase": "fase_15_6_crm_intelligence", "label": "15.6 - CRM Intelligence", "status": "planned", "goal": "Convertir metricas deterministas en señales explicables, sin IA compleja." },
-        { "phase": "fase_15_7_qa_consolidation", "label": "15.7 - QA y Consolidacion", "status": "planned", "goal": "Validar seguridad, consistencia, rendimiento y continuidad antes de Fase 16." }
+        { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "planned", "goal": "Persistir oportunidades comerciales separadas de access_requests." },
+        { "phase": "fase_15_3_commercial_follow_up", "label": "15.3 - Seguimiento comercial", "status": "planned", "goal": "Agregar notas, tareas, siguiente accion e historial CRM con autoria y visibilidad." },
+        { "phase": "fase_15_4_commercial_intelligence", "label": "15.4 - Inteligencia comercial", "status": "planned", "goal": "Derivar timeline, dashboard administrativo, señales, prioridades, scoring explicable y recomendaciones deterministas sin IA avanzada ni duplicar autoridades." }
       ]
     },
     "next": { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "pending_validation", "goal": "Validar fisicamente Contact 360 y el flujo Admin de relaciones ya implementados.", "design_principle": "Derivar primero; persistir solo la informacion humana que las autoridades actuales no pueden representar." },
     "future": [
       { "phase": "fase_16_automatizacion_comercial", "label": "Fase 16 - Automatizacion Comercial" },
-      { "phase": "fase_17_analytics_ia", "label": "Fase 17 - Analytics con IA" },
+      { "phase": "fase_17_analytics_ia", "label": "Fase 17 - Analytics / Intelligence" },
       { "phase": "fase_18_br_intelligence", "label": "Fase 18 - B.R Intelligence" },
       { "phase": "artist_foundation", "label": "Artist Foundation", "status": "future", "depends_on": "Fase 18 - B.R Intelligence" }
     ]
@@ -206,11 +206,8 @@
         "15.0 - CRM Foundation",
         "15.1 - Contact Intelligence y Relaciones",
         "15.2 - Opportunities",
-        "15.3 - Notes y Follow-up",
-        "15.4 - Commercial Timeline",
-        "15.5 - CRM Dashboard",
-        "15.6 - CRM Intelligence",
-        "15.7 - QA y Consolidacion",
+        "15.3 - Seguimiento comercial",
+        "15.4 - Inteligencia comercial",
         "Fase 16 - Automatizacion Comercial",
         "Fase 17 - Analytics con IA",
         "Fase 18 - B.R Intelligence",
@@ -230,7 +227,7 @@
     },
     "future": [
       { "phase": "Fase 16", "label": "Automatizacion Comercial", "depends_on": "CRM y estados comerciales estables" },
-      { "phase": "Fase 17", "label": "Analytics con IA", "depends_on": "Datos comerciales y musicales persistidos de forma consistente" },
+      { "phase": "Fase 17", "label": "Analytics / Intelligence", "depends_on": "Datos comerciales y musicales persistidos de forma consistente" },
       { "phase": "Fase 18", "label": "B.R Intelligence", "depends_on": "Automatizacion y analytics confiables" },
       { "phase": "Artist Foundation", "label": "Desarrollo integral de artistas", "depends_on": "Fase 18 - B.R Intelligence", "status": "future" }
     ],
@@ -257,7 +254,7 @@
       "Metadata editable en Gestion de Beats",
       "playback_visibility editable en admin",
       "PlayerBar enlazado al beat y full/preview por acceso",
-      "Descargas MP3 y licencias protegidas por beat_access",
+      "Full protegido por beat_access; MP3 y licencia protegidos por beat_access activo + manual_payments confirmado server-side",
       "Pagos manuales con license_type y prevencion de duplicados",
       "Actividad comercial server-side",
       "Home Discovery Search",
@@ -288,6 +285,8 @@
       "Sincronizacion transversal consolidada con dispatcher local unico, invalidacion por dominio, payment_pending derivado de access_requests y Commercial alineado con beat_access",
       "Analisis musical br-analysis-v2 validado funcionalmente con clasificacion conservadora y metadata manual protegida",
       "Estados comerciales derivados con diferencia explicita entre acceso por pago, grant administrativo, revocado y restaurado; orders diferida a Fase 15",
+      "State machine de access_requests con review_pending -> review_approved -> fulfilled; aceptar revision no crea acceso/pago y restaurar acceso no crea pago",
+      "Entitlements autenticados para reflejar en UI la diferencia entre Full habilitado y pago confirmado",
       "Regresion visual autenticada final PASS en localhost:3100",
       "15.0 CRM Foundation: auditoria local/remota, identidad profiles.id, contrato arquitectonico y selector de inteligencia determinista"
     ],
@@ -296,7 +295,7 @@
       "Terminos y condiciones",
       "Licencias legales avanzadas",
       "Pagos automaticos completos",
-      "15.1 Contact Intelligence y relaciones explicitas",
+      "Cerrar validacion fisica Admin de 15.1 Contact Intelligence y relaciones explicitas",
       "15.2 Opportunities separadas de access_requests",
       "Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout",
       "Mejoras futuras de precision y UI del analisis musical",
@@ -453,6 +452,10 @@
       "docs/supabase/phase-14d-admin-change-logs.sql",
       "docs/supabase/phase-14_5d-atomic-access-operations.sql",
       "docs/supabase/phase-14_5d-atomic-access-operations.test.sql",
+      "docs/supabase/access-request-review-foundation.sql",
+      "docs/supabase/access-request-user-transitions.sql",
+      "docs/supabase/access-request-reopen-initial-rejection.sql",
+      "docs/supabase/access-request-review-approved.sql",
       "docs/phase-15-crm-foundation.md",
       "docs/supabase/schema.sql"
     ],
@@ -499,8 +502,8 @@
   "continuity": {
     "priority": "Completar la validacion fisica Admin de 15.1 Contact Intelligence; no avanzar a 15.2 hasta cerrar o registrar correctamente este gate.",
     "next_action": "Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.",
-    "context": "Fase 14.5 permanece completed al 100%. Fase 15 esta in_progress al 12%; 15.1 implementa Contact 360 sobre profiles.id y crm_relationships remota con RLS, pero queda pending_validation por no haber navegador Admin conectado.",
-    "session_context": "15.1: migraciones crm_relationships e indices de auditoria aplicadas remotamente; RLS y comando idempotente se validaron en transaccion revertida (admin una fila activa, usuario normal cero updates). Suite local 91/91, lint, TypeScript, build y diff-check pasan. No existe navegador conectado para la validacion fisica.",
+    "context": "Fase 14.5 permanece completed al 100%. El flujo localhost:3100 valido solicitud -> aprobacion -> Full sin pago -> pago -> MP3/licencia -> revocacion -> revision -> aceptacion -> restauracion, confirmando Acceso != Pago. Fase 15 sigue in_progress al 12%; 15.1 queda pending_validation hasta validar Contact 360 y relaciones con sesion Admin.",
+    "session_context": "La regla actual es beat_access para Full y manual_payments para compra confirmada: Full sin pago bloquea MP3/licencia; pago historico sin beat_access no restaura derechos. review_approved no concede acceso ni pago; Dar acceso de nuevo solo restaura beat_access. Los cuatro SQL de revision existen como archivos locales y no se documentan como aplicados remotamente. Para desarrollo local puede usarse npm run dev -- -p 3100; PM2 con npm start en 3100 es operacion local de br-platform, no regla global de BR STUDIOS Central. 15.1 mantiene su gate fisico Admin.",
     "musical_classification_sample": {
       "evaluated_beats": 3,
       "exact_matches": 1,
@@ -521,7 +524,7 @@
       "final_visual_regression": "PASS_USER_VALIDATED_LOCALHOST_3100"
     },
     "catalog_rule": "is_active filtra publico; admin ve activos e inactivos. beat_access no filtra catalogo.",
-    "playback_rule": "playback_visibility=public autoriza full mediante endpoint server-side y signed URL temporal incluso sin sesion; beat_access controla full privado, descargas y licencias."
+    "playback_rule": "playback_visibility=public autoriza full mediante endpoint server-side y signed URL temporal incluso sin sesion; beat_access controla Full privado. MP3 y licencia exigen server-side beat_access activo + manual_payments confirmado; el endpoint autenticado de entitlements solo refleja esos permisos para UI."
   },
   "history": [
     {
@@ -614,6 +617,13 @@
       "event": "Apertura oficial de Fase 15 y cierre de 15.0 CRM Foundation",
       "reason": "La informacion comercial existente necesitaba un modelo de persona, relaciones y oportunidades antes de agregar tablas o pantallas CRM.",
       "impact": "Fase 15 queda in_progress al 12%. profiles.id es la identidad inicial; las seis autoridades existentes se preservan; relaciones y oportunidades se aceptan logicamente; contacts, orders, notas, tareas y tags no se crean. 15.1 pasa a ser la siguiente subfase."
+    },
+    {
+      "date": "2026-08-20",
+      "version": "access_payment_entitlement_separation",
+      "event": "Consolidacion de acceso Full, pago confirmado y revisiones",
+      "reason": "La documentacion y una etiqueta administrativa podian asociar solicitud completada o beat_access con pago confirmado.",
+      "impact": "beat_access queda documentado como autoridad exclusiva de Full activo; manual_payments como pago confirmado por usuario + beat; MP3/licencia exigen ambas pruebas server-side. La UI usa entitlements autenticados, review_approved permanece sin acceso/pago y las migraciones de revision locales se distinguen de una aplicacion remota no confirmada."
     }
   ]
 }

@@ -166,12 +166,25 @@ policies
 migraciones seguras
 ```
 
+## Reglas actuales de autorización
+
+```text
+beat_access = acceso Full actual
+manual_payments = pago confirmado por user_id + beat_id
+access_requests = workflow de solicitud/revisión
+access_revocations = historial de accesos retirados
+```
+
+Full privado se autoriza server-side con `beat_access`; Full público sigue su regla de `playback_visibility` y URL firmada temporal. MP3 y licencia requieren, también server-side, una fila activa en `beat_access` y una fila correspondiente en `manual_payments`.
+
+Por tanto, `beat_access` sin pago permite Full pero no MP3/licencia. Un pago histórico sin `beat_access` no restituye derechos. La UI consulta un endpoint autenticado de entitlements solo para reflejar esta regla; no sustituye las verificaciones de descarga/licencia.
+
 ## Regla permanente de catalogo
 
 ```text
 El catalogo no debe depender de beat_access.
 Todo beat activo debe ser visible para los usuarios previstos.
-beat_access solo controla preview/full, descargas, badges y acciones protegidas.
+beat_access controla Full privado y badges de acceso; no prueba pago. Descarga MP3 y licencia requieren además manual_payments confirmado.
 ```
 
 ## Regla de cuenta eliminada
@@ -212,14 +225,23 @@ where conrelid = 'public.access_requests'::regclass
   and conname = 'access_requests_status_check';
 ```
 
-Debe permitir:
+El archivo local `docs/supabase/access-request-review-approved.sql` amplía la constraint para permitir:
 
 ```text
 pending
 approved
 rejected
 contacted
+payment_pending
+paid
+fulfilled
+review_pending
+review_approved
+review_rejected
+cancelled
 ```
+
+Los archivos de migración de revisión existen localmente y no se deben considerar aplicados remotamente sin verificación en Supabase.
 
 ## Crear o confirmar B.RCEO
 

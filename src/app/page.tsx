@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight, Headphones, Layers3 } from "lucide-react";
+import { BR_ROUTES } from "@/lib/routes";
 
 export default function Home() {
   return (
@@ -16,7 +17,7 @@ export default function Home() {
               <span className="block text-[10px] uppercase tracking-[0.36em] text-zinc-500">Central</span>
             </span>
           </div>
-          <Link href="/central" className="hidden text-sm font-bold text-zinc-400 transition hover:text-white sm:inline-flex">
+          <Link href={BR_ROUTES.centralHome} className="hidden text-sm font-bold text-zinc-400 transition hover:text-white sm:inline-flex">
             Conocer BR STUDIOS Central
           </Link>
         </div>
@@ -39,7 +40,7 @@ export default function Home() {
 
       <section className="relative z-10 mx-auto max-w-6xl px-5 pb-24 sm:px-8">
         <div className="grid gap-5 lg:grid-cols-2">
-          <Link href="/musica" className="group relative min-h-[360px] overflow-hidden rounded-[32px] border border-white/[0.075] bg-gradient-to-br from-cyan-400/[0.06] via-white/[0.025] to-blue-500/[0.08] p-7 shadow-[0_30px_100px_rgba(0,0,0,.34)] transition hover:-translate-y-1 hover:border-cyan-200/25 sm:p-9">
+          <Link href={BR_ROUTES.musicHome} className="group relative min-h-[360px] overflow-hidden rounded-[32px] border border-white/[0.075] bg-gradient-to-br from-cyan-400/[0.06] via-white/[0.025] to-blue-500/[0.08] p-7 shadow-[0_30px_100px_rgba(0,0,0,.34)] transition hover:-translate-y-1 hover:border-cyan-200/25 sm:p-9">
             <div className="absolute -right-16 -top-12 h-52 w-52 rounded-full bg-cyan-400/10 blur-3xl" />
             <div className="relative flex h-full flex-col justify-between">
               <div>
@@ -72,7 +73,7 @@ export default function Home() {
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.07] pt-6 text-sm text-zinc-500">
           <span>BR STUDIOS · Tecnología · Diseño · Resultados</span>
-          <Link href="/central" className="font-bold text-zinc-300 transition hover:text-violet-200">Conocer Central →</Link>
+          <Link href={BR_ROUTES.centralHome} className="font-bold text-zinc-300 transition hover:text-violet-200">Conocer Central →</Link>
         </div>
       </section>
     </main>

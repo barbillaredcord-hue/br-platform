@@ -33,10 +33,44 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 
 - Catalogo activo publico: 100% (completed) - Publico ve solo is_active=true; admin ve activos e inactivos.
 - Player por acceso: 100% (completed) - Resolver preview/full por playback_visibility, beat_access y rol admin.
-- Descargas protegidas: 100% (completed) - Descargar MP3 solo con sesion y beat_access valido.
-- Licencias protegidas: 100% (completed) - Generar licencia solo con sesion, beat_access y tipo de licencia.
+- Descargas protegidas: 100% (completed) - Descargar MP3 solo con sesion, beat_access activo y manual_payments confirmado para el mismo usuario y beat.
+- Licencias protegidas: 100% (completed) - Generar licencia solo con sesion, beat_access activo, manual_payments confirm/Users/fabianhonoriogonzalezandrade/.pm2/logs/br-platform-out.log last 15 lines:
+6|br-platf | > br-platform@0.1.0 start
+6|br-platf | > next start -p 3100
+6|br-platf | 
+6|br-platf | ▲ Next.js 16.2.9
+6|br-platf | - Local:         http://localhost:3100
+6|br-platf | - Network:       http://192.168.1.15:3100
+6|br-platf | ✓ Ready in 174ms
+6|br-platf | 
+6|br-platf | > br-platform@0.1.0 start
+6|br-platf | > next start -p 3100
+6|br-platf | 
+6|br-platf | ▲ Next.js 16.2.9
+6|br-platf | - Local:         http://localhost:3100
+6|br-platf | - Network:       http://192.168.1.15:3100
+6|br-platf | ✓ Ready in 127ms
+
+/Users/fabianhonoriogonzalezandrade/.pm2/logs/br-platform-error.log last 15 lines:
+6|br-platf | 
+6|br-platf | ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+6|br-platf |  We detected multiple lockfiles and selected the directory of /Users/fabianhonoriogonzalezandrade/package-lock.json as the root directory.
+6|br-platf |  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+6|br-platf |    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+6|br-platf |  Detected additional lockfiles: 
+6|br-platf |    * /Users/fabianhonoriogonzalezandrade/br-platform/package-lock.json
+6|br-platf | 
+6|br-platf | ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+6|br-platf |  We detected multiple lockfiles and selected the directory of /Users/fabianhonoriogonzalezandrade/package-lock.json as the root directory.
+6|br-platf |  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+6|br-platf |    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+6|br-platf |  Detected additional lockfiles: 
+6|br-platf |    * /Users/fabianhonoriogonzalezandrade/br-platform/package-lock.json
+6|br-platf | 
+
+ado y tipo de licencia.
 - Actividad comercial: 100% (completed) - Registrar descargas, licencias y pagos en commercial_activity.
-- Pagos manuales: 100% (completed) - Confirmar pagos manuales y liberar beat_access.
+- Pagos manuales: 100% (completed) - Registrar pago confirmado por usuario + beat; puede conceder acceso desde su flujo propio, pero un grant/restauracion no crea ni confirma pago.
 - Preview real: 100% (completed) - Generar previews reales de 15, 20, 25 o 30 segundos.
 - Revocaciones de acceso: 100% (completed) - Registrar access_revocations al retirar acceso.
 - B.R Cambios: 100% (completed) - Registrar historial administrativo temporal y permanente.
@@ -62,7 +96,7 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 - Commercial Detail Dock: Dashboard comercial con dock de detalle, top usuarios, top beats, metricas y actividad compacta.
 - Admin Beats Dashboard Layout: Gestion de Beats convertida a dashboard con resumen lateral, catalogo central y panel detalle anclado.
 - Admin UX Refinement + AI Beat Analysis Lite: AI Lite con Procesar de nuevo, coincidencia estable, revocaciones visibles, paneles compactos de tops, historial admin compacto y header dashboard compacto.
-- Fase 14.5 - Consolidacion de BR Platform / Beat Room: Seguridad de audio, Access Domain, Realtime privado, operaciones atomicas, sincronizacion transversal, estados comerciales, analisis musical v2 y regresion visual autenticada final completados.
+- Fase 14.5 - Consolidacion de BR Platform / Beat Room: Seguridad de audio, Access Domain, Realtime privado, operaciones atomicas, sincronizacion transversal, state machine de revisiones, separacion acceso/pago, analisis musical v2 y regresion funcional autenticada completados.
 
 ## Completado
 
@@ -73,7 +107,7 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 - Metadata editable en Gestion de Beats
 - playback_visibility editable en admin
 - PlayerBar enlazado al beat y full/preview por acceso
-- Descargas MP3 y licencias protegidas por beat_access
+- Full protegido por beat_access; MP3 y licencia protegidos por beat_access activo + manual_payments confirmado server-side
 - Pagos manuales con license_type y prevencion de duplicados
 - Actividad comercial server-side
 - Home Discovery Search
@@ -104,6 +138,8 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 - Sincronizacion transversal consolidada con dispatcher local unico, invalidacion por dominio, payment_pending derivado de access_requests y Commercial alineado con beat_access
 - Analisis musical br-analysis-v2 validado funcionalmente con clasificacion conservadora y metadata manual protegida
 - Estados comerciales derivados con diferencia explicita entre acceso por pago, grant administrativo, revocado y restaurado; orders diferida a Fase 15
+- State machine de access_requests con review_pending -> review_approved -> fulfilled; aceptar revision no crea acceso/pago y restaurar acceso no crea pago
+- Entitlements autenticados para reflejar en UI la diferencia entre Full habilitado y pago confirmado
 - Regresion visual autenticada final PASS en localhost:3100
 - 15.0 CRM Foundation: auditoria local/remota, identidad profiles.id, contrato arquitectonico y selector de inteligencia determinista
 
@@ -113,7 +149,7 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 - Terminos y condiciones
 - Licencias legales avanzadas
 - Pagos automaticos completos
-- 15.1 Contact Intelligence y relaciones explicitas
+- Cerrar validacion fisica Admin de 15.1 Contact Intelligence y relaciones explicitas
 - 15.2 Opportunities separadas de access_requests
 - Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout
 - Mejoras futuras de precision y UI del analisis musical
@@ -166,7 +202,7 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 
 - Prioridad: Completar la validacion fisica Admin de 15.1 Contact Intelligence; no avanzar a 15.2 hasta cerrar o registrar correctamente este gate.
 - Proxima accion: Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.
-- Contexto: 15.1: migraciones crm_relationships e indices de auditoria aplicadas remotamente; RLS y comando idempotente se validaron en transaccion revertida (admin una fila activa, usuario normal cero updates). Suite local 91/91, lint, TypeScript, build y diff-check pasan. No existe navegador conectado para la validacion fisica.
+- Contexto: La regla actual es beat_access para Full y manual_payments para compra confirmada: Full sin pago bloquea MP3/licencia; pago historico sin beat_access no restaura derechos. review_approved no concede acceso ni pago; Dar acceso de nuevo solo restaura beat_access. Los cuatro SQL de revision existen como archivos locales y no se documentan como aplicados remotamente. Para desarrollo local puede usarse npm run dev -- -p 3100; PM2 con npm start en 3100 es operacion local de br-platform, no regla global de BR STUDIOS Central. 15.1 mantiene su gate fisico Admin.
 
 ## BR.autocar como soporte interno
 
@@ -185,12 +221,12 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 
 ## Registry Intelligence
 
-- Apps registradas: 3
-- Healthy: 3
+- Apps registradas: 0
+- Healthy: 0
 - Attention: 0
 - Risk: 0
 - Blocked: 0
-- Validated pilot: 1
-- Recomendacion: Separar trabajo futuro del ecosistema BR.autocar de riesgos operativos de cada app antes de avanzar al Admin Web.
+- Validated pilot: 0
+- Recomendacion: No definida
 
-Ultima generacion: 2026-08-19T12:44:28
+Ultima generacion: 2026-08-20T08:21:28

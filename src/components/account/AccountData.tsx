@@ -13,6 +13,7 @@ import DownloadBeatButton from "@/components/DownloadBeatButton";
 import DownloadLicenseButton from "@/components/DownloadLicenseButton";
 import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
 import { getCurrentAccessLabel, resolveAccessDomainState } from "@/lib/access-domain";
+import { BR_ROUTES } from "@/lib/routes";
 import { acknowledgeAccessRevocation, deleteOwnAccount, getBeats, getAccessRequestsForUser, getUserAccessibleBeats, getUserAccessRevocations, updateProfile, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
 import { getSavedBeatIds, SAVED_BEATS_EVENT } from "@/lib/saved-beats";
 import { getCurrentUserPaidBeatIds } from "@/lib/payment-entitlements";
@@ -142,7 +143,7 @@ export function AccountOverview() {
       </section>
 
       <section>
-        <Link href="/" className="mb-4 inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver al inicio</Link>
+        <Link href={BR_ROUTES.musicHome} className="mb-4 inline-flex w-fit items-center gap-2 text-sm font-bold text-cyan-200"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver al inicio musical</Link>
         <h2 className="mb-3 text-xl font-bold">Accesos rápidos</h2>
         <div className="grid gap-3 md:grid-cols-4">
           <Link href="/account/beats" className="rounded-lg border border-cyan-300/20 bg-[#101317] p-4 font-bold text-cyan-200">Mis beats</Link>
@@ -405,7 +406,7 @@ export function AccountSettings() {
     }
 
     await refreshCurrentUser();
-    router.push("/");
+    router.push(BR_ROUTES.musicHome);
     router.refresh();
   }
 

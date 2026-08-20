@@ -9,28 +9,81 @@ export type ProductUpdate = {
   date?: string;
 };
 
+// TODO: generar este resumen desde APP_STATE.json mediante br-sync-docs sin cargar el documento completo en el cliente.
 export const currentProductPhase = {
-  title: "Fase 13 cerrada",
-  version: "13F.4",
-  status: "released" as ProductUpdateStatus,
+  title: "Fase 15 · CRM y flujo comercial",
+  version: "15.1",
+  status: "in_progress" as ProductUpdateStatus,
 };
 
 export const latestProductUpdates: ProductUpdate[] = [
-  { title: "Fase 13 cerrada: preview real, player premium, dominio y auth SMTP listos.", status: "released", audience: "both", version: "13F" },
-  { title: "Actualizaciones compactas con modal para no ocupar espacio en cuenta/admin.", status: "released", audience: "both", version: "13F.3" },
-  { title: "Beats públicos o privados para reproducción: público escucha full, privado usa preview/acceso.", status: "released", audience: "both", version: "13F.4" },
-  { title: "Admin B.RCEO con reproducción full global sin solicitar acceso como usuario.", status: "released", audience: "admin", version: "13F.4" },
-  { title: "Preview real generado desde beat completo con duraciones 15, 20, 25 o 30 segundos.", status: "released", audience: "both", version: "13C" },
-  { title: "PlayerBar premium con modo Preview / Acceso completo y layout móvil compacto.", status: "released", audience: "both", version: "13D/13F.2" },
-  { title: "Correos de confirmación funcionando con brstudios.org, Resend y Supabase SMTP.", status: "released", audience: "both", version: "13F.Auth" },
-  { title: "Descargas protegidas por sesión y beat_access.", status: "released", audience: "both", version: "12E" },
+  {
+    title: "Contact Intelligence 15.1 incorpora Contact 360 y relaciones explícitas; la validación física Admin continúa pendiente.",
+    status: "in_progress",
+    audience: "admin",
+    version: "15.1",
+    date: "2026-08-20",
+  },
+  {
+    title: "El flujo seguro de revisiones usa review_pending → review_approved → fulfilled: aceptar una revisión no restaura acceso; «Dar acceso de nuevo» sí crea beat_access.",
+    status: "released",
+    audience: "both",
+    version: "14.5 / 15.1",
+    date: "2026-08-20",
+  },
+  {
+    title: "Acceso Full y pago confirmado son autoridades separadas: Full puede existir sin pago; MP3 y licencia requieren beat_access activo y manual_payments confirmado.",
+    status: "released",
+    audience: "both",
+    version: "14.5",
+    date: "2026-08-20",
+  },
+  {
+    title: "beat_access continúa como autoridad de acceso activo; access_revocations conserva exclusivamente el historial de revocaciones.",
+    status: "released",
+    audience: "both",
+    version: "14.5",
+    date: "2026-08-20",
+  },
+  {
+    title: "Fase 15 iniciada con CRM Foundation 15.0 completada: identidad, autoridades y métricas comerciales quedaron definidas sin duplicar fuentes.",
+    status: "released",
+    audience: "admin",
+    version: "15.0",
+    date: "2026-08-18",
+  },
+  {
+    title: "Fase 14.5 consolidada: Full Audio seguro, Access Domain, Realtime privado, operaciones atómicas y separación progresiva por dominio.",
+    status: "released",
+    audience: "both",
+    version: "14.5",
+    date: "2026-08-18",
+  },
 ];
 
 export const futureProductUpdates: ProductUpdate[] = [
-  { title: "Fase 14: órdenes y pagos controlados desde admin.", status: "planned", audience: "both", version: "14A" },
-  { title: "Confirmación manual de pago para liberar acceso, descarga y licencia.", status: "planned", audience: "admin", version: "14B/14C" },
-  { title: "Vista de estado de compra para usuario: pendiente, aprobado o rechazado.", status: "planned", audience: "user", version: "14D" },
-  { title: "Historial de descargas y licencias por usuario.", status: "planned", audience: "both" },
-  { title: "Bucket privado / signed URLs para endurecer entrega de archivos.", status: "planned", audience: "admin" },
-  { title: "Marketplace multiusuario en fase futura.", status: "planned", audience: "admin" },
+  {
+    title: "Cerrar la validación física Admin de Contact 360 y relaciones explícitas.",
+    status: "in_progress",
+    audience: "admin",
+    version: "15.1",
+  },
+  {
+    title: "Persistir oportunidades comerciales separadas de access_requests.",
+    status: "planned",
+    audience: "admin",
+    version: "15.2",
+  },
+  {
+    title: "Agregar seguimiento comercial con autoría y visibilidad definidas.",
+    status: "planned",
+    audience: "admin",
+    version: "15.3",
+  },
+  {
+    title: "Derivar señales, prioridades y scoring comercial explicable sin duplicar autoridades.",
+    status: "planned",
+    audience: "admin",
+    version: "15.4",
+  },
 ];

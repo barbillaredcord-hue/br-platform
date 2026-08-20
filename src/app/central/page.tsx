@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Layers3, Orbit, Sparkles } from "lucide-react";
 import { brStudioServices, getWhatsAppUrl } from "@/lib/br-studios/catalog";
+import { BR_ROUTES } from "@/lib/routes";
 
 export const metadata: Metadata = {
   title: "BR STUDIOS Central",
@@ -39,7 +40,7 @@ export default function CentralPage() {
 
       <header className="relative z-20 border-b border-white/[0.055] bg-[#09090b]/78 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
-          <Link href="/" className="group flex items-center gap-3">
+          <Link href={BR_ROUTES.entrySelector} className="group flex items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.035] text-sm font-black tracking-wider shadow-[0_0_30px_rgba(108,92,255,0.10)] transition group-hover:border-violet-300/25">
               BR
             </span>

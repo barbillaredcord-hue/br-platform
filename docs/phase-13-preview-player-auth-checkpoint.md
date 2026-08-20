@@ -2,6 +2,8 @@
 
 # Phase 13 Checkpoint - Preview real, player premium, auth SMTP y playback publico/privado
 
+> Nota de continuidad: este es un checkpoint histórico. La regla actual de 14.5 prevalece: `beat_access` autoriza Full privado, mientras MP3 y licencia requieren además `manual_payments` confirmado para el mismo usuario y beat. No inferir pago desde acceso, solicitudes o revocaciones.
+
 Fecha: 2026-06-18
 Proyecto: B.R / br-platform
 Estado: Fase 13 cerrada

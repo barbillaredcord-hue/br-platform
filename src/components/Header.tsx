@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { AuthControls } from "./AuthControls";
 import { LogoMark } from "./LogoMark";
 import { useUser } from "@/context/UserContext";
+import { BR_ROUTES } from "@/lib/routes";
 import { isSupabaseReadyForAdmin, SUPABASE_CONNECTION_STATUS_EVENT, SUPABASE_CONNECTION_STATUS_KEY, type SupabaseConnectionStatus } from "@/lib/supabase/config";
 
 function getStoredSupabaseStatus(): SupabaseConnectionStatus {
@@ -65,7 +67,10 @@ export function Header() {
             placeholder="Buscar beats, género o BPM"
             className="h-11 w-full rounded-md border border-white/10 bg-white/10 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-cyan-300"
           />
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Link href={BR_ROUTES.centralHome} className="inline-flex h-10 items-center rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-400 transition hover:border-cyan-300 hover:text-cyan-200">
+              BR STUDIOS Central
+            </Link>
             <AuthControls />
           </div>
         </div>

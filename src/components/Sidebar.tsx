@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { BR_ROUTES } from "@/lib/routes";
 import { LogoMark } from "./LogoMark";
 
 const sidebarItems = [
-  { label: "Inicio", href: "/musica" },
+  { label: "Inicio", href: BR_ROUTES.musicHome },
   { label: "Explorar", href: "/explore" },
   { label: "Favoritos", href: "/account/saved" },
   { label: "Mis Beats", href: "/account/beats" },

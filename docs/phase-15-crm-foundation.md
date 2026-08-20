@@ -21,13 +21,28 @@ Las relaciones `contact`, `lead`, `client`, `artist`, `producer` y `collaborator
 
 Si aparece el primer contacto comercial sin cuenta, se reevaluará una identidad CRM propia con vínculo opcional y único a `profiles`. No se crea antes de ese caso real.
 
+## Estado de continuidad
+
+La Fase 15 continúa `in_progress` al 12%: 15.0 está completada y 15.1 está implementada con validación técnica, pero sigue `pending_validation` hasta comprobar Contact 360 y las relaciones explícitas con una sesión Admin real. No se adelanta el porcentaje ni 15.2.
+
+BR Platform / Beat Room y BR STUDIOS Central son superficies distintas del ecosistema `brstudios.org`. Este documento gobierna solo Beat Room; no fusiona roadmaps ni trata BR STUDIOS Central como un módulo interno.
+
+## Autoridades de Beat Room
+
+- `beat_access`: acceso Full actual.
+- `manual_payments`: pago confirmado por `user_id + beat_id`.
+- `access_requests`: workflow de solicitud y revisión por `user_id + beat_id`.
+- `access_revocations`: historial; no invalida ni prueba por sí mismo un acceso actual o un pago.
+
+La regla validada es deliberadamente separada: acceso Full activo sin pago permite Full, pero bloquea MP3 y licencia; un pago histórico sin acceso activo conserva historial, pero bloquea Full, MP3 y licencia.
+
 ## Core mínimo aceptado
 
 ### Relaciones CRM
 
 Problema: los dominios actuales no pueden declarar que una persona es artista, productor o colaborador, ni conservar varias relaciones simultáneas.
 
-Decisión: entidad lógica aceptada para 15.1. Su persistencia se diseñará cuando exista el primer comando de escritura. Debe referenciar `profiles.id`, usar valores controlados, RLS administrativa e índice por clave foránea. No altera acceso, pagos ni Auth.
+Decisión: entidad implementada para 15.1. `crm_relationships` referencia `profiles.id`, usa valores controlados, RLS administrativa y comando idempotente. No altera acceso, pagos ni Auth. Falta únicamente la validación física Admin antes de cerrar la subfase.
 
 ### Oportunidades
 
@@ -57,6 +72,17 @@ Decisión: entidad lógica aceptada para 15.2, separada de `access_requests`. Te
 
 Estas son señales explicables. No otorgan acceso, no cambian workflows y no concluyen automáticamente intención, temperatura o prioridad humana.
 
+## Migraciones de revisión y acceso
+
+Los siguientes archivos existen localmente en `docs/supabase/`; su presencia no prueba que estén aplicados en Supabase:
+
+- `access-request-review-foundation.sql`
+- `access-request-user-transitions.sql`
+- `access-request-reopen-initial-rejection.sql`
+- `access-request-review-approved.sql`
+
+La máquina de estados permite `pending`, `contacted`, `payment_pending`, `paid`, `fulfilled`, `approved`, `rejected`, `review_pending`, `review_approved`, `review_rejected` y `cancelled`. El flujo de revisión es `review_pending → review_approved → fulfilled`: aceptar revisión no crea `beat_access` ni `manual_payments`; “Dar acceso de nuevo” restaura solo `beat_access` y deja MP3/licencia sujetos a un pago confirmado independiente.
+
 ## Schema propuesto, no migrado
 
 Cuando cada flujo quede validado, el mínimo candidato es:
@@ -74,10 +100,10 @@ Artist Foundation podrá extender `profiles.id` con identidad artística propia 
 ## Subfases
 
 1. 15.0 — CRM Foundation: auditoría, contrato y selector determinista.
-2. 15.1 — Contact Intelligence y relaciones explícitas.
-3. 15.2 — Opportunities.
-4. 15.3 — Notes y Follow-up.
-5. 15.4 — Commercial Timeline.
-6. 15.5 — CRM Dashboard.
-7. 15.6 — CRM Intelligence determinista.
-8. 15.7 — QA y consolidación.
+2. 15.1 — Contact Intelligence / Contact 360 / relaciones explícitas: cerrar validación física Admin.
+3. 15.2 — Opportunities: entidad comercial separada de `access_requests`.
+4. 15.3 — Seguimiento comercial: notas, tareas, siguiente acción e historial con autoría y visibilidad.
+5. 15.4 — Inteligencia comercial: timeline derivado, señales, prioridades, scoring explicable y recomendaciones deterministas antes de IA avanzada.
+6. Fase 16 — Automatización Comercial.
+7. Fase 17 — Analytics / Intelligence.
+8. Fase 18 — B.R Intelligence.

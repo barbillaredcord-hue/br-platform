@@ -6,6 +6,7 @@ import { BeatCard } from "@/components/BeatCard";
 import { BeatAccessActions } from "@/components/BeatAccessActions";
 import { BeatAccessSummary } from "@/components/BeatAccessSummary";
 import { getRelatedBeats } from "@/data/beats";
+import { BR_ROUTES } from "@/lib/routes";
 import { getBeatBySlug, getBeats, getUsersWithAccessToBeat, getAccessRevocationsForBeat } from "@/lib/supabase/queries";
 
 type BeatPageProps = {
@@ -48,13 +49,18 @@ export default async function BeatPage({ params }: BeatPageProps) {
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#050607] px-3 py-4 pb-24 text-white sm:px-4 md:px-8 md:py-6 md:pb-32">
       <div className="mx-auto max-w-7xl min-w-0 space-y-5 md:space-y-7">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200 sm:text-sm"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Volver
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={BR_ROUTES.musicHome}
+            className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200 sm:text-sm"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Volver a Beat Room
+          </Link>
+          <Link href={BR_ROUTES.centralHome} className="text-xs font-bold text-zinc-400 transition hover:text-cyan-200 sm:text-sm">
+            Ir a BR STUDIOS Central
+          </Link>
+        </div>
 
         <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(240px,360px)_1fr] lg:gap-6">
           <div className="mx-auto grid aspect-square w-full max-w-[240px] place-items-center rounded-lg border border-cyan-300/20 bg-[radial-gradient(circle_at_25%_20%,rgba(103,232,249,0.35),transparent_30%),linear-gradient(135deg,#155e75,#0f172a_70%)] sm:max-w-[320px] lg:max-w-none">

@@ -79,3 +79,9 @@ Generado automaticamente desde APP_STATE.json history[].
 - Evento: Apertura oficial de Fase 15 y cierre de 15.0 CRM Foundation
 - Razon: La informacion comercial existente necesitaba un modelo de persona, relaciones y oportunidades antes de agregar tablas o pantallas CRM.
 - Impacto: Fase 15 queda in_progress al 12%. profiles.id es la identidad inicial; las seis autoridades existentes se preservan; relaciones y oportunidades se aceptan logicamente; contacts, orders, notas, tareas y tags no se crean. 15.1 pasa a ser la siguiente subfase.
+
+## 2026-08-20 - access_payment_entitlement_separation
+
+- Evento: Consolidacion de acceso Full, pago confirmado y revisiones
+- Razon: La documentacion y una etiqueta administrativa podian asociar solicitud completada o beat_access con pago confirmado.
+- Impacto: beat_access queda documentado como autoridad exclusiva de Full activo; manual_payments como pago confirmado por usuario + beat; MP3/licencia exigen ambas pruebas server-side. La UI usa entitlements autenticados, review_approved permanece sin acceso/pago y las migraciones de revision locales se distinguen de una aplicacion remota no confirmada.

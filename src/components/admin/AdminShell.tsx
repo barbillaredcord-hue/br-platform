@@ -6,9 +6,10 @@ import { ArrowLeft, History, Inbox, KeyRound, LayoutDashboard, ListMusic, Plus, 
 import { LogoMark } from "@/components/LogoMark";
 import { allBeats } from "@/data/beats";
 import { notifyDomainChange } from "@/lib/domain-events";
+import { BR_ROUTES } from "@/lib/routes";
 import { AdminGuard } from "./AdminGuard";
 
-const homeItem = { href: "/", label: "Home", icon: ArrowLeft };
+const homeItem = { href: BR_ROUTES.musicHome, label: "Home musical", icon: ArrowLeft };
 
 const navItems = [
   { href: "/admin", label: "Admin", icon: LayoutDashboard },
@@ -68,6 +69,12 @@ export function AdminShell({ title, subtitle, children, compact = false }: { tit
             >
               <HomeIcon className="h-4 w-4" aria-hidden="true" />
               {homeItem.label}
+            </Link>
+            <Link
+              href={BR_ROUTES.centralHome}
+              className="mt-1 flex items-center rounded-md px-3 py-2 text-sm font-semibold text-zinc-400 transition hover:bg-white/10 hover:text-cyan-200"
+            >
+              Ir a BR STUDIOS Central
             </Link>
 
             {isMenuOpen ? (

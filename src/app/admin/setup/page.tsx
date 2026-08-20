@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LogoMark } from "@/components/LogoMark";
 import { useUser } from "@/context/UserContext";
 import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
+import { BR_ROUTES } from "@/lib/routes";
 import { getSupabasePublicConfigStatus, SUPABASE_CONNECTION_STATUS_EVENT, SUPABASE_CONNECTION_STATUS_KEY, type SupabaseConnectionStatus } from "@/lib/supabase/config";
 
 const storageKey = "br-setup-config";
@@ -185,8 +186,8 @@ export default function AdminSetupPage() {
                 <h1 className="text-3xl font-black md:text-5xl">Configuración Supabase</h1>
               </div>
             </div>
-            <Link href="/" className="inline-flex h-11 items-center justify-center rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
-              Volver a Home
+            <Link href={BR_ROUTES.musicHome} className="inline-flex h-11 items-center justify-center rounded-md border border-white/10 px-4 text-sm font-bold text-zinc-200 hover:border-cyan-300 hover:text-cyan-200">
+              Volver al home musical
             </Link>
           </div>
           <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
