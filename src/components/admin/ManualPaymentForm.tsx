@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Save } from "lucide-react";
+import { notifyDomainChange } from "@/lib/domain-events";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const initialForm = {
@@ -63,7 +64,7 @@ export function ManualPaymentForm() {
 
       setMessage(payload.message ?? "Pago registrado.");
       setForm(initialForm);
-      window.dispatchEvent(new Event("br-commercial-activity-refresh"));
+      notifyDomainChange("manual-payment");
     } catch {
       setMessage("No se pudo registrar el pago.");
     } finally {

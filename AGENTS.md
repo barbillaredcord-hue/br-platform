@@ -15,8 +15,8 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 - App: `br-platform`
 - Producto: B.R
 - Tipo: marketplace musical / plataforma privada de beats
-- Fase actual: Fase 14G.1 - Admin UX Refinement + AI Beat Analysis Lite
-- Avance: 98%
+- Fase actual: Fase 15 - Motor Comercial Inteligente / CRM
+- Avance: 12%
 
 ## Reglas operativas
 
@@ -39,9 +39,9 @@ npm run build
 
 ## Continuidad
 
-Sin contexto registrado
+15.1: migraciones crm_relationships e indices de auditoria aplicadas remotamente; RLS y comando idempotente se validaron en transaccion revertida (admin una fila activa, usuario normal cero updates). Suite local 91/91, lint, TypeScript, build y diff-check pasan. No existe navegador conectado para la validacion fisica.
 
 ## Proxima accion
 
-Implementar clasificacion musical asistida y preparar B.R Radio / playlist publica continua.
+Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.
 <!-- END:br-autocar-generated-agent-rules -->

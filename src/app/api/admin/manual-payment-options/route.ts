@@ -24,6 +24,11 @@ type ManualPaymentRow = {
   beat_id: string | null;
 };
 
+type AccessRequestRow = {
+  beat_id: string | null;
+  beats?: BeatRow | BeatRow[] | null;
+};
+
 type RevocationRow = {
   beat_id: string | null;
   reason: string | null;
@@ -56,7 +61,7 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, message: "Usuario inválido." }, { status: 400 });
   }
 
-  const [profileResult, accessResult, paymentsResult, revocationsResult] = await Promise.all([
+  const [profileResult, accessResult, paymentsResult, revocationsResult, requestsResult] = await Promise.all([
     admin.supabase.from("profiles").select("id,email,username,display_name").eq("id", userId).maybeSingle<ProfileRow>(),
     admin.supabase
       .from("beat_access")
@@ -68,6 +73,11 @@ export async function GET(request: Request) {
       .select("beat_id,reason,revoked_at,created_at,beats(id,title,slug,genre,bpm)")
       .eq("user_id", userId)
       .order("revoked_at", { ascending: false }),
+    admin.supabase
+      .from("access_requests")
+      .select("beat_id,beats(id,title,slug,genre,bpm)")
+      .eq("user_id", userId)
+      .eq("status", "payment_pending"),
   ]);
 
   if (profileResult.error) {
@@ -94,9 +104,15 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, message: "No se pudieron validar las revocaciones existentes." }, { status: 500 });
   }
 
+  if (requestsResult.error) {
+    console.error("B.R manual payment options requests error", requestsResult.error);
+    return Response.json({ ok: false, message: "No se pudieron cargar las solicitudes pendientes de pago." }, { status: 500 });
+  }
+
   const accessRows = (accessResult.data ?? []) as BeatAccessRow[];
   const paymentRows = (paymentsResult.data ?? []) as ManualPaymentRow[];
   const revocationRows = (revocationsResult.data ?? []) as RevocationRow[];
+  const requestRows = (requestsResult.data ?? []) as AccessRequestRow[];
   const paidBeatIds = new Set(paymentRows.map((row) => row.beat_id).filter((beatId): beatId is string => Boolean(beatId)));
   const revokedBeatIds = new Set(revocationRows.map((row) => row.beat_id).filter((beatId): beatId is string => Boolean(beatId)));
   const activeBeatIds = new Set(accessRows.map((row) => row.beat_id).filter((beatId): beatId is string => Boolean(beatId)));
@@ -112,11 +128,23 @@ export async function GET(request: Request) {
     activeBeatsById.set(beat.id, beat);
   });
 
+  const payableBeatsById = new Map(activeBeatsById);
+
+  requestRows.forEach((row) => {
+    const beat = first(row.beats);
+
+    if (beat?.id) {
+      payableBeatsById.set(beat.id, beat);
+    }
+  });
+
   const activeAccessBeats = Array.from(activeBeatsById.values()).sort((a, b) =>
     (a.title ?? a.slug ?? a.id).localeCompare(b.title ?? b.slug ?? b.id),
   );
 
-  const beats = activeAccessBeats.filter((beat) => !paidBeatIds.has(beat.id));
+  const beats = Array.from(payableBeatsById.values())
+    .filter((beat) => !paidBeatIds.has(beat.id))
+    .sort((a, b) => (a.title ?? a.slug ?? a.id).localeCompare(b.title ?? b.slug ?? b.id));
   const historicalRevocationBeatsById = new Map<
     string,
     BeatRow & { revoked_at: string | null; reason: string | null }
@@ -162,6 +190,7 @@ export async function GET(request: Request) {
       active_access_count: activeBeatIds.size,
       paid_count: paidBeatIds.size,
       available_for_payment_count: beats.length,
+      payment_pending_count: requestRows.filter((row) => row.beat_id && !paidBeatIds.has(row.beat_id)).length,
       historical_revocation_count: revokedBeatIds.size,
     },
   });

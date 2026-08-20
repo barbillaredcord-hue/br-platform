@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
 
 type CommercialActivity = {
   id: string;
@@ -19,32 +20,19 @@ const eventLabels: Record<CommercialActivity["event_type"], string> = {
   manual_payment: "Pago manual",
 };
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return "Sin fecha";
-  }
-
-  return new Date(value).toLocaleString("es-MX", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
 export function CommercialActivityPanel() {
   const [activity, setActivity] = useState<CommercialActivity[]>([]);
+  const [confirmedPayments, setConfirmedPayments] = useState(0);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const activityStats = useMemo(() => {
     const mp3Downloads = activity.filter((item) => item.event_type === "mp3_download").length;
     const licenseDownloads = activity.filter((item) => item.event_type === "license_download").length;
-    const manualPayments = activity.filter((item) => item.event_type === "manual_payment").length;
-
     return {
       total: activity.length,
       mp3Downloads,
       licenseDownloads,
-      manualPayments,
     };
   }, [activity]);
 
@@ -81,6 +69,7 @@ export function CommercialActivityPanel() {
       }
 
       setActivity(payload.activity ?? []);
+      setConfirmedPayments(payload.summary?.confirmed_payments ?? 0);
     } catch {
       setMessage("No se pudo cargar la actividad comercial.");
     } finally {
@@ -125,8 +114,8 @@ export function CommercialActivityPanel() {
           <p className="mt-1 text-lg font-black text-cyan-100">{activityStats.licenseDownloads}</p>
         </div>
         <div className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_45%),rgba(255,255,255,0.03)] p-3 shadow-[0_10px_25px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-1 hover:border-cyan-300/40">
-          <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos</p>
-          <p className="mt-1 text-lg font-black text-emerald-100">{activityStats.manualPayments}</p>
+          <p className="text-[10px] font-bold uppercase text-zinc-500">Pagos confirmados · total</p>
+          <p className="mt-1 text-lg font-black text-emerald-100">{confirmedPayments}</p>
         </div>
         <div className="rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_45%),rgba(255,255,255,0.03)] p-3 shadow-[0_10px_25px_rgba(0,0,0,0.25)] transition duration-200 hover:-translate-y-1 hover:border-cyan-300/40">
           <p className="text-[10px] font-bold uppercase text-zinc-500">Eventos</p>
@@ -146,7 +135,7 @@ export function CommercialActivityPanel() {
         ) : (
           activity.map((item) => (
             <article key={item.id} className="grid min-w-205 gap-1.5 border-t border-white/10 px-2.5 py-1.5 text-[11px] md:grid-cols-[1.1fr_0.8fr_1.2fr_1.3fr] md:gap-3">
-              <p className="text-zinc-400">{formatDate(item.created_at)}</p>
+              <p className="text-zinc-400">{formatLocalDateTime(item.created_at)}</p>
               <p className="font-bold text-cyan-100">{eventLabels[item.event_type] ?? item.event_type}</p>
               <p className="truncate text-zinc-200">{item.beat_title || item.beat_slug || "Beat sin título"}</p>
               <p className="truncate text-zinc-400">{item.user_email || "Sin email"}</p>

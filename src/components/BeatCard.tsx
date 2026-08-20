@@ -8,8 +8,18 @@ import { useUser } from "@/context/UserContext";
 import type { AccessRequestStatus } from "@/data/accessRequests";
 import type { Beat } from "@/data/beats";
 import { userCanAccessBeat } from "@/lib/access";
-import { isBeatSaved, SAVED_BEATS_EVENT, toggleSavedBeatId } from "@/lib/saved-beats";
-import { getAccessRequestForBeat, getUserAccessRevocations, type AccessRevocationRow } from "@/lib/supabase/queries";
+import { resolveAccessDomainState } from "@/lib/access-domain";
+import {
+  isBeatSaved,
+  SAVED_BEATS_EVENT,
+  toggleSavedBeatId,
+} from "@/lib/saved-beats";
+import {
+  acknowledgeAccessRevocation,
+  getAccessRequestForBeat,
+  getUserAccessRevocations,
+  type AccessRevocationRow,
+} from "@/lib/supabase/queries";
 import { AccessBadge } from "./AccessBadge";
 import { PlayButton } from "./PlayButton";
 
@@ -47,57 +57,72 @@ function getPreviewSeconds(beat: Beat) {
   return Math.min(30, Math.max(15, Math.round(seconds)));
 }
 
-function shouldShowRequestStatus(status: AccessRequestStatus | undefined, hasPlaybackAccess: boolean) {
+function shouldShowRequestStatus(
+  status: AccessRequestStatus | undefined,
+  hasPlaybackAccess: boolean,
+) {
   if (hasPlaybackAccess || !status) {
     return false;
   }
 
-  return status === "pending" || status === "contacted" || status === "payment_pending" || status === "paid";
+  return (
+    status === "pending" ||
+    status === "contacted" ||
+    status === "payment_pending" ||
+    status === "paid"
+  );
 }
 
-function revocationMatchesBeat(revocation: AccessRevocationRow, beatId: string) {
-  const revokedBeat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
+function revocationMatchesBeat(
+  revocation: AccessRevocationRow,
+  userId: string,
+  beatId: string,
+) {
+  const revokedBeat = Array.isArray(revocation.beats)
+    ? revocation.beats[0]
+    : revocation.beats;
 
-  return revocation.beat_id === beatId || revokedBeat?.slug === beatId;
-}
-
-function dismissedBeatRevocationKey(userId?: string | null) {
-  return `br:dismissed-revocations:${userId || "guest"}`;
-}
-
-function getDismissedBeatRevocations(userId?: string | null) {
-  if (typeof window === "undefined") {
-    return [] as string[];
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(dismissedBeatRevocationKey(userId));
-    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
-
-    return Array.isArray(parsedValue) ? parsedValue.map(String) : [];
-  } catch {
-    return [] as string[];
-  }
+  return revocation.user_id === userId && (revocation.beat_id === beatId || revokedBeat?.slug === beatId);
 }
 
 export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   const savedBeatId = beat.dbId ?? beat.id;
   const [isSaved, setIsSaved] = useState(false);
-  const [requestStatus, setRequestStatus] = useState<AccessRequestStatus | null>(null);
-  const [revocation, setRevocation] = useState<AccessRevocationRow | null>(null);
-  const [dismissedRevokedBeatIds, setDismissedRevokedBeatIds] = useState<string[]>([]);
+  const [requestStatus, setRequestStatus] =
+    useState<AccessRequestStatus | null>(null);
+  const [revocation, setRevocation] = useState<AccessRevocationRow | null>(
+    null,
+  );
+  const [isAcknowledgingRevocation, setIsAcknowledgingRevocation] = useState(false);
 
   const { currentUser, isEmailConfirmed } = useUser();
   const isAdmin = currentUser?.role === "admin";
   const hasBeatAccess = userCanAccessBeat(currentUser, beat);
-  const hasRevocation = Boolean(revocation);
-  const showRevokedNotice = hasRevocation && !dismissedRevokedBeatIds.includes(savedBeatId) && !dismissedRevokedBeatIds.includes(String(revocation?.id ?? ""));
+
+  const accessState = resolveAccessDomainState({
+    hasActiveAccess: hasBeatAccess,
+    revocationCount: revocation ? 1 : 0,
+  });
+  const hasRevocation = accessState.status === "revoked";
+
+  const showRevokedNotice =
+    hasRevocation &&
+    revocation?.acknowledged_by_user === false;
+
   const isPublicPlayback = beat.playbackVisibility === "public";
-  const hasFullPlayback = isAdmin || isPublicPlayback || (hasBeatAccess && !hasRevocation);
+
+  const hasFullPlayback = isAdmin || isPublicPlayback || hasBeatAccess;
   const hasPlaybackAccess = hasFullPlayback;
   const canPreviewPrivate = Boolean(currentUser && isEmailConfirmed);
   const previewSeconds = getPreviewSeconds(beat);
-  const canShowPlayButton = isAdmin || isPublicPlayback || hasRevocation || (hasBeatAccess && !hasRevocation) || canPreviewPrivate;
+
+  const canShowPlayButton =
+    isAdmin ||
+    isPublicPlayback ||
+    hasBeatAccess ||
+    hasRevocation ||
+    canPreviewPrivate;
+
   const playbackMode = hasFullPlayback ? "full" : "preview";
   const playbackLabel = hasFullPlayback ? "Full" : `Preview ${previewSeconds}s`;
 
@@ -118,24 +143,6 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   }, [currentUser?.id, savedBeatId]);
 
   useEffect(() => {
-    const syncDismissedRevocations = () => {
-      setDismissedRevokedBeatIds(getDismissedBeatRevocations(currentUser?.id));
-    };
-
-    syncDismissedRevocations();
-
-    window.addEventListener("storage", syncDismissedRevocations);
-    window.addEventListener("br:revocation-dismissed", syncDismissedRevocations);
-    window.addEventListener("focus", syncDismissedRevocations);
-
-    return () => {
-      window.removeEventListener("storage", syncDismissedRevocations);
-      window.removeEventListener("br:revocation-dismissed", syncDismissedRevocations);
-      window.removeEventListener("focus", syncDismissedRevocations);
-    };
-  }, [currentUser?.id]);
-
-  useEffect(() => {
     let isMounted = true;
 
     async function loadRequestStatus() {
@@ -149,19 +156,34 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
         getAccessRequestForBeat(currentUser.id, savedBeatId),
         getUserAccessRevocations(currentUser.id),
       ]);
-      const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, savedBeatId)) ?? null;
+      const foundRevocation =
+        userRevocations.find((item) =>
+          revocationMatchesBeat(item, currentUser.id, savedBeatId),
+        ) ?? null;
       const status = request?.status;
 
       if (isMounted) {
         setRevocation(foundRevocation);
-        setRequestStatus(foundRevocation ? null : shouldShowRequestStatus(status, hasPlaybackAccess) ? status ?? null : null);
+        setRequestStatus(
+          hasPlaybackAccess
+            ? null
+            : shouldShowRequestStatus(status, hasPlaybackAccess)
+              ? (status ?? null)
+              : null,
+        );
       }
     }
 
-    void loadRequestStatus();
+    const refresh = () => void loadRequestStatus();
+
+    refresh();
+    window.addEventListener("br-access-state-changed", refresh);
+    window.addEventListener("br-access-requests-refresh", refresh);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("br-access-state-changed", refresh);
+      window.removeEventListener("br-access-requests-refresh", refresh);
     };
   }, [currentUser, hasPlaybackAccess, savedBeatId]);
 
@@ -170,11 +192,28 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
     setIsSaved(nextIds.includes(savedBeatId));
   };
 
+  async function acknowledgeRevocation() {
+    if (!currentUser?.id || !revocation?.id) {
+      return;
+    }
+
+    setIsAcknowledgingRevocation(true);
+    const result = await acknowledgeAccessRevocation(currentUser.id, String(revocation.id));
+
+    if (result.ok) {
+      setRevocation((current) => current ? { ...current, acknowledged_by_user: true, acknowledged_at: new Date().toISOString() } : current);
+    }
+
+    setIsAcknowledgingRevocation(false);
+  }
+
   return (
     <article className="relative w-40 shrink-0 snap-start rounded-lg bg-[#15181c] p-2 transition hover:bg-[#1c2127] sm:w-56 sm:p-3">
       <button
         type="button"
-        aria-label={isSaved ? `Quitar ${beat.name} de guardados` : `Guardar ${beat.name}`}
+        aria-label={
+          isSaved ? `Quitar ${beat.name} de guardados` : `Guardar ${beat.name}`
+        }
         onClick={toggleSaved}
         className={`absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition sm:right-5 sm:top-5 sm:h-9 sm:w-9 ${
           isSaved
@@ -182,15 +221,24 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
             : "border-white/15 bg-black/30 text-cyan-100 hover:border-cyan-300/60 hover:bg-cyan-300/10"
         }`}
       >
-        <Heart className={`h-4 w-4 ${isSaved ? "fill-black" : ""}`} aria-hidden="true" />
+        <Heart
+          className={`h-4 w-4 ${isSaved ? "fill-black" : ""}`}
+          aria-hidden="true"
+        />
       </button>
       <Link href={`/beats/${beat.id}`} className="block">
-        <div className={`mb-2 grid aspect-square place-items-center rounded-md sm:mb-4 sm:rounded-lg ${coverGradients[gradientIndex % coverGradients.length]}`}>
-          <span className="text-3xl font-black text-white/85 sm:text-4xl">B.R</span>
+        <div
+          className={`mb-2 grid aspect-square place-items-center rounded-md sm:mb-4 sm:rounded-lg ${coverGradients[gradientIndex % coverGradients.length]}`}
+        >
+          <span className="text-3xl font-black text-white/85 sm:text-4xl">
+            B.R
+          </span>
         </div>
         <div className="flex items-start justify-between gap-2 sm:gap-3">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold sm:text-base">{beat.name}</h3>
+            <h3 className="truncate text-sm font-semibold sm:text-base">
+              {beat.name}
+            </h3>
             <p className="mt-0.5 truncate text-xs text-zinc-400 sm:mt-1 sm:text-sm">
               {beat.genre} · {beat.bpm} BPM
             </p>
@@ -205,7 +253,9 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
             </span>
           ) : null}
           {requestStatus ? (
-            <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[11px] font-bold ${requestStatusStyles[requestStatus] ?? "border-white/10 bg-white/5 text-zinc-300"}`}>
+            <span
+              className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[11px] font-bold ${requestStatusStyles[requestStatus] ?? "border-white/10 bg-white/5 text-zinc-300"}`}
+            >
               {requestStatusLabels[requestStatus] ?? "Solicitud en proceso"}
             </span>
           ) : null}
@@ -230,23 +280,49 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
       </Link>
       <div className="mt-3 grid gap-2 sm:mt-4">
         {canShowPlayButton ? (
-          <PlayButton variant="light" beat={beat} mode={playbackMode} queue={queue} showPauseState>
+          <PlayButton
+            variant="light"
+            beat={beat}
+            mode={playbackMode}
+            queue={queue}
+            showPauseState
+          >
             {playbackLabel}
           </PlayButton>
         ) : (
-          <Link href={currentUser ? "/account/settings" : "/login"} className="inline-flex h-9 items-center justify-center rounded-md bg-white text-xs font-bold text-black hover:bg-cyan-200 sm:h-10 sm:text-sm">
+          <Link
+            href={currentUser ? "/account/settings" : "/login"}
+            className="inline-flex h-9 items-center justify-center rounded-md bg-white text-xs font-bold text-black hover:bg-cyan-200 sm:h-10 sm:text-sm"
+          >
             {currentUser ? "Confirmar email" : "Iniciar sesión"}
           </Link>
         )}
         <button
           type="button"
-          aria-label={isSaved ? `Quitar ${beat.name} de guardados` : `Guardar ${beat.name}`}
+          aria-label={
+            isSaved
+              ? `Quitar ${beat.name} de guardados`
+              : `Guardar ${beat.name}`
+          }
           onClick={toggleSaved}
           className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-cyan-300/20 px-3 text-xs font-bold text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-300/10 sm:h-10"
         >
-          <Heart className={`h-4 w-4 ${isSaved ? "fill-cyan-200 text-cyan-200" : ""}`} aria-hidden="true" />
+          <Heart
+            className={`h-4 w-4 ${isSaved ? "fill-cyan-200 text-cyan-200" : ""}`}
+            aria-hidden="true"
+          />
           {isSaved ? "Guardado" : "Guardar"}
         </button>
+        {showRevokedNotice ? (
+          <button
+            type="button"
+            onClick={() => void acknowledgeRevocation()}
+            disabled={isAcknowledgingRevocation}
+            className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 transition hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-60 sm:h-10"
+          >
+            {isAcknowledgingRevocation ? "Guardando..." : "Ya lo vi"}
+          </button>
+        ) : null}
       </div>
     </article>
   );

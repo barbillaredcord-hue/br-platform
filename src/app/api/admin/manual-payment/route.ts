@@ -16,6 +16,12 @@ type BeatPaymentRow = {
   slug: string | null;
 };
 
+type ManualPaymentRpcResult = {
+  access_created?: boolean;
+  payment_created?: boolean;
+  revocation_preserved?: boolean;
+};
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function cleanText(value: unknown) {
@@ -103,166 +109,37 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, message: "Beat no encontrado." }, { status: 404 });
   }
 
-  const { data: existingPayment, error: existingPaymentError } = await admin.supabase
-    .from("manual_payments")
-    .select("id")
-    .eq("user_id", profile.id)
-    .eq("beat_id", beat.id)
-    .maybeSingle<{ id: string }>();
-
-  const { data: existingAccess, error: existingAccessError } = await admin.supabase
-    .from("beat_access")
-    .select("user_id,beat_id")
-    .eq("user_id", profile.id)
-    .eq("beat_id", beat.id)
-    .maybeSingle<{ user_id: string; beat_id: string }>();
-
-  if (existingPaymentError) {
-    console.error("B.R manual payment duplicate lookup error", existingPaymentError);
-    return Response.json({ ok: false, message: "No se pudo validar si el pago ya existe." }, { status: 500 });
-  }
-
-  if (existingAccessError) {
-    console.error("B.R manual payment access lookup error", existingAccessError);
-    return Response.json({ ok: false, message: "No se pudo validar el acceso actual del usuario." }, { status: 500 });
-  }
-
-  const shouldInsertPayment = !existingPayment;
-  const shouldCreateAccess = !existingAccess;
-
-  const { error: accessUpsertError } = await admin.supabase.from("beat_access").upsert(
+  const { data, error } = await admin.userSupabase.rpc(
+    "record_manual_payment_atomic",
     {
-      user_id: profile.id,
-      beat_id: beat.id,
-      granted_by: admin.requester.id,
+      p_user_id: profile.id,
+      p_beat_id: beat.id,
+      p_amount: amount,
+      p_currency: currency,
+      p_payment_method: paymentMethod || null,
+      p_note: note || null,
+      p_license_type: licenseType,
     },
-    { onConflict: "user_id,beat_id" },
   );
 
-  if (accessUpsertError) {
-    console.error("B.R manual payment access upsert error", accessUpsertError);
-    return Response.json({ ok: false, message: "No se pudo liberar el acceso del usuario al beat." }, { status: 500 });
-  }
-
-  const { error: revocationCleanupError } = await admin.supabase
-    .from("access_revocations")
-    .delete()
-    .eq("user_id", profile.id)
-    .eq("beat_id", beat.id);
-
-  if (revocationCleanupError) {
-    console.error("B.R manual payment revocation cleanup error", revocationCleanupError);
-
-    if (shouldCreateAccess) {
-      await admin.supabase
-        .from("beat_access")
-        .delete()
-        .eq("user_id", profile.id)
-        .eq("beat_id", beat.id);
-    }
-
+  if (error) {
+    console.error("B.R atomic manual payment error", error);
     return Response.json(
-      { ok: false, message: "El acceso se liberó, pero no se pudo limpiar la revocación anterior." },
+      { ok: false, message: error.message || "No se pudo confirmar el pago manual." },
       { status: 500 },
     );
   }
 
-  const paymentRow = {
-    user_id: profile.id,
-    user_email: profile.email,
-    beat_id: beat.id,
-    beat_title: beat.title,
-    amount,
-    currency,
-    payment_method: paymentMethod || null,
-    note: note || null,
-    created_by_admin: admin.requester.id,
-    license_type: licenseType,
-  };
-
-  let paymentError = null;
-
-  if (shouldInsertPayment) {
-    const paymentResult = await admin.supabase.from("manual_payments").insert(paymentRow);
-    paymentError = paymentResult.error;
-
-    if (paymentError?.message.toLowerCase().includes("license_type")) {
-      const legacyPaymentRow: Omit<typeof paymentRow, "license_type"> = {
-        user_id: paymentRow.user_id,
-        user_email: paymentRow.user_email,
-        beat_id: paymentRow.beat_id,
-        beat_title: paymentRow.beat_title,
-        amount: paymentRow.amount,
-        currency: paymentRow.currency,
-        payment_method: paymentRow.payment_method,
-        note: paymentRow.note,
-        created_by_admin: paymentRow.created_by_admin,
-      };
-      const retryResult = await admin.supabase.from("manual_payments").insert(legacyPaymentRow);
-      paymentError = retryResult.error;
-    }
-
-    if (paymentError) {
-      console.error("B.R manual payment insert error", paymentError);
-      if (shouldCreateAccess) {
-        await admin.supabase
-          .from("beat_access")
-          .delete()
-          .eq("user_id", profile.id)
-          .eq("beat_id", beat.id);
-      }
-      return Response.json({ ok: false, message: "No se pudo registrar el pago." }, { status: 500 });
-    }
-  }
-
-  const requestCompletedAt = new Date().toISOString();
-  const { error: requestUpdateError } = await admin.supabase
-    .from("access_requests")
-    .update({
-      status: "fulfilled",
-      responded_at: requestCompletedAt,
-      updated_at: requestCompletedAt,
-    })
-    .eq("user_id", profile.id)
-    .eq("beat_id", beat.id)
-    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved", "rejected"]);
-
-  if (requestUpdateError) {
-    console.error("B.R manual payment access request update error", requestUpdateError);
-  }
-
-  const { error: activityError } = await admin.supabase.from("commercial_activity").insert({
-    event_type: "manual_payment",
-    user_id: profile.id,
-    user_email: profile.email,
-    beat_id: beat.id,
-    beat_title: beat.title,
-    beat_slug: beat.slug,
-    metadata: {
-      amount,
-      currency,
-      payment_method: paymentMethod || null,
-      note: note || null,
-      created_by_admin: admin.requester.id,
-      license_type: licenseType,
-      access_granted: true,
-      access_was_created: shouldCreateAccess,
-      payment_was_created: shouldInsertPayment,
-      previous_revocation_cleared: true,
-    },
-  });
-
-  if (activityError) {
-    console.error("B.R commercial activity manual_payment log error", activityError);
-  }
+  const result = data as ManualPaymentRpcResult | null;
 
   return Response.json({
     ok: true,
-    access_created: shouldCreateAccess,
-    payment_created: shouldInsertPayment,
-    revocation_cleared: true,
-    message: existingPayment
-      ? "Pago ya registrado. Acceso sincronizado, revocación anterior limpiada y solicitud completada."
-      : "Pago confirmado, acceso liberado, revocación anterior limpiada y licencia registrada.",
+    access_created: Boolean(result?.access_created),
+    payment_created: Boolean(result?.payment_created),
+    revocation_preserved: result?.revocation_preserved !== false,
+    previous_revocation_preserved: true,
+    message: result?.payment_created
+      ? "Pago confirmado, acceso liberado, historial de revocación preservado y licencia registrada."
+      : "Pago ya registrado. Acceso sincronizado, historial de revocación preservado y solicitud completada.",
   });
 }

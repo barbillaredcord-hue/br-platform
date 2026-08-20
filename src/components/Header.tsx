@@ -41,10 +41,13 @@ export function Header() {
       <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 lg:hidden">
-            <LogoMark compact />
+            <LogoMark compact decorative />
             <span className="font-semibold">Beat Room</span>
           </div>
-          <div className="hidden text-2xl font-black lg:block">B.R</div>
+          <div className="hidden items-center gap-3 lg:flex">
+            <LogoMark compact decorative />
+            <span className="text-xl font-black">B.R</span>
+          </div>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-end">

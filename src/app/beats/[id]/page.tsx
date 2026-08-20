@@ -99,9 +99,9 @@ export default async function BeatPage({ params }: BeatPageProps) {
 
             {accessRevocations.length > 0 ? (
               <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-300/10 p-3">
-                <p className="text-xs font-bold uppercase text-amber-200">Revocaciones registradas</p>
+                <p className="text-xs font-bold uppercase text-amber-200">Historial de revocaciones</p>
                 <p className="mt-2 text-sm leading-5 text-zinc-300">
-                  Este beat tiene acceso(s) revocado(s) registrados por B.R. Los usuarios afectados solo conservan reproducción preview y las descargas protegidas quedan bloqueadas.
+                  Este beat registra {accessRevocations.length} evento(s) histórico(s) de revocación. El acceso vigente de cada usuario se determina exclusivamente por beat_access; un acceso restaurado permanece activo.
                 </p>
               </div>
             ) : null}

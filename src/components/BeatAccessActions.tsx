@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { Heart } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { userCanAccessBeat } from "@/lib/access";
+import { resolveAccessDomainState } from "@/lib/access-domain";
+import { resolveBeatPermissions } from "@/lib/beat-permissions";
+import { getCurrentUserPaidBeatIds } from "@/lib/payment-entitlements";
 import { isBeatSaved, SAVED_BEATS_EVENT, toggleSavedBeatId } from "@/lib/saved-beats";
+import { acknowledgeAccessRevocation, getAccessRequestForBeat, getUserAccessRevocations, type AccessRevocationRow } from "@/lib/supabase/queries";
 import DownloadBeatButton from "./DownloadBeatButton";
 import DownloadLicenseButton from "./DownloadLicenseButton";
 import { PlayButton } from "./PlayButton";
@@ -19,73 +23,40 @@ function getPreviewSeconds(beat: Beat) {
   return Math.min(30, Math.max(15, Math.round(seconds)));
 }
 
-function userHasRevokedBeatAccess(currentUser: ReturnType<typeof useUser>["currentUser"], beat: Beat) {
-  if (!currentUser?.id) {
-    return false;
-  }
+function revocationMatchesBeat(revocation: AccessRevocationRow, userId: string, beatId: string) {
+  const revokedBeat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
 
-  const accessBeat = beat as Beat & {
-    revokedUserIds?: string[] | null;
-    revokedAccessUserIds?: string[] | null;
-    accessRevocations?: Array<{ userId?: string | null; user_id?: string | null }> | null;
-    accessStatus?: string | null;
-    accessRequestStatus?: string | null;
-    requestStatus?: string | null;
-  };
-
-  const revokedIds = [
-    ...(accessBeat.revokedUserIds ?? []),
-    ...(accessBeat.revokedAccessUserIds ?? []),
-    ...(accessBeat.accessRevocations ?? []).map((revocation) => revocation.userId ?? revocation.user_id ?? ""),
-  ].filter(Boolean);
-
-  const statusValues = [accessBeat.accessStatus, accessBeat.accessRequestStatus, accessBeat.requestStatus]
-    .filter(Boolean)
-    .map((status) => String(status).toLowerCase());
-
-  return revokedIds.includes(currentUser.id) || statusValues.some((status) => status.includes("revok") || status.includes("reject") || status.includes("rechaz") || status.includes("denied"));
-}
-
-function dismissedBeatRevocationKey(userId?: string | null) {
-  return `br:dismissed-revocations:${userId || "guest"}`;
-}
-
-function getDismissedBeatRevocations(userId?: string | null) {
-  if (typeof window === "undefined") {
-    return [] as string[];
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(dismissedBeatRevocationKey(userId));
-    const parsedValue = rawValue ? JSON.parse(rawValue) : [];
-
-    return Array.isArray(parsedValue) ? parsedValue.map(String) : [];
-  } catch {
-    return [] as string[];
-  }
-}
-
-function saveDismissedBeatRevocations(userId: string | null | undefined, beatIds: string[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(dismissedBeatRevocationKey(userId), JSON.stringify(Array.from(new Set(beatIds))));
+  return revocation.user_id === userId && (revocation.beat_id === beatId || revokedBeat?.slug === beatId);
 }
 
 export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }) {
   const { currentUser, isAuthenticated, isEmailConfirmed } = useUser();
   const isAdmin = currentUser?.role === "admin";
-  const hasRevokedAccess = userHasRevokedBeatAccess(currentUser, beat);
-  const hasBeatAccess = !hasRevokedAccess && userCanAccessBeat(currentUser, beat);
+  const hasBeatAccess = userCanAccessBeat(currentUser, beat);
+  const savedBeatId = beat.dbId ?? beat.id;
+  const [paidBeatIds, setPaidBeatIds] = useState<Set<string> | null>(null);
   const isPublicPlayback = beat.playbackVisibility === "public";
-  const hasFullPlayback = isAdmin || hasBeatAccess || isPublicPlayback;
+  const hasConfirmedPayment = paidBeatIds?.has(savedBeatId) === true;
+  const permissions = resolveBeatPermissions({
+    isAuthenticated,
+    isAdmin,
+    hasBeatAccess,
+    isPublicPlayback,
+    hasConfirmedPayment,
+  });
+  const hasFullPlayback = permissions.playbackMode === "full";
   const canPreviewPrivate = Boolean(currentUser && isEmailConfirmed);
   const previewSeconds = getPreviewSeconds(beat);
 
-  const savedBeatId = beat.dbId ?? beat.id;
   const [isSaved, setIsSaved] = useState(false);
-  const [dismissedRevokedBeatIds, setDismissedRevokedBeatIds] = useState<string[]>([]);
+  const [revocation, setRevocation] = useState<AccessRevocationRow | null>(null);
+  const [visitRevocation, setVisitRevocation] = useState<AccessRevocationRow | null>(null);
+  const acknowledgedRevocationIdsRef = useRef<Set<string>>(new Set());
+  const accessState = resolveAccessDomainState({
+    hasActiveAccess: hasBeatAccess,
+    revocationCount: revocation ? 1 : 0,
+  });
+  const hasRevokedAccess = accessState.status === "revoked";
 
   useEffect(() => {
     const syncSavedState = () => {
@@ -104,40 +75,91 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
   }, [currentUser?.id, savedBeatId]);
 
   useEffect(() => {
-    const syncDismissedRevocations = () => {
-      setDismissedRevokedBeatIds(getDismissedBeatRevocations(currentUser?.id));
-    };
+    let cancelled = false;
 
-    syncDismissedRevocations();
+    async function loadRevocation() {
+      if (!currentUser?.id) {
+        setRevocation(null);
+        setVisitRevocation(null);
+        return;
+      }
 
-    window.addEventListener("storage", syncDismissedRevocations);
-    window.addEventListener("br:revocation-dismissed", syncDismissedRevocations);
+      const [request, userRevocations] = await Promise.all([
+        getAccessRequestForBeat(currentUser.id, savedBeatId),
+        getUserAccessRevocations(currentUser.id),
+      ]);
+      const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, currentUser.id, savedBeatId)) ?? null;
+
+      if (cancelled) {
+        return;
+      }
+
+      const currentRevocation = request?.status === "rejected" ? null : foundRevocation;
+      setRevocation(currentRevocation);
+
+      if (!currentRevocation || hasBeatAccess) {
+        setVisitRevocation(null);
+        return;
+      }
+
+      const revocationId = String(currentRevocation.id);
+
+      if (!currentRevocation.acknowledged_by_user) {
+        setVisitRevocation(currentRevocation);
+
+        if (!acknowledgedRevocationIdsRef.current.has(revocationId)) {
+          acknowledgedRevocationIdsRef.current.add(revocationId);
+          await acknowledgeAccessRevocation(currentUser.id, revocationId);
+        }
+      } else {
+        setVisitRevocation(null);
+      }
+    }
+
+    const refresh = () => void loadRevocation();
+
+    refresh();
+    window.addEventListener("br-access-state-changed", refresh);
+    window.addEventListener("br-access-requests-refresh", refresh);
 
     return () => {
-      window.removeEventListener("storage", syncDismissedRevocations);
-      window.removeEventListener("br:revocation-dismissed", syncDismissedRevocations);
+      cancelled = true;
+      window.removeEventListener("br-access-state-changed", refresh);
+      window.removeEventListener("br-access-requests-refresh", refresh);
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, hasBeatAccess, savedBeatId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPaymentEntitlements() {
+      if (!currentUser?.id || !hasBeatAccess || isAdmin) {
+        setPaidBeatIds(new Set());
+        return;
+      }
+
+      const paidIds = await getCurrentUserPaidBeatIds();
+
+      if (!cancelled) {
+        setPaidBeatIds(paidIds);
+      }
+    }
+
+    void loadPaymentEntitlements();
+    window.addEventListener("br-commercial-activity-refresh", loadPaymentEntitlements);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("br-commercial-activity-refresh", loadPaymentEntitlements);
+    };
+  }, [currentUser?.id, hasBeatAccess, isAdmin]);
 
   const toggleSaved = () => {
     const nextIds = toggleSavedBeatId(savedBeatId, currentUser?.id);
     setIsSaved(nextIds.includes(savedBeatId));
   };
 
-  const dismissRevokedNotice = () => {
-    const beatIdentity = beat as Beat & { dbId?: string | null; slug?: string | null };
-    const idsToDismiss = [savedBeatId, beatIdentity.dbId, beatIdentity.id, beatIdentity.slug]
-      .filter(Boolean)
-      .map(String);
-    const nextIds = Array.from(new Set([...dismissedRevokedBeatIds, ...idsToDismiss]));
-
-    setDismissedRevokedBeatIds(nextIds);
-    saveDismissedBeatRevocations(currentUser?.id, nextIds);
-    window.dispatchEvent(new Event("br:revocation-dismissed"));
-  };
-
-  const beatIdentity = beat as Beat & { slug?: string | null };
-  const showRevokedNotice = hasRevokedAccess && !dismissedRevokedBeatIds.includes(savedBeatId) && !dismissedRevokedBeatIds.includes(String(beat.id)) && !dismissedRevokedBeatIds.includes(String(beatIdentity.slug ?? ""));
+  const showRevokedNotice = hasRevokedAccess && Boolean(visitRevocation);
 
   const saveButton = (
     <button
@@ -161,17 +183,12 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
             </PlayButton>
             {saveButton}
             {showRevokedNotice ? (
-              <>
-                <span className="inline-flex min-h-11 items-center rounded-md border border-rose-300/30 px-5 text-sm font-bold text-rose-100">
-                  Acceso completo revocado
-                </span>
-                <button type="button" onClick={dismissRevokedNotice} className="inline-flex min-h-11 items-center rounded-md border border-white/10 px-5 text-sm font-bold text-zinc-200 transition hover:border-rose-300 hover:text-rose-100">
-                  Ya lo vi
-                </button>
-              </>
-            ) : (
-              <RequestAccessButton beatId={beat.dbId ?? beat.id} />
-            )}
+              <div className="rounded-md border border-rose-300/30 bg-rose-300/10 px-5 py-3 text-sm text-rose-100">
+                <p className="font-bold">Acceso revocado</p>
+                <p className="mt-1 text-xs text-zinc-300">Motivo: {visitRevocation?.reason || "Sin motivo registrado"}</p>
+              </div>
+            ) : null}
+            <RequestAccessButton beatId={beat.dbId ?? beat.id} hasBeatAccess={hasBeatAccess} isPublicPlayback={isPublicPlayback} />
           </>
         ) : hasFullPlayback ? (
           <>
@@ -179,7 +196,7 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
               {isAdmin ? "Escuchar Full" : "Escuchar Beat Completo"}
             </PlayButton>
             {saveButton}
-            {!isAdmin && hasBeatAccess ? (
+            {!isAdmin && permissions.canDownload && permissions.canLicense ? (
               <>
                 <DownloadBeatButton
                   beatId={beat.dbId ?? beat.id}
@@ -196,6 +213,27 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
                   Descargar licencia
                 </DownloadLicenseButton>
               </>
+            ) : null}
+            {!isAdmin && hasBeatAccess && !hasConfirmedPayment ? (
+              <p className="max-w-md text-sm text-amber-100">
+                {paidBeatIds === null
+                  ? "Validando el pago para habilitar descarga y licencia..."
+                  : "Acceso Full habilitado. La descarga y la licencia estarán disponibles cuando B.R confirme tu pago."}
+              </p>
+            ) : null}
+            {!isAdmin && !hasBeatAccess ? (
+              isAuthenticated ? (
+                <RequestAccessButton beatId={beat.dbId ?? beat.id} hasBeatAccess={hasBeatAccess} isPublicPlayback={isPublicPlayback} />
+              ) : (
+                <>
+                  <Link href="/login" className="inline-flex h-11 items-center rounded-md border border-cyan-300/30 px-5 text-sm font-bold text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-300/10">
+                    Iniciar sesión
+                  </Link>
+                  <Link href="/register" className="inline-flex h-11 items-center rounded-md border border-white/10 px-5 text-sm font-bold text-zinc-200 transition hover:border-cyan-300 hover:text-cyan-200">
+                    Registrarse
+                  </Link>
+                </>
+              )
             ) : null}
           </>
         ) : isPublicPlayback ? (
@@ -214,7 +252,7 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
                 </Link>
               </>
             ) : (
-              <RequestAccessButton beatId={beat.dbId ?? beat.id} />
+              <RequestAccessButton beatId={beat.dbId ?? beat.id} hasBeatAccess={hasBeatAccess} isPublicPlayback={isPublicPlayback} />
             )}
           </>
         ) : !canPreviewPrivate ? (
@@ -238,7 +276,7 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
               Escuchar Preview {previewSeconds}s
             </PlayButton>
             {saveButton}
-            <RequestAccessButton beatId={beat.dbId ?? beat.id} />
+            <RequestAccessButton beatId={beat.dbId ?? beat.id} hasBeatAccess={hasBeatAccess} isPublicPlayback={isPublicPlayback} />
           </>
         )}
       </div>
@@ -250,9 +288,9 @@ export function BeatAccessActions({ beat, queue }: { beat: Beat; queue: Beat[] }
             : showRevokedNotice
               ? "Tu acceso completo a este beat fue revocado. Solo puedes escuchar el preview."
               : hasRevokedAccess
-                ? `Preview ${previewSeconds}s disponible. Puedes pedir revisión si necesitas aclarar el acceso.`
+                ? `Preview ${previewSeconds}s disponible. Puedes solicitar acceso comercial nuevamente.`
                 : isPublicPlayback && !hasBeatAccess
-                ? "Escucha preview disponible. Solicita acceso para escuchar completo, descargar MP3 o licencia."
+                ? "Escucha el beat completo. Solicita acceso comercial para descargar MP3 y licencia."
                 : !canPreviewPrivate
                   ? "Inicia sesión o confirma tu email para escuchar preview de beats privados."
                   : "Pagos coordinados directamente con B.R. El acceso completo se habilita manualmente después de confirmar la compra."}

@@ -4,13 +4,20 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown, MessageCircle, Save, X } from "lucide-react";
 import type { AccessRequestStatus } from "@/data/accessRequests";
-import { getAccessRequests, getUserAccessRevocations, markAccessRequestContacted, rejectAccessRequest, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
+import { getAccessRequestPaymentState, summarizeAccessRequests } from "@/lib/access-request-admin";
+import { getCurrentAccessLabel, resolveAccessDomainState } from "@/lib/access-domain";
+import { notifyDomainChange } from "@/lib/domain-events";
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
+import { acceptAccessReview, approveAccessRequest, getAccessRequests, getAccessRevocations, getManualPayments, getUserBeatAccess, markAccessRequestContacted, rejectAccessRequest, rejectAccessReview, type AccessRequestRow, type AccessRevocationRow, type ManualPaymentRow } from "@/lib/supabase/queries";
 
 const statusLabels: Record<AccessRequestStatus, string> = {
   pending: "Pendiente",
   contacted: "Contactado",
   payment_pending: "Pago pendiente",
   paid: "Pagado",
+  review_pending: "Revisión pendiente",
+  review_approved: "Revisión aceptada",
+  review_rejected: "Revisión rechazada",
   fulfilled: "Completada",
   approved: "Aprobada",
   rejected: "Rechazada",
@@ -22,6 +29,9 @@ const statusStyles: Record<AccessRequestStatus, string> = {
   contacted: "border-sky-300/30 text-sky-200",
   payment_pending: "border-amber-300/30 text-amber-200",
   paid: "border-emerald-300/30 text-emerald-200",
+  review_pending: "border-violet-300/30 text-violet-200",
+  review_approved: "border-cyan-300/30 text-cyan-100",
+  review_rejected: "border-red-300/30 text-red-200",
   fulfilled: "border-emerald-300/30 text-emerald-200",
   approved: "border-emerald-300/30 text-emerald-200",
   rejected: "border-red-300/30 text-red-200",
@@ -88,11 +98,23 @@ function getRequestBeat(request: AccessRequestRow) {
 }
 
 function getRequestDate(request: AccessRequestRow) {
-  return request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha";
+  return formatLocalDateTime(
+    request.review_rejected_at ??
+      request.review_requested_at ??
+      request.rejected_at ??
+      request.contacted_at ??
+      request.created_at,
+  );
 }
 
 function getRequestUpdatedDate(request: AccessRequestRow) {
-  return request.updated_at ? new Date(request.updated_at).toLocaleDateString("es-MX") : getRequestDate(request);
+  return formatLocalDateTime(
+    request.review_rejected_at ??
+      request.rejected_at ??
+      request.responded_at ??
+      request.updated_at ??
+      request.created_at,
+  );
 }
 
 function isClosedRequest(request: AccessRequestRow, revocation?: AccessRevocationRow | null) {
@@ -105,14 +127,25 @@ function getRequestMessage(request: AccessRequestRow) {
 }
 
 function revocationMatchesRequest(revocation: AccessRevocationRow, request: AccessRequestRow) {
-  const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
-
-  return revocation.user_id === request.user_id && (revocation.beat_id === request.beat_id || beat?.slug === request.beat_id);
+  return revocation.user_id === request.user_id && revocation.beat_id === request.beat_id;
 }
 
 
 function getRevocationDate(revocation: AccessRevocationRow) {
-  return revocation.revoked_at ? new Date(revocation.revoked_at).toLocaleDateString("es-MX") : "Sin fecha";
+  return formatLocalDateTime(revocation.revoked_at);
+}
+
+function getRevocationProfile(revocation: AccessRevocationRow) {
+  return Array.isArray(revocation.profiles) ? revocation.profiles[0] : revocation.profiles;
+}
+
+function getRevocationAdmin(revocation: AccessRevocationRow) {
+  return Array.isArray(revocation.revoked_by_profile) ? revocation.revoked_by_profile[0] : revocation.revoked_by_profile;
+}
+
+function getRevocationBeat(revocation: AccessRevocationRow) {
+  const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
+  return beat?.title || beat?.slug || revocation.beat_id;
 }
 
 function loadStoredStatusNotes() {
@@ -147,23 +180,41 @@ export function AccessRequestsTable() {
   const router = useRouter();
   const [items, setItems] = useState<AccessRequestRow[]>([]);
   const [revocations, setRevocations] = useState<AccessRevocationRow[]>([]);
+  const [payments, setPayments] = useState<ManualPaymentRow[]>([]);
+  const [activeAccessKeys, setActiveAccessKeys] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, PaymentDraft>>({});
   const [processingPaymentId, setProcessingPaymentId] = useState("");
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [paymentOpenIds, setPaymentOpenIds] = useState<string[]>([]);
   const [statusNotes, setStatusNotes] = useState<Record<string, string>>({});
+  const [rejectionOpenIds, setRejectionOpenIds] = useState<string[]>([]);
+  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
+  const [reviewRejectionOpenIds, setReviewRejectionOpenIds] = useState<string[]>([]);
+  const [reviewRejectionReasons, setReviewRejectionReasons] = useState<Record<string, string>>({});
+  const [pendingActionId, setPendingActionId] = useState("");
   const [savedStatusNoteId, setSavedStatusNoteId] = useState("");
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
   const [isRevokedOpen, setIsRevokedOpen] = useState(false);
 
   async function refresh() {
-    const requests = await getAccessRequests();
-    const userIds = Array.from(new Set(requests.map((request) => request.user_id).filter(Boolean)));
-    const revocationGroups = await Promise.all(userIds.map((userId) => getUserAccessRevocations(userId)));
+    const [requests, allRevocations, allPayments] = await Promise.all([
+      getAccessRequests(),
+      getAccessRevocations(),
+      getManualPayments(),
+    ]);
+    const userIds = Array.from(new Set([
+      ...requests.map((request) => request.user_id),
+      ...allRevocations.map((revocation) => revocation.user_id),
+    ].filter(Boolean)));
+    const accessGroups = await Promise.all(
+      userIds.map(async (userId) => ({ userId, beatIds: await getUserBeatAccess(userId) })),
+    );
 
     setItems(requests);
-    setRevocations(revocationGroups.flat());
+    setRevocations(allRevocations);
+    setPayments(allPayments);
+    setActiveAccessKeys(new Set(accessGroups.flatMap(({ userId, beatIds }) => beatIds.map((beatId) => `${userId}:${beatId}`))));
   }
 
   function updateStatusNote(requestId: string, note: string) {
@@ -190,16 +241,70 @@ export function AccessRequestsTable() {
   }
 
   async function rejectRequest(id: string) {
-    const result = await rejectAccessRequest(id);
-    if (result.ok) {
-      setItems((current) => current.map((item): AccessRequestRow => (item.id === id ? { ...item, status: "rejected", updated_at: new Date().toISOString() } : item)));
-    }
+    const reason = rejectionReasons[id]?.trim() ?? "";
+    setPendingActionId(`reject-${id}`);
+    const result = await rejectAccessRequest(id, reason);
     setMessage(result.ok ? (result.message ?? "Solicitud rechazada.") : result.message ?? "No se pudo actualizar la información. Intenta de nuevo.");
+
+    if (result.ok) {
+      setRejectionOpenIds((current) => current.filter((requestId) => requestId !== id));
+      setRejectionReasons((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      await refresh();
+      router.refresh();
+    }
+
+    setPendingActionId("");
+  }
+
+  async function rejectReview(id: string) {
+    const reason = reviewRejectionReasons[id]?.trim() ?? "";
+    setPendingActionId(`reject-review-${id}`);
+    const result = await rejectAccessReview(id, reason);
+
+    setMessage(result.message ?? (result.ok ? "Revisión rechazada." : "No se pudo rechazar la revisión."));
+
+    if (result.ok) {
+      setReviewRejectionOpenIds((current) => current.filter((requestId) => requestId !== id));
+      setReviewRejectionReasons((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      await refresh();
+      router.refresh();
+    }
+
+    setPendingActionId("");
+  }
+
+  async function approveRequest(id: string, successMessage: string) {
+    setPendingActionId(`approve-${id}`);
+    const result = await approveAccessRequest(id);
+    setMessage(result.ok ? successMessage : result.message ?? "No se pudo aprobar la solicitud.");
 
     if (result.ok) {
       await refresh();
       router.refresh();
     }
+
+    setPendingActionId("");
+  }
+
+  async function acceptReview(id: string) {
+    setPendingActionId(`accept-review-${id}`);
+    const result = await acceptAccessReview(id);
+    setMessage(result.message ?? (result.ok ? "Revisión aceptada" : "No se pudo aceptar la revisión."));
+
+    if (result.ok) {
+      await refresh();
+      router.refresh();
+    }
+
+    setPendingActionId("");
   }
 
   function getPaymentDraft(requestId: string) {
@@ -284,9 +389,7 @@ export function AccessRequestsTable() {
           });
           setPaymentOpenIds((current) => current.filter((id) => id !== request.id));
           setMessage(payload?.message ?? "Pago ya registrado. Solicitud marcada como completada.");
-          window.dispatchEvent(new Event("br-access-state-changed"));
-          window.dispatchEvent(new Event("br-access-requests-refresh"));
-          window.dispatchEvent(new Event("br-commercial-activity-refresh"));
+          notifyDomainChange("manual-payment");
           await refresh();
           router.refresh();
           return;
@@ -304,9 +407,7 @@ export function AccessRequestsTable() {
       });
       setPaymentOpenIds((current) => current.filter((id) => id !== request.id));
       setMessage(payload.message ?? "Pago confirmado, acceso liberado y licencia registrada.");
-      window.dispatchEvent(new Event("br-access-state-changed"));
-      window.dispatchEvent(new Event("br-access-requests-refresh"));
-      window.dispatchEvent(new Event("br-commercial-activity-refresh"));
+      notifyDomainChange("manual-payment");
       await refresh();
       router.refresh();
     } catch {
@@ -336,7 +437,7 @@ export function AccessRequestsTable() {
         item.id === request.id
           ? {
               ...item,
-              status: "payment_pending",
+              status: "contacted",
               message: `${item.message || ""}\n[contactado]`.trim(),
               updated_at: new Date().toISOString(),
               contacted_at: new Date().toISOString(),
@@ -346,8 +447,8 @@ export function AccessRequestsTable() {
     );
     const text = encodeURIComponent("Hola, te contacto de B.R por tu solicitud de acceso a este beat.");
     window.open(`https://wa.me/${phone}?text=${text}`, "_blank", "noopener,noreferrer");
-    setMessage(result.message ?? "Cliente contactado. Solicitud marcada como pago pendiente.");
-    window.dispatchEvent(new Event("br-access-requests-refresh"));
+    setMessage(result.message ?? "Cliente contactado. La solicitud sigue pendiente de aprobación.");
+    notifyDomainChange("requests");
     await refresh();
     router.refresh();
   }
@@ -375,21 +476,21 @@ export function AccessRequestsTable() {
     };
   }, [pathname, router]);
 
-  function findRevocationForRequest(request: AccessRequestRow) {
-    return revocations.find((revocation) => revocationMatchesRequest(revocation, request)) ?? null;
-  }
-
-  const activeItems = items
-    .filter((request) => !findRevocationForRequest(request) && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid"))
+  const paidPairKeys = new Set(
+    payments
+      .filter((payment) => payment.user_id && payment.beat_id)
+      .map((payment) => `${payment.user_id}:${payment.beat_id}`),
+  );
+  const requestSummary = summarizeAccessRequests(items, paidPairKeys);
+  const activeItems = requestSummary.active
+    .filter((request) => request.status !== "review_pending")
     .sort((a, b) => new Date(a.created_at ?? a.updated_at ?? 0).getTime() - new Date(b.created_at ?? b.updated_at ?? 0).getTime());
 
-  const revokedItems = items
-    .filter((request) => Boolean(findRevocationForRequest(request)) || request.status === "rejected")
+  const historyItems = requestSummary.history
+    .filter((request) => !["review_approved", "review_rejected"].includes(request.status))
     .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
-
-  const historyItems = items
-    .filter((request) => !activeItems.some((activeRequest) => activeRequest.id === request.id))
-    .filter((request) => !revokedItems.some((revokedRequest) => revokedRequest.id === request.id))
+  const reviewItems = items
+    .filter((request) => ["review_pending", "review_approved", "review_rejected"].includes(request.status))
     .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
 
 
@@ -410,39 +511,56 @@ export function AccessRequestsTable() {
       <div className="grid gap-1.5">
         {requests.map((request) => {
           const profile = getRequestProfile(request);
+          const payment = payments.find((candidate) => candidate.user_id === request.user_id && candidate.beat_id === request.beat_id);
+          const paymentState = getAccessRequestPaymentState(request, paidPairKeys);
           const expanded = expandedIds.includes(request.id);
           const draft = getPaymentDraft(request.id);
-          const revocation = findRevocationForRequest(request);
-          const isRejectedWithoutRevocation = !revocation && request.status === "rejected";
-          const canOpenPayment = !revocation && !isRejectedWithoutRevocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid");
+          const historicalRevocations = revocations.filter((revocation) => revocationMatchesRequest(revocation, request));
+          const historicalRevocation = historicalRevocations[0] ?? null;
+          const accessState = resolveAccessDomainState({
+            hasActiveAccess: activeAccessKeys.has(`${request.user_id}:${request.beat_id}`),
+            revocationCount: historicalRevocations.length,
+          });
+          const isRejectedRequest = request.status === "rejected";
+          const isReviewPending = request.status === "review_pending";
+          const isReviewApproved = request.status === "review_approved";
+          const isNormalRequest = request.status === "pending" || request.status === "contacted" || request.status === "payment_pending" || request.status === "paid";
+          const canContact = request.status === "pending" || request.status === "contacted";
+          const canApprove = request.status === "pending" || request.status === "contacted" || request.status === "paid";
+          const canOpenPayment = request.status === "payment_pending" || request.status === "paid";
           const showPaymentForm = canOpenPayment && paymentOpenIds.includes(request.id);
-          const showReject = !revocation && !isRejectedWithoutRevocation && (request.status === "pending" || request.status === "contacted" || request.status === "payment_pending");
+          const showReject = !isRejectedRequest && isNormalRequest;
+          const rejectionReasonLength = rejectionReasons[request.id]?.trim().length ?? 0;
+          const reviewRejectionReasonLength = reviewRejectionReasons[request.id]?.trim().length ?? 0;
 
           return (
-            <article key={request.id} className={`rounded-lg border p-2 ${revocation || isRejectedWithoutRevocation ? "border-amber-300/20 bg-amber-300/10" : "border-white/10 bg-[#15181c]"}`}>
+            <article key={request.id} className={`rounded-lg border p-2 ${isRejectedRequest ? "border-red-300/20 bg-red-300/10" : "border-white/10 bg-[#15181c]"}`}>
               <div className="grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_auto] md:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-bold text-white">{getRequestUser(request)}</p>
-                    {isContacted(request) && !revocation && !isRejectedWithoutRevocation ? <span className="rounded-full border border-emerald-300/30 px-2 py-0.5 text-[11px] font-bold text-emerald-200">Contactado</span> : null}
+                    <p className="break-words text-sm font-bold text-white">{getRequestUser(request)}</p>
+                    {isContacted(request) && !isRejectedRequest ? <span className="rounded-full border border-emerald-300/30 px-2 py-0.5 text-[11px] font-bold text-emerald-200">Contactado</span> : null}
                   </div>
-                  <p className="mt-1 truncate text-xs text-zinc-500">{profile?.email || "Sin email"}</p>
+                  <p className="mt-1 break-words text-xs text-zinc-500">{profile?.email || "Sin email"}</p>
                 </div>
 
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-zinc-200">{getRequestBeat(request)}</p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {isClosedRequest(request, revocation) ? getRequestUpdatedDate(request) : getRequestDate(request)} · {getRequestPhone(request)}
+                  <p className="break-words text-sm font-semibold text-zinc-200">{getRequestBeat(request)}</p>
+                  <p className="mt-1 break-words text-xs leading-5 text-zinc-500">
+                    {isClosedRequest(request) ? getRequestUpdatedDate(request) : getRequestDate(request)} · {getRequestPhone(request)}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                  <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${revocation || isRejectedWithoutRevocation ? revokedStatusStyle : statusStyles[request.status]}`}>
-                    {revocation || isRejectedWithoutRevocation ? "Revocada" : statusLabels[request.status]}
+                  <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${statusStyles[request.status]}`}>
+                    {isRejectedRequest ? "Solicitud rechazada" : statusLabels[request.status]}
                   </span>
-                  {revocation || isRejectedWithoutRevocation ? (
-                    <span className="inline-flex rounded-md border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-xs font-bold text-amber-100">
-                      Sólo preview / revisión
+                  <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${accessState.hasCurrentAccess ? "border-emerald-300/30 text-emerald-100" : accessState.status === "revoked" ? revokedStatusStyle : "border-zinc-400/30 text-zinc-300"}`}>
+                    {getCurrentAccessLabel(accessState)}
+                  </span>
+                  {!isReviewPending && !isReviewApproved ? (
+                    <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-bold ${paymentState === "paid" ? "border-emerald-300/30 text-emerald-100" : paymentState === "pending" ? "border-amber-300/30 text-amber-100" : "border-zinc-400/30 text-zinc-300"}`}>
+                      {paymentState === "paid" ? "Pago confirmado" : paymentState === "pending" ? "Pago pendiente" : "Sin pago confirmado"}
                     </span>
                   ) : null}
                   <button type="button" onClick={() => toggleExpanded(request.id)} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1.5 text-xs font-bold text-zinc-200 hover:border-cyan-300/40 hover:text-cyan-200">
@@ -451,6 +569,18 @@ export function AccessRequestsTable() {
                   </button>
                 </div>
               </div>
+
+              {isRejectedRequest || historicalRevocations.length > 0 ? (
+                <div className={`mt-2 grid gap-1 rounded-md border p-2.5 text-xs ${historicalRevocations.length > 0 ? "border-amber-300/20 bg-amber-300/5" : "border-red-300/20 bg-red-300/5"}`}>
+                  <p className="whitespace-pre-wrap break-words leading-5 text-zinc-300">
+                    <span className="font-bold text-zinc-200">Motivo:</span>{" "}
+                    {historicalRevocation?.reason || request.rejection_reason || request.review_rejection_reason || "Sin motivo registrado"}
+                  </p>
+                  <p className="break-words text-zinc-500">
+                    Revocaciones: {historicalRevocations.length} · Fecha relevante: {historicalRevocation ? getRevocationDate(historicalRevocation) : getRequestUpdatedDate(request)}
+                  </p>
+                </div>
+              ) : null}
 
               {expanded ? (
                 <div className="mt-3 grid gap-3 rounded-md border border-white/10 bg-black/20 p-3 text-xs text-zinc-400 md:grid-cols-2">
@@ -462,30 +592,31 @@ export function AccessRequestsTable() {
                   <div>
                     <p className="font-bold text-zinc-300">Mensaje</p>
                     <p className="mt-1 whitespace-pre-wrap leading-5">{getRequestMessage(request)}</p>
+                    <p className="mt-3 font-bold text-zinc-300">Pago</p>
+                    {payment ? (
+                      <p className="mt-1 break-words leading-5">
+                        {payment.amount} {payment.currency} · {payment.payment_method || "Método no especificado"} · {formatLocalDateTime(payment.created_at)}
+                      </p>
+                    ) : (
+                      <p className="mt-1">{paymentState === "pending" ? "Pendiente de confirmación manual" : "Sin pago confirmado"}</p>
+                    )}
                   </div>
-                  {revocation ? (
+                  {historicalRevocation ? (
                     <div className="rounded-md border border-amber-300/20 bg-amber-300/10 p-3 md:col-span-2">
-                      <p className="font-bold text-amber-100">Revocación registrada</p>
-                      <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Motivo: {revocation.reason}</p>
-                      <p className="mt-1 text-zinc-500">Fecha: {getRevocationDate(revocation)}</p>
+                      <p className="font-bold text-amber-100">Historial de revocación · {getCurrentAccessLabel(accessState)}</p>
+                      <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Motivo: {historicalRevocation.reason}</p>
+                      <p className="mt-1 text-zinc-500">Fecha: {getRevocationDate(historicalRevocation)}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">MP3 revocado</span>
-                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Licencia revocada</span>
-                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Sólo preview / revisión</span>
+                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">{historicalRevocations.length} evento(s) histórico(s)</span>
                       </div>
                     </div>
-                  ) : isRejectedWithoutRevocation ? (
-                    <div className="rounded-md border border-amber-300/20 bg-amber-300/10 p-3 md:col-span-2">
-                      <p className="font-bold text-amber-100">Solicitud rechazada</p>
-                      <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Esta solicitud fue rechazada antes de registrar una revocación formal.</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">MP3 bloqueado</span>
-                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Licencia bloqueada</span>
-                        <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] font-bold text-amber-100">Sólo preview / revisión</span>
-                      </div>
+                  ) : isRejectedRequest ? (
+                    <div className="rounded-md border border-red-300/20 bg-red-300/10 p-3 md:col-span-2">
+                      <p className="font-bold text-red-100">Solicitud rechazada</p>
+                      <p className="mt-1 whitespace-pre-wrap leading-5 text-zinc-300">Motivo: {request.rejection_reason || "Sin motivo registrado"}</p>
                     </div>
                   ) : null}
-                  {isClosedRequest(request, revocation) ? (
+                  {isClosedRequest(request) ? (
                     <div className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3 md:col-span-2">
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                         <div>
@@ -515,8 +646,14 @@ export function AccessRequestsTable() {
                 </div>
               ) : null}
 
+              {isReviewApproved ? (
+                <p className="mt-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-2.5 text-xs font-semibold text-cyan-100">
+                  El acceso aún no ha sido restaurado.
+                </p>
+              ) : null}
+
               <div className="mt-2 flex flex-wrap justify-end gap-2">
-                {!revocation && !isRejectedWithoutRevocation ? (
+                {canContact ? (
                   <button type="button" onClick={() => void contactRequest(request)} className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-300/10">
                     <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
                     Contactar
@@ -528,13 +665,148 @@ export function AccessRequestsTable() {
                     {showPaymentForm ? "Cerrar pago" : "Pago"}
                   </button>
                 ) : null}
+                {canApprove ? (
+                  <button
+                    type="button"
+                    onClick={() => void approveRequest(request.id, "Solicitud aprobada. Pago pendiente.")}
+                    disabled={Boolean(pendingActionId)}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 px-3 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    {pendingActionId === `approve-${request.id}` ? "Aprobando..." : "Aprobar · pago pendiente"}
+                  </button>
+                ) : null}
                 {showReject ? (
-                  <button type="button" onClick={() => void rejectRequest(request.id)} className="inline-flex items-center gap-1 rounded-full border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10">
+                  <button
+                    type="button"
+                    onClick={() => setRejectionOpenIds((current) => current.includes(request.id) ? current : [...current, request.id])}
+                    disabled={Boolean(pendingActionId)}
+                    className="inline-flex items-center gap-1 rounded-full border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
-                    Rechazar
+                    Rechazar solicitud
+                  </button>
+                ) : null}
+                {isReviewPending ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void acceptReview(request.id)}
+                      disabled={Boolean(pendingActionId)}
+                      className="inline-flex items-center gap-1 rounded-full border border-cyan-300/40 px-3 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      {pendingActionId === `accept-review-${request.id}` ? "Aceptando..." : "Aceptar revisión"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewRejectionOpenIds((current) => current.includes(request.id) ? current : [...current, request.id])}
+                      disabled={Boolean(pendingActionId)}
+                      className="inline-flex items-center gap-1 rounded-full border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      Rechazar revisión
+                    </button>
+                  </>
+                ) : null}
+                {isReviewApproved ? (
+                  <button
+                    type="button"
+                    onClick={() => void approveRequest(request.id, "Acceso restaurado correctamente.")}
+                    disabled={Boolean(pendingActionId)}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-300/40 px-3 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    {pendingActionId === `approve-${request.id}` ? "Restaurando..." : "Dar acceso de nuevo"}
                   </button>
                 ) : null}
               </div>
+
+              {isNormalRequest && rejectionOpenIds.includes(request.id) ? (
+                <div className="mt-2 grid gap-2 rounded-md border border-red-300/20 bg-red-300/10 p-2.5">
+                  <label className="grid gap-1">
+                    <span className="text-xs font-bold uppercase text-red-100">Motivo del rechazo</span>
+                    <textarea
+                      value={rejectionReasons[request.id] ?? ""}
+                      onChange={(event) => setRejectionReasons((current) => ({ ...current, [request.id]: event.target.value }))}
+                      minLength={5}
+                      maxLength={500}
+                      required
+                      placeholder="Motivo del rechazo"
+                      className="min-h-20 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-red-300"
+                    />
+                  </label>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectionOpenIds((current) => current.filter((id) => id !== request.id));
+                        setRejectionReasons((current) => {
+                          const next = { ...current };
+                          delete next[request.id];
+                          return next;
+                        });
+                      }}
+                      disabled={Boolean(pendingActionId)}
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 px-4 text-xs font-bold text-zinc-200 hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void rejectRequest(request.id)}
+                      disabled={Boolean(pendingActionId) || rejectionReasonLength < 5 || rejectionReasonLength > 500}
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-red-300/30 px-4 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      {pendingActionId === `reject-${request.id}` ? "Rechazando..." : "Confirmar rechazo"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {isReviewPending && reviewRejectionOpenIds.includes(request.id) ? (
+                <div className="mt-2 grid gap-2 rounded-md border border-violet-300/20 bg-violet-300/10 p-2.5 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <label className="grid gap-1">
+                    <span className="text-xs font-bold uppercase text-violet-200">Motivo del rechazo de revisión</span>
+                    <textarea
+                      value={reviewRejectionReasons[request.id] ?? ""}
+                      onChange={(event) => setReviewRejectionReasons((current) => ({ ...current, [request.id]: event.target.value }))}
+                      minLength={5}
+                      maxLength={500}
+                      required
+                      placeholder="Explica el motivo (5 a 500 caracteres)"
+                      className="min-h-20 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-violet-300"
+                    />
+                  </label>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReviewRejectionOpenIds((current) => current.filter((id) => id !== request.id));
+                        setReviewRejectionReasons((current) => {
+                          const next = { ...current };
+                          delete next[request.id];
+                          return next;
+                        });
+                      }}
+                      disabled={Boolean(pendingActionId)}
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 px-4 text-xs font-bold text-zinc-200 hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void rejectReview(request.id)}
+                      disabled={Boolean(pendingActionId) || reviewRejectionReasonLength < 5 || reviewRejectionReasonLength > 500}
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-red-300/30 px-4 text-xs font-bold text-red-100 hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      {pendingActionId === `reject-review-${request.id}` ? "Rechazando..." : "Confirmar rechazo"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               {showPaymentForm ? (
                 <div className="mt-2 grid gap-2 rounded-md border border-white/10 bg-white/5 p-2.5 lg:grid-cols-[1fr_90px_120px_130px_1.1fr_auto] lg:items-end">
@@ -575,26 +847,71 @@ export function AccessRequestsTable() {
     );
   }
 
+  function renderRevocations() {
+    if (revocations.length === 0) {
+      return <p className="rounded-md border border-white/10 bg-white/5 p-2.5 text-xs text-zinc-400">Sin revocaciones históricas.</p>;
+    }
+
+    return (
+      <div className="grid gap-2">
+        {revocations.map((revocation) => {
+          const profile = getRevocationProfile(revocation);
+          const admin = getRevocationAdmin(revocation);
+          const accessState = resolveAccessDomainState({
+            hasActiveAccess: activeAccessKeys.has(`${revocation.user_id}:${revocation.beat_id}`),
+            revocationCount: 1,
+          });
+          const userName = profile?.display_name || profile?.username || profile?.email || revocation.user_id;
+          const adminName = admin?.display_name || admin?.username || admin?.email;
+
+          return (
+            <article key={revocation.id} className="rounded-lg border border-amber-300/20 bg-amber-300/5 p-3">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_auto] md:items-start">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-white">{userName}</p>
+                  <p className="mt-1 break-all text-xs text-zinc-400">{profile?.email || `Usuario ${revocation.user_id}`}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-zinc-200">{getRevocationBeat(revocation)}</p>
+                  <p className="mt-1 text-xs text-zinc-500">Revocada: {getRevocationDate(revocation)}</p>
+                </div>
+                <span className={`inline-flex w-fit rounded-md border px-2 py-1 text-xs font-bold ${accessState.status === "restored" ? "border-emerald-300/30 text-emerald-100" : revokedStatusStyle}`}>
+                  {getCurrentAccessLabel(accessState)}
+                </span>
+              </div>
+              <p className="mt-3 whitespace-pre-wrap break-words text-xs leading-5 text-zinc-300">Motivo: {revocation.reason || "Sin motivo registrado"}</p>
+              {adminName ? <p className="mt-1 break-words text-xs text-zinc-500">Revocó: {adminName}</p> : null}
+            </article>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <section className="rounded-lg border border-white/10 bg-[#101317] p-3">
       {message ? <p className="mb-4 rounded-md border border-white/10 bg-white/5 p-3 text-sm font-semibold text-cyan-200">{message}</p> : null}
 
-      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Activas</p>
           <p className="mt-1 text-2xl font-black text-white">{activeItems.length}</p>
         </div>
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Pendientes</p>
-          <p className="mt-1 text-2xl font-black text-cyan-200">{activeItems.filter((request) => request.status === "pending").length}</p>
+          <p className="mt-1 text-2xl font-black text-cyan-200">{requestSummary.pending.length}</p>
         </div>
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Pago pendiente</p>
-          <p className="mt-1 text-2xl font-black text-amber-200">{activeItems.filter((request) => request.status === "payment_pending").length}</p>
+          <p className="mt-1 text-2xl font-black text-amber-200">{requestSummary.paymentPending.length}</p>
+        </div>
+        <div className="rounded-md border border-white/10 bg-white/5 p-3">
+          <p className="text-xs font-bold uppercase text-zinc-500">Revisiones</p>
+          <p className="mt-1 text-2xl font-black text-violet-200">{reviewItems.length}</p>
         </div>
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Revocadas</p>
-          <p className="mt-1 text-2xl font-black text-amber-200">{revokedItems.length}</p>
+          <p className="mt-1 text-2xl font-black text-amber-200">{revocations.length}</p>
         </div>
         <div className="rounded-md border border-white/10 bg-white/5 p-3">
           <p className="text-xs font-bold uppercase text-zinc-500">Historial</p>
@@ -605,6 +922,16 @@ export function AccessRequestsTable() {
       <div className="space-y-4">
         <div>
           <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold">Revisiones</h2>
+            <span className="text-xs font-semibold text-violet-200">{reviewItems.length}</span>
+          </div>
+          <div className="max-h-105 overflow-y-auto pr-1">
+            {renderCards(reviewItems)}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-bold">Activas</h2>
             <span className="text-xs font-semibold text-cyan-200">{activeItems.length}</span>
           </div>
@@ -613,7 +940,7 @@ export function AccessRequestsTable() {
           </div>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3">
           <div className="rounded-lg border border-white/10 bg-white/3 p-2.5">
             <button
               type="button"
@@ -644,16 +971,16 @@ export function AccessRequestsTable() {
             >
               <span>
                 <span className="block text-xs font-bold uppercase tracking-[0.16em] text-amber-200">Revocadas</span>
-                <span className="text-[11px] text-amber-100/60">Sólo accesos revocados</span>
+                <span className="text-[11px] text-amber-100/60">Historial real de revocaciones</span>
               </span>
               <span className="inline-flex items-center gap-2 text-[11px] font-bold text-amber-100/70">
-                {revokedItems.length}
+                {revocations.length}
                 <ChevronDown className={`h-3.5 w-3.5 transition ${isRevokedOpen ? "rotate-180" : ""}`} aria-hidden="true" />
               </span>
             </button>
             {isRevokedOpen ? (
               <div className="mt-2 max-h-105 overflow-y-auto pr-1">
-                {renderCards(revokedItems)}
+                {renderRevocations()}
               </div>
             ) : null}
           </div>

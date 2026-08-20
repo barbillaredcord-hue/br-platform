@@ -8,6 +8,7 @@ import { PlayButton } from "./PlayButton";
 import { useUser } from "@/context/UserContext";
 import { getAccessRequestForBeat, getUserAccessRevocations, type AccessRevocationRow } from "@/lib/supabase/queries";
 import { userCanAccessBeat } from "@/lib/access";
+import { resolveAccessDomainState } from "@/lib/access-domain";
 
 type HeroBeatProps = {
   beat: Beat;
@@ -58,7 +59,12 @@ export function HeroBeat({ beat, label = "Beat destacado" }: HeroBeatProps) {
   const canPreviewPrivate = Boolean(currentUser && isEmailConfirmed);
   const [requestStatus, setRequestStatus] = useState<AccessRequestStatus | null>(null);
   const [revocation, setRevocation] = useState<AccessRevocationRow | null>(null);
-  const hasEffectiveAccess = hasBeatAccess && !revocation;
+  const accessState = resolveAccessDomainState({
+    hasActiveAccess: hasBeatAccess,
+    revocationCount: revocation ? 1 : 0,
+  });
+  const hasEffectiveAccess = accessState.hasCurrentAccess;
+  const isCurrentlyRevoked = accessState.status === "revoked";
   const canPlay = isAdmin || isPublicPlayback || hasEffectiveAccess || canPreviewPrivate;
   const playbackMode = isAdmin || isPublicPlayback || hasEffectiveAccess ? "full" : "preview";
 
@@ -82,14 +88,20 @@ export function HeroBeat({ beat, label = "Beat destacado" }: HeroBeatProps) {
       if (isMounted) {
         const status = request?.status;
         setRevocation(foundRevocation);
-        setRequestStatus(foundRevocation || status === "rejected" ? null : status ?? null);
+        setRequestStatus(status ?? null);
       }
     }
 
-    void loadRequestStatus();
+    const refresh = () => void loadRequestStatus();
+
+    refresh();
+    window.addEventListener("br-access-state-changed", refresh);
+    window.addEventListener("br-access-requests-refresh", refresh);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("br-access-state-changed", refresh);
+      window.removeEventListener("br-access-requests-refresh", refresh);
     };
   }, [beat.dbId, beat.id, currentUser]);
 
@@ -103,16 +115,24 @@ export function HeroBeat({ beat, label = "Beat destacado" }: HeroBeatProps) {
               {requestStatusLabels[requestStatus] ?? "Solicitud en proceso"}
             </span>
           ) : null}
-          {revocation ? (
+          {accessState.status === "restored" ? (
+            <span className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-bold text-emerald-100">
+              Acceso restaurado
+            </span>
+          ) : isCurrentlyRevoked ? (
             <span className="inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold text-amber-100">
-              Acceso revocado
+              Revocado actualmente
             </span>
           ) : null}
         </div>
         <h1 className="break-words text-3xl font-black leading-tight sm:text-4xl md:text-5xl">{beat.name}</h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-300 sm:text-base">
-          {revocation
-            ? `Tu acceso a este beat fue revocado. Motivo: ${revocation.reason}. Puedes reproducir preview y pedir revisión desde la página del beat.`
+          {isCurrentlyRevoked && revocation
+            ? isPublicPlayback
+              ? `Tu acceso protegido fue revocado. Motivo: ${revocation.reason}. El full sigue disponible por ser público; descarga y licencia permanecen bloqueadas.`
+              : `Tu acceso a este beat fue revocado. Motivo: ${revocation.reason}. Puedes reproducir preview y pedir revisión desde la página del beat.`
+            : accessState.status === "restored"
+              ? "Tu acceso completo está activo nuevamente. La revocación anterior permanece únicamente en el historial."
             : isPublicPlayback
               ? "Reproducción full pública activa. Descarga y licencia siguen protegidas por acceso."
               : canPreviewPrivate

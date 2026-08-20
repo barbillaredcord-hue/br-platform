@@ -119,7 +119,7 @@ export default function PreviewEditorPage({ params }: PreviewEditorPageProps) {
   }
 
   const previewDurationSeconds = typeof beat.previewDurationSeconds === "number" ? beat.previewDurationSeconds : 15;
-  const hasRealPreview = beat.previewUrl !== beat.fullAudioUrl;
+  const hasRealPreview = Boolean(beat.previewUrl);
 
   return (
     <AdminShell title="Editor de Preview" subtitle="Sube y administra el preview público real del beat. Duración permitida: 15 a 30 segundos.">
@@ -144,7 +144,6 @@ export default function PreviewEditorPage({ params }: PreviewEditorPageProps) {
             slug={beat.id}
             title={beat.name}
             currentPreviewUrl={beat.previewUrl}
-            fullAudioUrl={beat.fullAudioUrl}
             currentBpm={beat.bpm}
             currentGenre={beat.genre}
             currentMusicalKey={beat.key}

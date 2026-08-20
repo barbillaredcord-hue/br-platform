@@ -12,10 +12,22 @@ import { analyzeMusicFeatures } from "@/lib/music-analysis/features";
 import type { MusicFeatures } from "@/lib/music-analysis/features";
 import { detectKeyFromAudioBuffer } from "@/lib/music-analysis/key";
 import { calculateBeatQuality } from "@/lib/music-analysis/quality";
+import {
+  buildPersistedBeatAnalysis,
+  decideAnalysisLoad,
+  withReviewedStatus,
+  type BeatAnalysisSource,
+  type PersistedBeatAnalysis,
+} from "@/lib/music-analysis/persistence";
 import type { KeyAnalysisResult, KeyCandidate } from "@/lib/music-analysis/key";
 import type { AudioDiagnostics } from "@/lib/music-analysis/types";
 import type { BeatQualityResult } from "@/lib/music-analysis/quality";
 import { createAdminChangeLog, updateBeatMetadataAsAdmin, updateBeatPreviewWithUpload } from "@/lib/supabase/queries";
+import {
+  getBeatAnalysisAsAdmin,
+  persistBeatAnalysisAsAdmin,
+} from "@/lib/supabase/analysis";
+import { getAuthorizedFullAudioUrl } from "@/lib/full-audio-client";
 
 function formatFileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
@@ -43,6 +55,12 @@ function splitCommaValues(value: string) {
 
 function getTopRankedKey(analysisKey: string, candidates: KeyCandidate[]) {
   return candidates[0]?.key?.trim() || analysisKey.trim();
+}
+
+function formatGenreConfidence(confidence: number | null | undefined) {
+  if (confidence === null || confidence === undefined) return "Baja · sin evidencia suficiente";
+  if (confidence >= 0.72) return `Alta · ${Math.round(confidence * 100)}%`;
+  return `Moderada · ${Math.round(confidence * 100)}%`;
 }
 
 
@@ -136,7 +154,6 @@ type PreviewEditorFormProps = {
   slug: string;
   title: string;
   currentPreviewUrl: string;
-  fullAudioUrl: string;
   currentBpm: number;
   currentGenre: string;
   currentMusicalKey?: string;
@@ -148,7 +165,6 @@ export function PreviewEditorForm({
   slug,
   title,
   currentPreviewUrl,
-  fullAudioUrl,
   currentBpm,
   currentGenre,
   currentMusicalKey = "",
@@ -158,6 +174,9 @@ export function PreviewEditorForm({
   const fullAudioRef = useRef<HTMLAudioElement | null>(null);
   const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const generatedPreviewUrlRef = useRef<string | null>(null);
+  const analysisRunSourceRef = useRef<BeatAnalysisSource>("automatic");
+  const analysisNotesRef = useRef("");
+  const persistedAnalysisRef = useRef<PersistedBeatAnalysis | null>(null);
   const [startSecond, setStartSecond] = useState(0);
   const [durationSeconds, setDurationSeconds] = useState(clampPreviewDuration(initialDurationSeconds));
   const [generatedPreviewFile, setGeneratedPreviewFile] = useState<File | null>(null);
@@ -186,27 +205,63 @@ export function PreviewEditorForm({
   const [analysisPreviewDuration, setAnalysisPreviewDuration] = useState(15);
   const [analysisNotes, setAnalysisNotes] = useState("");
   const [isApplyingAnalysis, setIsApplyingAnalysis] = useState("");
-  const [analysisProcessCount, setAnalysisProcessCount] = useState(0);
-  const [lastAnalysisSignature, setLastAnalysisSignature] = useState("");
   const [analysisProcessMessage, setAnalysisProcessMessage] = useState("");
   const [analysisReloadKey, setAnalysisReloadKey] = useState(0);
+  const [authorizedFullAudioUrl, setAuthorizedFullAudioUrl] = useState("");
+  const [persistedAnalysis, setPersistedAnalysis] = useState<PersistedBeatAnalysis | null>(null);
+  const [isPersistedAnalysisLoaded, setIsPersistedAnalysisLoaded] = useState(false);
+  const [analysisFrameCount, setAnalysisFrameCount] = useState(0);
 
-  const hasRealPreview = Boolean(currentPreviewUrl && currentPreviewUrl !== fullAudioUrl);
+  const hasRealPreview = Boolean(currentPreviewUrl);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void getAuthorizedFullAudioUrl(beatId)
+      .then((url) => {
+        if (isMounted) setAuthorizedFullAudioUrl(url);
+      })
+      .catch(() => {
+        if (isMounted) setWaveformMessage("No se pudo autorizar el audio completo.");
+      });
+
+    return () => { isMounted = false; };
+  }, [beatId]);
 
   function requestAudioAnalysis() {
+    analysisRunSourceRef.current = "manual";
+    analysisNotesRef.current = analysisNotes;
     setAnalysisReloadKey((value) => value + 1);
   }
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void getBeatAnalysisAsAdmin(beatId).then((result) => {
+      if (!isMounted) return;
+
+      persistedAnalysisRef.current = result.analysis;
+      setPersistedAnalysis(result.analysis);
+      setIsPersistedAnalysisLoaded(true);
+      if (!result.ok) setWaveformMessage(result.message);
+    });
+
+    return () => { isMounted = false; };
+  }, [beatId]);
 
   
   useEffect(() => {
     let isMounted = true;
 
     async function loadWaveform() {
+      if (!authorizedFullAudioUrl || !isPersistedAnalysisLoaded) {
+        return;
+      }
       setIsWaveformLoading(true);
       setWaveformMessage("");
 
       try {
-        const response = await fetch(fullAudioUrl);
+        const response = await fetch(authorizedFullAudioUrl);
         if (!response.ok) {
           throw new Error(`Waveform fetch failed: ${response.status}`);
         }
@@ -215,12 +270,45 @@ export function PreviewEditorForm({
         const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
         const samples = buildWaveformSamples(decodedBuffer);
         const diagnostics = analyzeAudioDiagnostics(decodedBuffer, samples);
+        const storedAnalysis = persistedAnalysisRef.current;
+        const loadDecision = decideAnalysisLoad(storedAnalysis);
+
+        if (analysisReloadKey === 0 && storedAnalysis && loadDecision !== "analyze") {
+          await audioContext.close();
+
+          if (!isMounted) return;
+
+          const stored = storedAnalysis;
+          const storedFeatures = stored.features;
+          setWaveformSamples(samples);
+          setAudioDuration(decodedBuffer.duration);
+          setAudioDiagnostics(storedFeatures?.diagnostics ?? diagnostics);
+          setBeatQuality(storedFeatures?.quality ?? null);
+          setMusicFeatures(storedFeatures ? { frames: [], ...storedFeatures.music } : null);
+          setAnalysisFrameCount(storedFeatures?.frameCount ?? 0);
+          setAnalysisBpm(stored.detectedBpm ? String(stored.detectedBpm) : "");
+          setAnalysisAlternativeBpms(storedFeatures?.bpm.alternatives.join(", ") ?? "");
+          setAnalysisKey(stored.detectedKey ?? "");
+          setAnalysisAlternativeKeys(storedFeatures?.key.alternatives.join(", ") ?? "");
+          setAnalysisKeyCandidates(storedFeatures?.key.candidates ?? []);
+          setAnalysisKeyStatus(storedFeatures?.key.reason ?? "");
+          setAnalysisGenres([stored.detectedGenre, ...stored.detectedSubgenres].filter(Boolean).join(", "));
+          setAnalysisPreviewStart(String(stored.previewRecommendation?.startSecond ?? 0));
+          setAnalysisPreviewDuration(normalizePreviewDuration(stored.previewRecommendation?.durationSeconds ?? 15));
+          setAnalysisNotes(storedFeatures?.classification.reasoning ?? "");
+          setAnalysisProcessMessage(
+            loadDecision === "outdated"
+              ? `Análisis persistido ${stored.version} desactualizado. Usa Procesar de nuevo para actualizarlo.`
+              : `Análisis persistido cargado: ${stored.version} · ${stored.detectedBpm ?? "BPM pendiente"} · ${stored.detectedKey ?? "key pendiente"}.`,
+          );
+          return;
+        }
+
         let detectedBpm = 0;
         let detectedAlternativeBpms: number[] = [];
         let detectedBpmReason = "";
         let detectedKey = "";
         let detectedAlternativeKeys: string[] = [];
-        let detectedKeyConfidence = 0;
         let detectedKeyCandidates: KeyCandidate[] = [];
         let detectedKeyStatus = "";
         let detectedKeyAnalysis: KeyAnalysisResult | undefined;
@@ -239,7 +327,6 @@ export function PreviewEditorForm({
           detectedKeyAnalysis = keyAnalysis;
           detectedKey = keyAnalysis.primary;
           detectedAlternativeKeys = keyAnalysis.alternatives;
-          detectedKeyConfidence = keyAnalysis.confidence;
           detectedKeyCandidates = keyAnalysis.candidates;
           detectedKeyStatus = keyAnalysis.reason ?? "ok";
         } catch (keyError) {
@@ -247,31 +334,78 @@ export function PreviewEditorForm({
           console.warn("B.R key detection unavailable", { title, keyError });
         }
 
+        const nextMusicFeatures = analyzeMusicFeatures({
+          buffer: decodedBuffer,
+          diagnostics,
+          bpm: detectedBpm || undefined,
+          keyAnalysis: detectedKeyAnalysis,
+        });
+        const classification = classifyBeatFromRealData({
+          title,
+          audioUrl: authorizedFullAudioUrl,
+          currentGenre: "",
+          currentBpm: detectedBpm || null,
+          currentKey: detectedKey || null,
+          durationSeconds: decodedBuffer.duration,
+          waveformSamples: samples,
+          notes: analysisNotesRef.current,
+          musicFeatures: nextMusicFeatures,
+        });
+        const previewSuggestion = {
+          recommendedPreviewStart: classification.recommendedPreviewStart,
+          recommendedPreviewDuration: classification.recommendedPreviewDuration,
+          previewConfidence: classification.previewConfidence,
+          previewReason: classification.previewReason,
+        };
+        const nextBeatQuality = calculateBeatQuality({
+          diagnostics,
+          bpm: detectedBpm || undefined,
+          alternativeBpms: detectedAlternativeBpms,
+          keyAnalysis: detectedKeyAnalysis,
+          previewSuggestion,
+          musicFeatures: nextMusicFeatures,
+        });
+        const nextAnalysis = buildPersistedBeatAnalysis({
+          source: analysisRunSourceRef.current,
+          analyzedAt: new Date().toISOString(),
+          bpm: detectedBpm || null,
+          bpmAlternatives: detectedAlternativeBpms,
+          bpmReason: detectedBpmReason,
+          keyAnalysis: detectedKeyAnalysis ?? {
+            primary: "",
+            alternatives: [],
+            confidence: 0,
+            candidates: [],
+            reason: detectedKeyStatus || "unavailable",
+          },
+          classification,
+          diagnostics,
+          musicFeatures: nextMusicFeatures,
+          quality: nextBeatQuality,
+        });
         await audioContext.close();
 
-        if (!isMounted) {
-          return;
+        if (!isMounted) return;
+
+        const persistenceResult = await persistBeatAnalysisAsAdmin({
+          beatId,
+          analysis: nextAnalysis,
+        });
+
+        if (!isMounted) return;
+
+        if (!persistenceResult.ok || !persistenceResult.analysis) {
+          throw new Error(persistenceResult.message || "analysis_persistence_failed");
         }
 
+        persistedAnalysisRef.current = persistenceResult.analysis;
+        setPersistedAnalysis(persistenceResult.analysis);
         setWaveformSamples(samples);
         setAudioDuration(decodedBuffer.duration);
         setAudioDiagnostics(diagnostics);
-        setBeatQuality(
-          calculateBeatQuality({
-            diagnostics,
-            bpm: detectedBpm || undefined,
-            alternativeBpms: detectedAlternativeBpms,
-            keyAnalysis: detectedKeyAnalysis,
-          }),
-        );
-        setMusicFeatures(
-          analyzeMusicFeatures({
-            buffer: decodedBuffer,
-            diagnostics,
-            bpm: detectedBpm || undefined,
-            keyAnalysis: detectedKeyAnalysis,
-          }),
-        );
+        setBeatQuality(nextBeatQuality);
+        setMusicFeatures(nextMusicFeatures);
+        setAnalysisFrameCount(nextMusicFeatures.frames.length);
         setAnalysisKeyStatus(detectedKeyStatus);
 
         if (detectedBpm >= 40 && detectedBpm <= 240) {
@@ -286,31 +420,29 @@ export function PreviewEditorForm({
           setAnalysisAlternativeKeys(detectedAlternativeKeys.join(", "));
         }
 
-        const bpmText = detectedAlternativeBpms.length
-          ? `${detectedBpm} BPM · alternativo ${detectedAlternativeBpms.join(", ")} (${detectedBpmReason})`
-          : `${detectedBpm} BPM`;
-
-        const keyText = detectedKey
-          ? `${detectedKey} (${Math.round(detectedKeyConfidence * 100)}%)${detectedAlternativeKeys.length ? ` · alternativas ${detectedAlternativeKeys.join(", ")}` : ""}`
-          : "";
-
-        if (detectedBpm >= 40 && detectedBpm <= 240 && detectedKey) {
-          setAnalysisProcessMessage(`BPM y tonalidad detectados desde audio: ${bpmText} · ${keyText}. Revisa antes de aplicar.`);
-        } else if (detectedBpm >= 40 && detectedBpm <= 240) {
-          setAnalysisProcessMessage(`BPM detectado desde audio: ${bpmText}. Revisa antes de aplicar.`);
-        } else if (detectedKey) {
-          setAnalysisProcessMessage(`Tonalidad detectada desde audio: ${keyText}. Revisa antes de aplicar.`);
-        }
+        const nextGenres = [classification.primaryGenre, ...classification.subgenres]
+          .filter((value, index, values) => value && values.indexOf(value) === index)
+          .join(", ");
+        setAnalysisGenres(nextGenres);
+        setAnalysisPreviewStart(String(nextAnalysis.previewRecommendation?.startSecond ?? 0));
+        setAnalysisPreviewDuration(normalizePreviewDuration(nextAnalysis.previewRecommendation?.durationSeconds ?? 15));
+        setAnalysisNotes(classification.reasoning);
+        setAnalysisProcessMessage(
+          `Análisis ${nextAnalysis.version} persistido: ${classification.primaryGenre} · ${classification.mood} · Quality ${nextBeatQuality.score}/100.`,
+        );
       } catch (error) {
-        console.warn("B.R waveform unavailable", { title, fullAudioUrl, error });
-        if (isMounted) {
+        console.warn("B.R waveform unavailable", { title, error });
+        if (isMounted && !persistedAnalysisRef.current) {
           setWaveformSamples([]);
           setAudioDiagnostics(null);
           setBeatQuality(null);
           setMusicFeatures(null);
+          setAnalysisFrameCount(0);
           setAnalysisKeyCandidates([]);
           setAnalysisKeyStatus("waveform_load_error");
           setWaveformMessage("No se pudo leer onda; usa recorte manual.");
+        } else if (isMounted) {
+          setWaveformMessage("No se pudo reprocesar; se conserva el último análisis persistido.");
         }
       } finally {
         if (isMounted) {
@@ -324,19 +456,7 @@ export function PreviewEditorForm({
     return () => {
       isMounted = false;
     };
-  }, [analysisReloadKey, fullAudioUrl, title]);
-
-  useEffect(() => {
-    function handlePageShow() {
-      requestAudioAnalysis();
-    }
-
-    window.addEventListener("pageshow", handlePageShow);
-
-    return () => {
-      window.removeEventListener("pageshow", handlePageShow);
-    };
-  }, []);
+  }, [analysisReloadKey, authorizedFullAudioUrl, beatId, isPersistedAnalysisLoaded, title]);
 
   useEffect(() => {
     if (!waveformCanvasRef.current || waveformSamples.length === 0) {
@@ -538,6 +658,11 @@ export function PreviewEditorForm({
       return;
     }
 
+    if (!persistedAnalysis) {
+      setStatus("Procesa y guarda el análisis antes de confirmarlo.");
+      return;
+    }
+
     const roundedBpm = Math.round(nextBpm);
     const previousValue = {
       bpm: appliedBpm,
@@ -555,34 +680,28 @@ export function PreviewEditorForm({
 
     setIsApplyingAnalysis("full");
 
-    const bpmResult = await updateBeatMetadataAsAdmin(beatId, { bpm: roundedBpm });
+    const result = await persistBeatAnalysisAsAdmin({
+      beatId,
+      analysis: withReviewedStatus(persistedAnalysis),
+      manualMetadata: {
+        bpm: roundedBpm,
+        musicalKey: nextKey,
+        genre: nextGenre,
+      },
+    });
 
-    if (!bpmResult.ok) {
-      setStatus(bpmResult.message ?? "No se pudo guardar el BPM del análisis completo.");
+    if (!result.ok || !result.analysis) {
+      setStatus(result.message ?? "No se pudo aplicar el análisis completo.");
       setIsApplyingAnalysis("");
       return;
     }
 
-    const keyResult = await updateBeatMetadataAsAdmin(beatId, { musicalKey: nextKey });
+    const savedBpm = result.beat?.bpm ?? roundedBpm;
+    const savedKey = result.beat?.musical_key ?? nextKey;
+    const savedGenre = result.beat?.genre ?? nextGenre;
 
-    if (!keyResult.ok) {
-      setStatus(keyResult.message ?? "El BPM se guardó, pero no se pudo guardar la tonalidad.");
-      setIsApplyingAnalysis("");
-      return;
-    }
-
-    const genreResult = await updateBeatMetadataAsAdmin(beatId, { genre: nextGenre });
-
-    if (!genreResult.ok) {
-      setStatus(genreResult.message ?? "El BPM y la tonalidad se guardaron, pero no se pudieron guardar los géneros.");
-      setIsApplyingAnalysis("");
-      return;
-    }
-
-    const savedBpm = genreResult.beat?.bpm ?? keyResult.beat?.bpm ?? bpmResult.beat?.bpm ?? roundedBpm;
-    const savedKey = genreResult.beat?.musical_key ?? keyResult.beat?.musical_key ?? nextKey;
-    const savedGenre = genreResult.beat?.genre ?? nextGenre;
-
+    persistedAnalysisRef.current = result.analysis;
+    setPersistedAnalysis(result.analysis);
     setAppliedBpm(savedBpm);
     setAnalysisBpm(String(savedBpm));
     setAppliedMusicalKey(savedKey);
@@ -611,11 +730,6 @@ export function PreviewEditorForm({
 
     setStatus(`Análisis completo aplicado: BPM ${savedBpm}, tonalidad ${savedKey}, géneros ${savedGenre}.`);
     router.refresh();
-    requestAudioAnalysis();
-
-    window.setTimeout(() => {
-      window.location.reload();
-    }, 900);
 
     setIsApplyingAnalysis("");
   }
@@ -631,76 +745,12 @@ export function PreviewEditorForm({
     setAnalysisPreviewStart("0");
     setAnalysisPreviewDuration(15);
     setAnalysisNotes("");
-    setAnalysisProcessCount(0);
-    setLastAnalysisSignature("");
     setAnalysisProcessMessage("");
     setAudioDiagnostics(null);
     setBeatQuality(null);
     setMusicFeatures(null);
+    setAnalysisFrameCount(0);
     setStatus("AI Beat Analysis Lite limpiado.");
-  }
-
-  function reprocessAnalysis() {
-    const classification = classifyBeatFromRealData({
-      title,
-      audioUrl: fullAudioUrl,
-      currentGenre: "",
-      currentBpm: Number(analysisBpm) || currentBpm || null,
-      currentKey: analysisKey || currentMusicalKey || null,
-      durationSeconds: audioDuration || initialDurationSeconds,
-      waveformSamples,
-      notes: analysisNotes,
-    });
-    if (audioDiagnostics) {
-      setBeatQuality(
-        calculateBeatQuality({
-          diagnostics: audioDiagnostics,
-          bpm: Number(analysisBpm) || currentBpm || undefined,
-          alternativeBpms: splitCommaValues(analysisAlternativeBpms).map(Number).filter(Number.isFinite),
-          keyAnalysis: {
-            primary: analysisKey,
-            alternatives: splitCommaValues(analysisAlternativeKeys),
-            confidence: 0,
-            candidates: analysisKeyCandidates,
-            reason: analysisKeyStatus || undefined,
-          },
-          previewSuggestion: {
-            recommendedPreviewStart: classification.recommendedPreviewStart,
-            recommendedPreviewDuration: classification.recommendedPreviewDuration,
-            previewConfidence: classification.previewConfidence,
-            previewReason: classification.previewReason,
-          },
-        }),
-      );
-    }
-    const nextGenres = [classification.primaryGenre, ...classification.subgenres].filter((value, index, values) => value && values.indexOf(value) === index).join(", ");
-    const nextCount = analysisProcessCount + 1;
-    const nextSignature = [
-      analysisBpm,
-      analysisKey.toLowerCase(),
-      nextGenres.toLowerCase(),
-      classification.mood.toLowerCase(),
-      classification.energy.toLowerCase(),
-      classification.useCase.toLowerCase(),
-      String(audioDuration || initialDurationSeconds),
-      String(waveformSamples.length),
-      analysisNotes.trim().toLowerCase(),
-    ].join("|");
-    const isStable = Boolean(lastAnalysisSignature) && lastAnalysisSignature === nextSignature;
-
-    setAnalysisProcessCount(nextCount);
-    setLastAnalysisSignature(nextSignature);
-    setAnalysisGenres(nextGenres);
-    setAnalysisPreviewStart(String(clampStartSecond(classification.recommendedPreviewStart)));
-    setAnalysisPreviewDuration(normalizePreviewDuration(classification.recommendedPreviewDuration));
-    setAnalysisNotes(classification.reasoning);
-    setAnalysisProcessMessage(
-      isStable
-        ? `Coincidencia estable: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · confianza ${Math.round(classification.confidence * 100)}%`
-        : nextCount === 1
-          ? `Análisis real generado: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · fuente ${classification.source} · confianza ${Math.round(classification.confidence * 100)}%`
-          : `Datos reales reprocesados: ${classification.primaryGenre} · ${classification.mood} · ${classification.energy} · ${classification.useCase} · preview ${classification.recommendedPreviewStart}s/${classification.recommendedPreviewDuration}s · confianza ${Math.round(classification.confidence * 100)}%`,
-    );
   }
 
   function clearGeneratedPreviewUrl() {
@@ -724,6 +774,8 @@ export function PreviewEditorForm({
     setStatus("Cargando motor de recorte de audio...");
 
     try {
+      const currentFullAudioUrl = await getAuthorizedFullAudioUrl(beatId);
+      setAuthorizedFullAudioUrl(currentFullAudioUrl);
       const [{ FFmpeg }, { fetchFile, toBlobURL }] = await Promise.all([import("@ffmpeg/ffmpeg"), import("@ffmpeg/util")]);
       const ffmpeg = new FFmpeg();
       const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
@@ -734,7 +786,7 @@ export function PreviewEditorForm({
       });
 
       setStatus("Validando archivo de audio...");
-      const isAudioMissing = await audioUrlLooksMissing(fullAudioUrl);
+      const isAudioMissing = await audioUrlLooksMissing(currentFullAudioUrl);
 
       if (isAudioMissing) {
         setStatus("Archivo de audio no encontrado. Revisa el MP3 del beat.");
@@ -742,7 +794,7 @@ export function PreviewEditorForm({
       }
 
       setStatus("Descargando beat completo para recortar preview...");
-      await ffmpeg.writeFile("input.mp3", await fetchFile(fullAudioUrl));
+      await ffmpeg.writeFile("input.mp3", await fetchFile(currentFullAudioUrl));
 
       setStatus(`Generando preview desde ${safeStart}s por ${safeDuration}s...`);
       await ffmpeg.exec(["-ss", String(safeStart), "-i", "input.mp3", "-t", String(safeDuration), "-vn", "-acodec", "libmp3lame", "-b:a", "192k", "preview.mp3"]);
@@ -765,7 +817,7 @@ export function PreviewEditorForm({
       setStatus("Preview generado. Reprodúcelo y guarda si te gusta el corte.");
     } catch (error) {
       const errorText = error instanceof Error ? error.message : String(error);
-      console.warn("B.R preview generation warning", { title, fullAudioUrl, error });
+      console.warn("B.R preview generation warning", { title, error });
       setStatus(errorText.includes("404") ? "Archivo de audio no encontrado. Revisa el MP3 del beat." : "No se pudo generar el preview desde el beat completo. Revisa conexión, CORS del audio o dependencias de FFmpeg.");
     } finally {
       setIsGenerating(false);
@@ -845,7 +897,7 @@ export function PreviewEditorForm({
               ref={fullAudioRef}
               className="mt-3 w-full"
               controls
-              src={fullAudioUrl}
+              src={authorizedFullAudioUrl}
               onLoadedMetadata={(event) => {
                 if (!audioDuration && Number.isFinite(event.currentTarget.duration)) {
                   setAudioDuration(event.currentTarget.duration);
@@ -944,17 +996,15 @@ export function PreviewEditorForm({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[11px] font-bold text-emerald-100">
-                {analysisProcessMessage ? "Analizado" : "Pendiente"}
+                {persistedAnalysis ? "Persistido" : "Pendiente"}
               </span>
               <button
                 type="button"
-                onClick={() => {
-                  requestAudioAnalysis();
-                  reprocessAnalysis();
-                }}
+                disabled={isWaveformLoading}
+                onClick={requestAudioAnalysis}
                 className="h-8 rounded-md border border-cyan-300/30 px-2.5 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/10"
               >
-                Analizar Beat
+                {isWaveformLoading ? "Procesando..." : "Procesar de nuevo"}
               </button>
             </div>
           </div>
@@ -964,6 +1014,28 @@ export function PreviewEditorForm({
               {analysisProcessMessage}
             </p>
           ) : null}
+
+          {persistedAnalysis ? (
+            <div className="mb-3 grid gap-2 rounded-md border border-white/10 bg-black/20 p-3 text-[11px] text-zinc-400 sm:grid-cols-4">
+              <span>Versión: <strong className="text-cyan-100">{persistedAnalysis.version}</strong></span>
+              <span>Último análisis: <strong className="text-cyan-100">{new Date(persistedAnalysis.analyzedAt).toLocaleString("es-MX")}</strong></span>
+              <span>Confianza general: <strong className="text-cyan-100">{persistedAnalysis.confidence === null ? "Sin evidencia suficiente" : `${Math.round(persistedAnalysis.confidence * 100)}%`}</strong></span>
+              <span>Origen/revisión: <strong className="text-cyan-100">{persistedAnalysis.source} · {persistedAnalysis.reviewStatus}</strong></span>
+            </div>
+          ) : null}
+
+          <div className="mb-3 grid gap-2 rounded-md border border-cyan-300/10 bg-cyan-300/5 p-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
+            <span className="text-zinc-400">BPM detectado: <strong className="text-cyan-100">{(persistedAnalysis?.detectedBpm ?? analysisBpm) || "—"}</strong></span>
+            <span className="text-zinc-400">Key detectada: <strong className="text-cyan-100">{(persistedAnalysis?.detectedKey ?? getTopRankedKey(analysisKey, analysisKeyCandidates)) || "—"}</strong></span>
+            <span className="text-zinc-400">Género sugerido: <strong className="text-cyan-100">{persistedAnalysis?.detectedGenre && persistedAnalysis.detectedGenre !== "Unclassified" ? persistedAnalysis.detectedGenre : "Sin clasificación confiable"}</strong></span>
+            <span className="text-zinc-400">Confianza de género: <strong className="text-cyan-100">{formatGenreConfidence(persistedAnalysis?.features?.classification.confidence)}</strong></span>
+            <span className="text-zinc-400">Subgénero sugerido: <strong className="text-cyan-100">{persistedAnalysis?.detectedSubgenres.length ? persistedAnalysis.detectedSubgenres.join(", ") : "Sin inferencia suficiente"}</strong></span>
+            <span className="text-zinc-400">Mood detectado: <strong className="text-cyan-100">{persistedAnalysis?.detectedMood ?? "—"}</strong></span>
+            <span className="text-zinc-400">Quality Score: <strong className="text-cyan-100">{persistedAnalysis?.qualityScore ?? beatQuality?.score ?? "—"}/100</strong></span>
+            <span className="text-zinc-400 sm:col-span-2">Preview recomendado: <strong className="text-cyan-100">{persistedAnalysis?.previewRecommendation ? `${persistedAnalysis.previewRecommendation.startSecond}s / ${persistedAnalysis.previewRecommendation.durationSeconds}s` : `${analysisPreviewStart}s / ${analysisPreviewDuration}s`}</strong></span>
+            <span className="text-zinc-400 sm:col-span-2 lg:col-span-3">Metadata actual/manual: <strong className="text-emerald-100">{appliedBpm || "—"} BPM · {appliedMusicalKey || "key pendiente"} · {appliedGenre || "género pendiente"}</strong></span>
+            <span className="text-zinc-500 sm:col-span-2 lg:col-span-3">Sugerencia conservadora basada en audio: las dudas quedan sin clasificar y nunca reemplazan metadata editorial sin una acción explícita.</span>
+          </div>
 
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             <label className="grid gap-1">
@@ -1063,7 +1135,7 @@ export function PreviewEditorForm({
                         <span>Vocals: <strong className="text-cyan-100">{Math.round(musicFeatures.vocals.vocalProbability * 100)}%</strong> · {musicFeatures.vocals.label}</span>
                       </div>
                       <p className="mt-2 text-xs text-zinc-500">
-                        Frames analizados: {musicFeatures.frames.length} · Brightness: {musicFeatures.brightness.label} · Dynamics: {musicFeatures.dynamics.label}
+                        Frames analizados: {analysisFrameCount} · Brightness: {musicFeatures.brightness.label} · Dynamics: {musicFeatures.dynamics.label}
                       </p>
                     </div>
                   ) : null}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, History, Inbox, KeyRound, LayoutDashboard, ListMusic, Plus, Settings, SlidersHorizontal, Users } from "lucide-react";
 import { LogoMark } from "@/components/LogoMark";
 import { allBeats } from "@/data/beats";
+import { notifyDomainChange } from "@/lib/domain-events";
 import { AdminGuard } from "./AdminGuard";
 
 const homeItem = { href: "/", label: "Home", icon: ArrowLeft };
@@ -25,6 +26,25 @@ export function AdminShell({ title, subtitle, children, compact = false }: { tit
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const HomeIcon = homeItem.icon;
 
+  useEffect(() => {
+    const reconcile = () => notifyDomainChange("all");
+    const reconcileWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        reconcile();
+      }
+    };
+
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("online", reconcile);
+    document.addEventListener("visibilitychange", reconcileWhenVisible);
+
+    return () => {
+      window.removeEventListener("focus", reconcile);
+      window.removeEventListener("online", reconcile);
+      document.removeEventListener("visibilitychange", reconcileWhenVisible);
+    };
+  }, []);
+
   return (
     <AdminGuard>
       <main className={`min-h-screen bg-[#050607] px-3 pb-32 text-white md:px-6 ${compact ? "py-2.5" : "py-6"}`}>
@@ -35,7 +55,7 @@ export function AdminShell({ title, subtitle, children, compact = false }: { tit
               onClick={() => setIsMenuOpen((current) => !current)}
               className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-left transition hover:border-cyan-300/40 hover:bg-white/10"
             >
-              <LogoMark />
+              <LogoMark decorative />
               <div className="min-w-0">
                 <p className="text-sm font-bold">B.R Admin</p>
                 <p className="text-xs text-zinc-500">{isMenuOpen ? "Ocultar menú" : "Abrir menú"}</p>

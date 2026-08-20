@@ -1,3 +1,5 @@
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
+
 type PageProps = {
   params: Promise<{
     month: string;
@@ -33,7 +35,7 @@ export default async function EarningsReportPage({ params, searchParams }: PageP
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const amount = Number(resolvedSearchParams.amount ?? 0);
   const label = formatMonthLabel(month);
-  const generatedAt = new Date().toLocaleString("es-MX");
+  const generatedAt = formatLocalDateTime(new Date());
 
   return (
     <main className="min-h-screen bg-[#05070a] p-6 text-white print:bg-white print:p-0 print:text-black">

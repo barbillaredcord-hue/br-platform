@@ -7,21 +7,6 @@ import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getBeats, getProfilesResult, grantBeatAccess, revokeBeatAccess } from "@/lib/supabase/queries";
 
-const revocationReasons = [
-  "Incumplimiento de licencia.",
-  "Uso comercial no autorizado.",
-  "Reventa o redistribución no autorizada.",
-  "Contracargo o disputa de pago.",
-  "Pago cancelado o no verificado.",
-  "Solicitud del propietario.",
-  "Violación de términos de servicio.",
-  "Actividad sospechosa.",
-  "Cuenta comprometida.",
-  "Licencia expirada.",
-  "Proyecto cancelado.",
-  "Otro motivo.",
-];
-
 function getBeatKey(beat: Beat) {
   return beat.dbId ?? beat.id;
 }
@@ -41,7 +26,6 @@ export function AccessManager() {
   const [message, setMessage] = useState("");
   const [processingKey, setProcessingKey] = useState("");
   const [revokingUserId, setRevokingUserId] = useState("");
-  const [selectedReason, setSelectedReason] = useState(revocationReasons[0]);
   const [customReason, setCustomReason] = useState("");
 
   async function refresh() {
@@ -105,7 +89,6 @@ export function AccessManager() {
 
   function openRevocation(userId: string) {
     setRevokingUserId(userId);
-    setSelectedReason(revocationReasons[0]);
     setCustomReason("");
     setMessage("");
   }
@@ -130,7 +113,6 @@ export function AccessManager() {
     const actionKey = `${user.id}:${selectedBeatKey}`;
     setProcessingKey(actionKey);
     setMessage("Procesando...");
-    closeRevocation();
     const result = hasAccess ? await revokeBeatAccess(user.id, selectedBeatKey, revocationReason) : await grantBeatAccess(user.id, selectedBeatKey);
 
     if (result.ok) {
@@ -150,23 +132,22 @@ export function AccessManager() {
     if (result.ok) {
       await refresh();
       router.refresh();
+      closeRevocation();
     }
 
     setProcessingKey("");
-    closeRevocation();
   }
 
   async function confirmRevocation(user: User) {
-    const reason = selectedReason === "Otro motivo." ? customReason.trim() : selectedReason;
+    const reason = customReason.trim();
 
-    if (!reason) {
-      setMessage("Escribe una explicación para usar Otro motivo.");
+    if (reason.length < 5) {
+      setMessage("El motivo debe tener al menos 5 caracteres.");
       return;
     }
 
-    const confirmed = window.confirm("Se revocará el acceso y licencia asociados a este beat. ¿Deseas continuar?");
-
-    if (!confirmed) {
+    if (reason.length > 500) {
+      setMessage("El motivo no puede superar 500 caracteres.");
       return;
     }
 
@@ -244,32 +225,24 @@ export function AccessManager() {
                     </div>
                     {hasAccess && revokingUserId === user.id ? (
                       <div className="mt-4 rounded-md border border-red-300/20 bg-red-300/5 p-3">
+                        <p className="mb-3 text-sm font-bold text-white">
+                          {selectedBeat.name}
+                        </p>
                         <label className="grid gap-2">
                           <span className="text-xs font-bold uppercase text-red-100">Motivo de revocación</span>
-                          <select
-                            value={selectedReason}
-                            onChange={(event) => setSelectedReason(event.target.value)}
-                            className="h-10 rounded-md border border-white/10 bg-[#101317] px-3 text-sm text-white outline-none focus:border-red-300"
-                          >
-                            {revocationReasons.map((reason) => (
-                              <option key={reason} value={reason}>
-                                {reason}
-                              </option>
-                            ))}
-                          </select>
+                          <textarea
+                            value={customReason}
+                            onChange={(event) => setCustomReason(event.target.value)}
+                            rows={3}
+                            minLength={5}
+                            maxLength={500}
+                            className="resize-none rounded-md border border-white/10 bg-[#101317] px-3 py-2 text-sm text-white outline-none focus:border-red-300"
+                            placeholder="Describe el motivo específico de la revocación."
+                          />
+                          <span className="text-right text-[11px] text-zinc-500">
+                            {customReason.length}/500
+                          </span>
                         </label>
-                        {selectedReason === "Otro motivo." ? (
-                          <label className="mt-3 grid gap-2">
-                            <span className="text-xs font-bold uppercase text-zinc-400">Explicación obligatoria</span>
-                            <textarea
-                              value={customReason}
-                              onChange={(event) => setCustomReason(event.target.value)}
-                              rows={3}
-                              className="resize-none rounded-md border border-white/10 bg-[#101317] px-3 py-2 text-sm text-white outline-none focus:border-red-300"
-                              placeholder="Describe el motivo específico de la revocación."
-                            />
-                          </label>
-                        ) : null}
                         <div className="mt-3 rounded-md border border-white/10 bg-white/5 p-3 text-xs leading-5 text-zinc-300">
                           <p className="font-bold text-zinc-100">Motivos recomendados</p>
                           <p className="mt-1">La revocación debe estar justificada, queda registrada en historial y el usuario podrá visualizar el motivo registrado.</p>

@@ -20,6 +20,12 @@ function safeFileName(input?: string | null) {
 }
 
 function getStorageObjectLocation(value: string): StorageObjectLocation | null {
+  if (value.startsWith("storage://")) {
+    const [bucket, ...parts] = value.slice("storage://".length).split("/");
+    const path = parts.join("/");
+    return bucket && path ? { bucket, path } : null;
+  }
+
   try {
     const url = new URL(value);
     const markers = [

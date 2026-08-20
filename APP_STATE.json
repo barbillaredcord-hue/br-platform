@@ -17,10 +17,13 @@
     "created_reason": "Administrar beats, previews, solicitudes, accesos, pagos manuales, descargas, licencias e historial administrativo.",
     "vision": "Convertir B.R en una plataforma musical premium para productores, musicos, beatmakers, DJs, artistas e ingenieros.",
     "positioning": "Plataforma musical privada y escalable con acceso controlado, playback publico/privado, licencias, pagos manuales e historial administrativo.",
-    "primary_product_focus": "Consolidar el flujo Beat -> preview real -> solicitud -> pago/acceso -> descarga/licencia.",
+    "primary_product_focus": "Construir Fase 15 - Motor Comercial Inteligente / CRM como conocimiento organizado sobre personas, relaciones, oportunidades y seguimiento, sin duplicar las autoridades de Beat Room.",
     "primary_product_rule": "El foco principal de esta app es B.R. BR.autocarmation es soporte interno y no debe sustituir el objetivo del producto.",
     "catalog_visibility_rule": "is_active controla visibilidad publica. Todo beat activo aparece en catalogo publico; beats inactivos permanecen visibles para admin por /api/admin/beats. beat_access no filtra catalogo.",
     "player_access_rule": "playback_visibility=public permite full playback publico. playback_visibility=private da preview a visitantes/usuarios sin acceso y full a usuarios con beat_access. Admin/B.RCEO reproduce full global. Descargas MP3 y licencias siempre requieren beat_access.",
+    "access_request_rule": "Las nuevas solicitudes y re-solicitudes nacen en la pagina del beat. Account Requests es historial; una solicitud cerrada o rechazada no bloquea otra, mientras una solicitud activa o beat_access vigente si la bloquean.",
+    "commercial_operation_rule": "La operacion de Beat Room se identifica por user_id + beat_id y conserva sus autoridades en access_requests, manual_payments, beat_access, commercial_activity y access_revocations. CRM solo deriva contexto; no existe una orden BR persistida y orders permanece diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout.",
+    "admin_access_history_rule": "Admin Solicitudes muestra access_requests como workflow, access_revocations como historial real por revoked_at y beat_access como autoridad actual, con datos principales legibles sin depender de truncado.",
     "account_deletion_rule": "Si un usuario elimina su cuenta, se eliminan sus datos y accesos. Si vuelve con el mismo correo, B.R no garantiza recuperar accesos anteriores."
   },
   "product": {
@@ -46,14 +49,19 @@
       "Admin Beats Dashboard",
       "Commercial Detail Dock",
       "AI Beat Analysis Lite con Procesar de nuevo",
+      "Deteccion real de BPM y tonalidad con Meyda/chroma y fallback",
+      "Analisis FFT, features musicales y Beat Quality Score explicable",
+      "Autoanalisis al abrir Preview Editor y reproceso manual",
       "Dashboard comercial compacto",
       "Revocaciones de acceso",
+      "Sincronizacion Realtime privada de beat_access entre sesiones",
       "Panel admin B.RCEO",
       "B.R Cambios con admin_change_logs",
       "Historial temporal de Gestion de Beats por 7 dias",
       "Historial permanente agrupado por anio con soft delete",
       "Descarga PDF manual del historial temporal",
-      "Dominio brstudios.org en Vercel con Cloudflare DNS"
+      "Dominio brstudios.org en Vercel con Cloudflare DNS",
+      "Identidad B.R con app icons, manifest y splash de entrada"
     ],
     "target_users": [
       "B.RCEO",
@@ -69,13 +77,15 @@
       "Pagos automaticos completos pendientes",
       "Ordenes formales avanzadas pendientes",
       "Licencias legales avanzadas pendientes",
+      "Mejoras futuras de precision y UI del analisis musical conservador",
+      "Terminos y condiciones pendientes",
       "Marketplace multiusuario pendiente",
       "Perfiles publicos de productores/artistas pendientes",
       "Chat interno pendiente"
     ]
   },
   "objectives": {
-    "main": "Consolidar el flujo comercial base antes de expandir a marketplace multiusuario.",
+    "main": "Convertir la informacion comercial existente en contexto CRM organizado y accionable, empezando por identidad, relaciones y metricas deterministas.",
     "secondary": [
       { "name": "Catalogo activo publico", "goal": "Publico ve solo is_active=true; admin ve activos e inactivos.", "progress_percent": 100, "status": "completed" },
       { "name": "Player por acceso", "goal": "Resolver preview/full por playback_visibility, beat_access y rol admin.", "progress_percent": 100, "status": "completed" },
@@ -86,32 +96,40 @@
       { "name": "Preview real", "goal": "Generar previews reales de 15, 20, 25 o 30 segundos.", "progress_percent": 100, "status": "completed" },
       { "name": "Revocaciones de acceso", "goal": "Registrar access_revocations al retirar acceso.", "progress_percent": 100, "status": "completed" },
       { "name": "B.R Cambios", "goal": "Registrar historial administrativo temporal y permanente.", "progress_percent": 100, "status": "completed" },
-      { "name": "Ordenes y pagos controlados", "goal": "Formalizar estados de orden sin automatizar pagos completos.", "progress_percent": 55, "status": "in_progress" },
+      { "name": "Operaciones y pagos controlados", "goal": "Consolidar estados comerciales, pagos manuales y trazabilidad sin confundirlos con una orden formal completa.", "progress_percent": 100, "status": "completed" },
+      { "name": "Analisis musical asistido", "goal": "Consolidar BPM, key, features, Quality Score y clasificacion conservadora con persistencia verificable.", "progress_percent": 100, "status": "completed" },
+      { "name": "Sincronizacion transversal de acceso", "goal": "Sincronizar cambios de beat_access entre sesiones mediante Broadcast privado y reconciliacion contra Postgres.", "progress_percent": 100, "status": "completed" },
+      { "name": "Identidad y app experience", "goal": "Integrar logo, metadata, manifest, iconos y splash sin afectar navegacion ni rendimiento.", "progress_percent": 100, "status": "completed" },
+      { "name": "CRM Foundation", "goal": "Definir identidad, limites de dominio, entidades minimas y metricas deterministas sin duplicar autoridades existentes.", "progress_percent": 100, "status": "completed" },
       { "name": "Licencias formales", "goal": "Mejorar contrato legal y versionado de licencias.", "progress_percent": 0, "status": "planned" },
       { "name": "Marketplace musical", "goal": "Expandir a marketplace multiusuario.", "progress_percent": 0, "status": "future" }
     ],
     "future": [
+      "Fase 16 - Automatizacion Comercial",
+      "Fase 17 - Analytics con IA",
+      "Fase 18 - B.R Intelligence",
+      "Artist Foundation como expansion estrategica posterior a Fase 18",
+      "B.R Radio como linea futura/experimental",
+      "Marketplace multiusuario como expansion posterior",
       "Stripe o pagos automaticos completos",
-      "Perfiles publicos",
-      "Servicios musicales",
-      "Escrow o pago protegido",
-      "Suscripciones/freemium/watermark",
-      "Chat y rooms de colaboracion"
+      "Perfiles publicos, servicios musicales y colaboracion"
     ]
   },
   "status": {
-    "current_phase": "fase_14g_1_admin_ux_ai_lite",
-    "current_phase_label": "Fase 14G.1 - Admin UX Refinement + AI Beat Analysis Lite",
-    "current_phase_status": "implemented",
-    "progress_percent": 98,
-    "current_level": "Produccion inicial operativa: Next.js App Router en Vercel con dominio brstudios.org, Supabase Auth/Storage/Postgres, Resend SMTP, Home Discovery con busqueda, playlist Full Beats, generos multi-tag, catalogo publico activo, paginas publicas compactas estilo Spotify, Admin Beats Dashboard, Commercial Detail Dock, AI Beat Analysis Lite con Procesar de nuevo, revocaciones visibles, dashboard comercial compacto, admin con activos/inactivos, preview real, waveform fallback seguro, player full/preview por acceso, descargas/licencias protegidas, pagos manuales, B.R Cambios y admin_change_logs.",
+    "current_phase": "fase_15_crm_inteligente",
+    "current_phase_label": "Fase 15 - Motor Comercial Inteligente / CRM",
+    "current_phase_status": "in_progress",
+    "progress_percent": 12,
+    "progress_scope": "Avance de Fase 15: 15.0 completa la foundation; 15.1 esta implementada y validada tecnicamente, pendiente de validacion fisica Admin antes de contar avance adicional.",
+    "progress_basis": "15.0 fijo identidad y autoridades. 15.1 agrega Contact 360 derivado y crm_relationships con RLS administrativa, comando idempotente y pruebas; falta validar la UI con sesion Admin conectada.",
+    "current_level": "15.1 Contact Intelligence implementada sobre profiles.id y las fuentes comerciales existentes; crm_relationships remota esta aplicada sin reemplazar autoridades. Estado pending_validation por falta de navegador Admin.",
     "last_stable_commit": "pending_phase_14d_commit",
     "checkpoint_doc": "docs/phase-13-preview-player-auth-checkpoint.md",
     "commercial_sql": "docs/supabase/phase-12-commercial.sql",
     "change_logs_sql": "docs/supabase/phase-14d-admin-change-logs.sql",
-    "next_phase": "fase_14g_2_musical_classification",
-    "next_phase_label": "Fase 14G.2 - Clasificacion musical asistida",
-    "next_phase_goal": "Clasificar beats por BPM, tonalidad, generos, subgeneros y mood con asistencia progresiva sin romper metadata manual."
+    "next_phase": "fase_15_1_contact_intelligence",
+    "next_phase_label": "15.1 - Contact Intelligence y Relaciones",
+    "next_phase_goal": "Completar la validacion fisica Admin de Contact 360 y relaciones explicitas ya implementadas."
   },
   "phases": {
     "completed": [
@@ -126,10 +144,109 @@
       { "phase": "fase_14f_1", "label": "Home Discovery / Spotify Catalog", "result": "Busqueda Home, playlist Full Beats, generos multi-tag y agrupacion dinamica de catalogo." },
       { "phase": "fase_14f_2", "label": "Commercial Detail Dock", "result": "Dashboard comercial con dock de detalle, top usuarios, top beats, metricas y actividad compacta." },
       { "phase": "fase_14f_3", "label": "Admin Beats Dashboard Layout", "result": "Gestion de Beats convertida a dashboard con resumen lateral, catalogo central y panel detalle anclado." },
-      { "phase": "fase_14g_1", "label": "Admin UX Refinement + AI Beat Analysis Lite", "result": "AI Lite con Procesar de nuevo, coincidencia estable, revocaciones visibles, paneles compactos de tops, historial admin compacto y header dashboard compacto." }
+      { "phase": "fase_14g_1", "label": "Admin UX Refinement + AI Beat Analysis Lite", "result": "AI Lite con Procesar de nuevo, coincidencia estable, revocaciones visibles, paneles compactos de tops, historial admin compacto y header dashboard compacto." },
+      { "phase": "fase_14_5_consolidacion", "label": "Fase 14.5 - Consolidacion de BR Platform / Beat Room", "result": "Seguridad de audio, Access Domain, Realtime privado, operaciones atomicas, sincronizacion transversal, estados comerciales, analisis musical v2 y regresion visual autenticada final completados." }
     ],
-    "current": { "phase": "fase_14g_1_admin_ux_ai_lite", "label": "Fase 14G.1 - Admin UX Refinement + AI Beat Analysis Lite", "status": "implemented" },
-    "next": { "phase": "fase_14g_2_musical_classification", "label": "Fase 14G.2 - Clasificacion musical asistida", "goal": "Clasificar beats por BPM, tonalidad, generos, subgeneros y mood con asistencia progresiva sin romper metadata manual." }
+    "current": {
+      "phase": "fase_15_crm_inteligente",
+      "label": "Fase 15 - Motor Comercial Inteligente / CRM",
+      "status": "in_progress",
+      "progress_percent": 12,
+      "architecture_principle": "El CRM organiza conocimiento sobre las fuentes existentes; no reemplaza profiles, access_requests, manual_payments, beat_access, commercial_activity ni access_revocations.",
+      "identity_principle": "profiles.id es la identidad CRM estable inicial. Las relaciones comerciales son simultaneas y no se convierten en roles Auth.",
+      "sources_of_truth": {
+        "identity": "profiles y auth.users",
+        "request_workflow": "access_requests",
+        "confirmed_payments": "manual_payments",
+        "current_access": "beat_access",
+        "historical_activity": "commercial_activity",
+        "revocation_history": "access_revocations"
+      },
+      "accepted_entities": [
+        "crm_relationships persistida sobre profiles.id para relaciones explicitas simultaneas; RLS y comando idempotente validados, pendiente validacion fisica Admin de 15.1",
+        "crm_opportunities como entidad logica separada de access_requests; persistencia pendiente de 15.2"
+      ],
+      "rejected_entities": [
+        "crm_contacts en 15.0 porque los cinco actores comerciales remotos ya tienen profile y no hay contactos externos reales"
+      ],
+      "deferred_entities": [
+        "orders hasta existir multiples items/pagos, facturacion, impuestos, checkout o identidad comercial independiente",
+        "crm_notes hasta definir autoria, visibilidad y retencion",
+        "crm_followups o crm_tasks hasta validar el flujo operativo",
+        "crm_tags hasta necesitar segmentacion no cubierta por relaciones y metricas"
+      ],
+      "artist_foundation_compatibility": "Artist Foundation podra extender profiles.id despues de Fase 18 sin convertir identidad artistica o relaciones CRM en roles de autorizacion.",
+      "subphases": [
+        { "phase": "fase_15_0_crm_foundation", "label": "15.0 - CRM Foundation", "status": "completed", "goal": "Auditar datos reales, fijar identidad, autoridades, entidades minimas y metricas deterministas." },
+        { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "pending_validation", "goal": "Contact 360 y relaciones explicitas implementadas; falta validacion fisica con sesion Admin conectada." },
+        { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "planned", "goal": "Persistir posibilidades comerciales separadas de solicitudes de acceso." },
+        { "phase": "fase_15_3_follow_up", "label": "15.3 - Notes y Follow-up", "status": "planned", "goal": "Agregar contexto humano y seguimiento accionable con autoria y visibilidad." },
+        { "phase": "fase_15_4_commercial_timeline", "label": "15.4 - Commercial Timeline", "status": "planned", "goal": "Unificar cronologia derivada sin duplicar historiales fuente." },
+        { "phase": "fase_15_5_crm_dashboard", "label": "15.5 - CRM Dashboard", "status": "planned", "goal": "Exponer el dominio validado en una superficie administrativa minima." },
+        { "phase": "fase_15_6_crm_intelligence", "label": "15.6 - CRM Intelligence", "status": "planned", "goal": "Convertir metricas deterministas en señales explicables, sin IA compleja." },
+        { "phase": "fase_15_7_qa_consolidation", "label": "15.7 - QA y Consolidacion", "status": "planned", "goal": "Validar seguridad, consistencia, rendimiento y continuidad antes de Fase 16." }
+      ]
+    },
+    "next": { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "pending_validation", "goal": "Validar fisicamente Contact 360 y el flujo Admin de relaciones ya implementados.", "design_principle": "Derivar primero; persistir solo la informacion humana que las autoridades actuales no pueden representar." },
+    "future": [
+      { "phase": "fase_16_automatizacion_comercial", "label": "Fase 16 - Automatizacion Comercial" },
+      { "phase": "fase_17_analytics_ia", "label": "Fase 17 - Analytics con IA" },
+      { "phase": "fase_18_br_intelligence", "label": "Fase 18 - B.R Intelligence" },
+      { "phase": "artist_foundation", "label": "Artist Foundation", "status": "future", "depends_on": "Fase 18 - B.R Intelligence" }
+    ]
+  },
+  "roadmap": {
+    "current": {
+      "phase": "Fase 15",
+      "label": "Motor Comercial Inteligente / CRM",
+      "status": "in_progress",
+      "progress_percent": 12,
+      "progress_note": "15.0 CRM Foundation completada: auditoria local/remota, identidad profiles.id, limites de dominio, decisiones de entidades y selector determinista probado.",
+      "official_order": [
+        "15.0 - CRM Foundation",
+        "15.1 - Contact Intelligence y Relaciones",
+        "15.2 - Opportunities",
+        "15.3 - Notes y Follow-up",
+        "15.4 - Commercial Timeline",
+        "15.5 - CRM Dashboard",
+        "15.6 - CRM Intelligence",
+        "15.7 - QA y Consolidacion",
+        "Fase 16 - Automatizacion Comercial",
+        "Fase 17 - Analytics con IA",
+        "Fase 18 - B.R Intelligence",
+        "Artist Foundation"
+      ],
+      "crm_gate": "Cumplido: Fase 14.5 permanece completed al 100% y Fase 15 esta abierta oficialmente.",
+      "exit_criteria": [
+        "Identidad CRM y relaciones simultaneas tienen contratos estables",
+        "Oportunidades permanecen separadas de access_requests",
+        "Notas y seguimiento tienen autoria, visibilidad y RLS verificables",
+        "Timeline deriva las autoridades existentes sin duplicarlas",
+        "Metricas e inteligencia son deterministas y explicables",
+        "CRM Dashboard respeta privilegios administrativos",
+        "Fase 14.5 permanece sin regresiones",
+        "Tests, lint, TypeScript y build permanecen limpios"
+      ]
+    },
+    "future": [
+      { "phase": "Fase 16", "label": "Automatizacion Comercial", "depends_on": "CRM y estados comerciales estables" },
+      { "phase": "Fase 17", "label": "Analytics con IA", "depends_on": "Datos comerciales y musicales persistidos de forma consistente" },
+      { "phase": "Fase 18", "label": "B.R Intelligence", "depends_on": "Automatizacion y analytics confiables" },
+      { "phase": "Artist Foundation", "label": "Desarrollo integral de artistas", "depends_on": "Fase 18 - B.R Intelligence", "status": "future" }
+    ],
+    "directions": [
+      { "name": "Artist Foundation", "timing": "Expansion estrategica posterior a Fase 18" },
+      { "name": "B.R Radio", "timing": "Linea futura y experimental; no es la siguiente fase" },
+      { "name": "Marketplace multiusuario", "timing": "Expansion posterior a CRM, automatizacion, analytics e inteligencia" }
+    ],
+    "artist_foundation": {
+      "status": "future",
+      "position": "Despues de Fase 18 - B.R Intelligence",
+      "objective": "Extender BR Platform desde Beat Room y la administracion comercial hacia el acompanamiento integral del desarrollo de artistas.",
+      "scope": ["perfil profesional", "identidad artistica", "catalogo musical", "canciones y proyectos", "lanzamientos", "estrategia musical", "contenido", "campanas", "audiencia", "metricas", "oportunidades", "colaboraciones", "seguimiento de crecimiento", "acompanamiento mediante BR STUDIOS Companion"],
+      "relationship_to_beat_room": "No reemplaza Beat Room; crece sobre su infraestructura consolidada de musica, acceso, pagos, actividad y analisis.",
+      "project_boundary": "BR Platform y BR STUDIOS Central son superficies distintas; este roadmap no modifica brstudios-central."
+    }
   },
   "execution": {
     "completed": [
@@ -152,18 +269,37 @@
       "AI Beat Analysis Lite Reprocess",
       "Revocation UX Improvements",
       "Commercial dashboard rankings",
+      "Analisis musical real de BPM, tonalidad, chroma, FFT y features",
+      "Beat Quality Score calculado y explicado en Preview Editor",
+      "Autoanalisis al abrir Preview Editor y reprocesamiento manual",
+      "Persistencia musical versionada br-analysis-v2 con confidence nullable, analyzed_at y resultados detectados en un unico UPDATE",
+      "Clasificacion conservadora por evidencia fuerte, parcial o insuficiente, con categorias amplias y subgeneros bajo gates estrictos",
+      "Identidad visual, metadata, manifest, favicon, app icons y splash",
       "access_revocations",
       "admin_change_logs con temporal 7 dias y permanente por anio",
       "Soft delete is_deleted para B.R Cambios",
-      "PDF manual del historial temporal"
+      "PDF manual del historial temporal",
+      "14.5A: full audio privado con autorizacion server-side y signed URLs",
+      "14.5B: Access Domain con beat_access como autoridad actual y access_revocations como historial",
+      "14.5C: Broadcast Realtime privado por usuario, reconciliacion contra beat_access, recuperacion de red y Player reactivo a revocaciones",
+        "14.5D: operaciones criticas de acceso, solicitudes y pago manual atomicas mediante RPCs PostgreSQL validadas con rollback, retries y Realtime",
+      "14.5E: primera separacion progresiva del dominio de acceso con facade compatible, cliente compartido y cero cambios de consumidores",
+      "Playback publico separado de acceso comercial; re-solicitud desde beat detail e historial Admin legible",
+      "Sincronizacion transversal consolidada con dispatcher local unico, invalidacion por dominio, payment_pending derivado de access_requests y Commercial alineado con beat_access",
+      "Analisis musical br-analysis-v2 validado funcionalmente con clasificacion conservadora y metadata manual protegida",
+      "Estados comerciales derivados con diferencia explicita entre acceso por pago, grant administrativo, revocado y restaurado; orders diferida a Fase 15",
+      "Regresion visual autenticada final PASS en localhost:3100",
+      "15.0 CRM Foundation: auditoria local/remota, identidad profiles.id, contrato arquitectonico y selector de inteligencia determinista"
     ],
     "pending": [
-      "Fase 14 M2: estados formales de orden y pago",
       "Aplicar/actualizar schema consolidado si se decide sincronizar docs/supabase/schema.sql con phase-14d",
-      "Evaluar bucket privado y signed URLs",
       "Terminos y condiciones",
       "Licencias legales avanzadas",
       "Pagos automaticos completos",
+      "15.1 Contact Intelligence y relaciones explicitas",
+      "15.2 Opportunities separadas de access_requests",
+      "Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout",
+      "Mejoras futuras de precision y UI del analisis musical",
       "Marketplace multiusuario",
       "B.R Radio",
       "Portadas reales"
@@ -179,38 +315,74 @@
     "Descargas/licencias protegidas",
     "Pagos manuales y actividad comercial",
     "Revocaciones",
-    "B.R Cambios/admin_change_logs"
+    "B.R Cambios/admin_change_logs",
+    "Analisis musical real con BPM, tonalidad, FFT, features y Beat Quality Score",
+    "Autoanalisis y reprocesamiento en Preview Editor",
+    "Identidad visual, manifest, favicon, app icons y splash",
+    "14.5A - Seguridad del Full Audio",
+    "14.5B - Access Domain",
+    "14.5C - Sincronizacion Realtime",
+    "14.5D - Operaciones Atomicas Criticas",
+    "14.5E - Separacion Progresiva por Dominio",
+    "Persistencia y clasificacion musical br-analysis-v2 validadas funcionalmente",
+    "Estados comerciales y pagos consolidados sin crear una entidad orders prematura",
+    "Fase 14.5 - Consolidacion de BR Platform / Beat Room",
+    "Regresion visual autenticada final PASS",
+    "15.0 - CRM Foundation"
   ],
   "pending": [
-    "Estados formales de orden y pago",
-    "Bucket privado/signed URLs",
     "Terminos y condiciones",
     "Licencias legales avanzadas",
     "Pagos automaticos completos",
+    "15.1 - Contact Intelligence y Relaciones",
+    "Orders diferida hasta evidencia comercial fuerte",
+    "Mejoras futuras de precision y UI del analisis musical",
+    "Reconciliacion del schema consolidado si todavia corresponde",
     "Marketplace multiusuario",
     "B.R Radio",
     "Portadas reales"
   ],
   "blocked": [],
-  "risks": [
-    "No exponer SUPABASE_SERVICE_ROLE_KEY al cliente.",
-    "No usar beat_access para filtrar catalogo publico.",
-    "No confundir is_active con playback_visibility.",
-    "No liberar descarga/licencia solo porque playback_visibility sea public.",
-    "docs/supabase/schema.sql puede quedar atras respecto a deltas phase-14b/14c/14d si no se consolida manualmente.",
-    "B.R Cambios depende de ejecutar phase-14d-admin-change-logs.sql en Supabase."
-  ],
-  "pros": [
-    "Produccion inicial operativa.",
-    "Flujo comercial base funcional.",
-    "Admin tiene visibilidad operacional completa de beats y cambios.",
-    "Reglas de playback y descarga separadas correctamente."
-  ],
-  "cons": [
-    "Aun faltan ordenes formales completas.",
-    "Aun faltan pagos automaticos y licencias legales avanzadas.",
-    "Schema consolidado debe revisarse contra deltas recientes antes de usarlo como source of truth."
-  ],
+  "analysis": {
+    "risks": [
+      "Guard de regresion: el full audio debe conservar autorizacion server-side y signed URLs temporales; nunca volver a depender solo de una decision visual del Player.",
+      "Supabase Realtime funciona como señal de cambio, no como fuente de verdad; tras una interrupcion de red la recuperacion debe reconciliar nuevamente contra beat_access.",
+      "src/lib/supabase/queries.ts conserva catalogo, perfiles, workflow de solicitudes, uploads y administracion; la extraccion debe continuar solo cuando esos dominios vuelvan a modificarse.",
+      "Existen 3 beats br-analysis-v1 que permanecen stale hasta un reproceso manual controlado a v2; no bloquean la validacion funcional aceptada del motor.",
+      "La clasificacion de genero/subgenero es una heuristica conservadora basada en features de audio; puede devolver Unclassified y no equivale a un modelo ML ni una inferencia completa.",
+      "El flujo 14.5 es deliberadamente de un usuario + un beat; una entidad orders solo debe abrirse en Fase 15 si CRM requiere identidad comercial propia, multiples items/pagos o facturacion.",
+      "Las licencias generadas son tecnicas y no sustituyen un contrato legal formal y versionado.",
+      "commercial_activity contiene eventos historicos legacy anteriores al RPC atomico; sus filas se preservan y los contadores de pagos usan manual_payments como autoridad.",
+      "docs/supabase/schema.sql puede estar atras respecto a deltas recientes; no aplicar cambios remotos sin reconciliacion y respaldo.",
+      "El proyecto Supabase comparte tablas de otras superficies; nombres genericos como marketplace_orders no deben asumirse como parte de Beat Room ni reutilizarse para CRM.",
+      "profiles cubre a todos los actores actuales, pero el primer lead sin cuenta obligara a reevaluar una identidad CRM externa sin duplicar usuarios existentes.",
+      "Existen dos package-lock.json en niveles distintos; es deuda menor de contexto de instalacion, no un bloqueo actual."
+    ],
+    "pros": [
+      "La plataforma base es funcional y cubre catalogo, autenticacion, playback, solicitudes, accesos, descargas, licencias y administracion.",
+      "Supabase ya integra autenticacion, Postgres y Storage con APIs protegidas para operaciones sensibles.",
+      "Next.js App Router y Supabase siguen siendo adecuados; no se requiere una reescritura ni tecnologia adicional para consolidar la fase.",
+      "beat_access ya representa correctamente el acceso actual y access_revocations ya permite conservar su historial.",
+      "Access Domain y Broadcast Realtime privado sincronizan cambios entre sesiones; UserContext reconcilia contra beat_access y conserva el ultimo estado valido durante fallos transitorios.",
+      "La recuperacion por online, focus y visibility, junto con el aislamiento por usuario, fue validada fisicamente.",
+      "Grant, revoke, approve, reject y pago manual operan mediante RPCs PostgreSQL atomicas con rollback e idempotencia validados.",
+      "El dominio estable de autoridad e historial de acceso ya tiene modulo Supabase propio y queries.ts conserva compatibilidad mediante re-exports.",
+      "La plataforma puede evolucionar con cambios quirurgicos y RPCs solo donde aporten atomicidad.",
+      "El motor musical ya ejecuta BPM, tonalidad, chroma, FFT, features y Beat Quality Score sobre audio real.",
+      "La operacion comercial manual tiene pagos, tipos de licencia, actividad y paneles administrativos.",
+      "El selector comercial derivado distingue solicitud, revision, rechazo, pago pendiente, pago, acceso activo, revocado y restaurado sin duplicar verdad persistida.",
+      "Commercial distingue acceso por pago, grant administrativo y restauracion; los ingresos se calculan exclusivamente desde manual_payments.",
+      "Los cinco actores comerciales remotos tienen Auth/Profile y no hay identidades huerfanas, por lo que CRM puede iniciar sin una tabla de contactos duplicada.",
+      "El selector CRM Foundation deriva relaciones, valor por moneda, actividad e intereses sin escribir ni alterar autoridades existentes.",
+      "La identidad visual y la experiencia de instalacion/app icon estan consolidadas en las superficies principales.",
+      "El proceso local de produccion br-platform esta operativo bajo PM2."
+    ],
+    "cons": [
+      "Pagos automaticos, terminos, licencias legales avanzadas y una posible entidad orders pertenecen a fases posteriores.",
+      "El schema consolidado debe revisarse contra los deltas antes de tratarlo como fuente completa.",
+      "Aun no existe persistencia para relaciones explicitas, oportunidades, notas o seguimiento; se agregara solo despues de validar cada flujo."
+    ]
+  },
   "architecture": {
     "stack": "Next.js App Router, TypeScript, Tailwind, Supabase, Vercel, Cloudflare DNS, Resend",
     "data_layer": "Supabase Postgres",
@@ -225,8 +397,41 @@
     "playback_visibility": true,
     "preview_editor": true,
     "ffmpeg_preview_generation": true,
+    "musical_audio_analysis": true,
+    "beat_quality_score": true,
+    "musical_analysis_persistence": "validated_functionally",
+    "musical_analysis_version": "br-analysis-v2",
+    "audio_genre_inference": "conservative_assisted_audio_feature_heuristic_validated_functionally",
+    "audio_genre_taxonomy": ["Hip Hop", "Electronic", "R&B", "Pop", "Unclassified"],
+    "audio_subgenre_taxonomy": ["Trap", "Boom Bap", "House"],
+    "access_authority": "beat_access determina el acceso actual; access_revocations conserva exclusivamente el historial",
+    "access_refresh_model": "Broadcast Realtime privado por usuario como señal; refreshCurrentUser reconcilia contra beat_access y recupera por online, focus y visibility sin descartar el ultimo estado valido ante fallos transitorios",
+    "access_domain_strategy": "Capa reutilizable completada para distinguir sin acceso, activo, revocado y restaurado sin permitir que el historial invalide beat_access.",
+    "supabase_domain_separation": "supabase/access.ts contiene autoridad, historial y comandos atomicos de acceso; session-client.ts centraliza cliente/sesion; beat-identifiers.ts resuelve UUID/slug; queries.ts permanece como facade compatible y conserva dominios aun no extraidos.",
+    "evolution_strategy": "Supabase Postgres, Supabase Realtime, RPCs cuando aporten atomicidad y separacion progresiva de codigo; no introducir Redux, Zustand, microservicios, Kafka, RabbitMQ, event bus externo, nueva base de datos ni reemplazar Supabase o Next.js.",
     "admin_change_logs": true,
-    "license_types": ["basic", "premium", "exclusive"]
+    "storage_access": "previews publicos independientes; full audio privado servido mediante signed URLs temporales server-side",
+    "local_runtime": "PM2 br-platform online mediante npm start",
+    "license_types": ["basic", "premium", "exclusive"],
+    "commercial_operation_identity": "user_id + beat_id dentro de Beat Room; una oportunidad CRM tendra identidad separada cuando se implemente",
+    "commercial_state_model": "Derivado de access_requests + manual_payments + beat_access + access_revocations; commercial_activity conserva historial",
+    "orders_decision": "Diferida despues de la auditoria 15.0; no crear hasta demostrar multiples items/pagos, facturacion, impuestos, checkout o identidad comercial propia",
+    "crm_identity": "profiles.id es la identidad estable inicial porque todos los actores comerciales actuales tienen Auth/Profile; crm_contacts se reconsidera solo al aparecer contactos sin cuenta",
+    "crm_relationship_principle": "Contacto, lead, cliente, artista, productor y colaborador son relaciones simultaneas, no roles Auth rigidos.",
+    "crm_foundation": {
+      "status": "completed",
+      "read_model": "Selector puro sobre profiles, access_requests, manual_payments, beat_access, commercial_activity y access_revocations",
+      "accepted_entities": ["crm_relationships", "crm_opportunities"],
+      "rejected_now": ["crm_contacts"],
+      "deferred": ["orders", "crm_notes", "crm_followups_or_tasks", "crm_tags"],
+      "remote_migrations": 0
+    },
+    "platform_domains": {
+      "beat_room": ["beats", "playback", "solicitudes", "accesos", "pagos", "licencias", "Commercial"],
+      "crm": ["contactos", "oportunidades", "seguimiento", "contexto comercial"],
+      "br_intelligence": ["analytics", "recomendaciones", "automatizacion e inteligencia"],
+      "artist_foundation": ["artista", "identidad", "musica", "lanzamientos", "contenido", "audiencia", "campanas", "crecimiento"]
+    }
   },
   "documentation": {
     "files": [
@@ -246,6 +451,9 @@
       "docs/supabase/phase-14b-order-status.sql",
       "docs/supabase/phase-14c-access-revocations.sql",
       "docs/supabase/phase-14d-admin-change-logs.sql",
+      "docs/supabase/phase-14_5d-atomic-access-operations.sql",
+      "docs/supabase/phase-14_5d-atomic-access-operations.test.sql",
+      "docs/phase-15-crm-foundation.md",
       "docs/supabase/schema.sql"
     ],
     "audit_2026_06_21": {
@@ -255,6 +463,29 @@
         "CHANGELOG.md estaba vacio.",
         "B.R Cambios/admin_change_logs no estaba documentado en continuidad.",
         "docs/supabase/schema.sql no refleja todos los deltas recientes."
+      ]
+    },
+    "audit_2026_08_14": {
+      "reviewed": "Estado Git, APP_STATE, motor documental, analisis musical, accesos, eventos de refresco, operacion comercial, licencias, Storage, identidad visual y runtime PM2.",
+      "findings": [
+        "Fase 14G.1 ya no describe el estado real; Fase 14.5 consolida trabajo implementado y cierres parciales.",
+        "BPM, tonalidad, FFT, features y Beat Quality Score ya estan implementados sobre audio real.",
+        "La persistencia ampliada y la clasificacion conservadora de genero/subgenero estan implementadas tecnicamente; Unclassified es el fallback formal y su ciclo fisico en Preview Editor sigue pendiente.",
+        "beat_access es la autoridad activa en las superficies auditadas y access_revocations se presenta como historial, incluidos accesos restaurados.",
+        "Hallazgo cerrado por 14.5C: los refrescos locales se complementaron con Broadcast Realtime privado y reconciliacion contra beat_access.",
+        "La operacion comercial manual existe, pero falta una orden formal y atomica.",
+        "La identidad visual, manifest, favicon, iconos y splash estan consolidados.",
+        "El proceso local PM2 br-platform esta online."
+      ]
+    },
+    "audit_2026_08_18_crm_foundation": {
+      "reviewed": "Repositorio, APP_STATE, schema y migraciones locales, Admin Users, Commercial Users, dashboard, queries, RPCs, eventos, Realtime y esquema/datos agregados del Supabase remoto.",
+      "findings": [
+        "Los cinco usuarios Auth tienen profile y los cinco profiles tienen actividad comercial; no hay evidencia para crm_contacts en 15.0.",
+        "Las autoridades actuales ya describen identidad, solicitudes, pagos, acceso actual, actividad y revocaciones, pero no relaciones explicitas ni oportunidades multi-interes.",
+        "crm_relationships y crm_opportunities son entidades logicas necesarias; su persistencia se difiere al primer flujo real.",
+        "marketplace_orders existe vacia en el Supabase compartido pero pertenece a otra superficie y no es una orden de Beat Room.",
+        "No se aplicaron migraciones ni cambios remotos."
       ]
     }
   },
@@ -266,10 +497,123 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Continuar Fase 14G.2 sin romper catalogo, metadata manual, playback, descargas/licencias ni historial administrativo.",
-    "next_action": "Implementar clasificacion musical asistida y preparar B.R Radio / playlist publica continua.",
-    "context": "B.R esta publicada en Vercel con dominio brstudios.org, Supabase real, Home Discovery, Full Beats, generos multi-tag, Admin Beats Dashboard, Commercial Detail Dock, AI Beat Analysis Lite, preview real, player premium, playback_visibility, pagos manuales, descargas/licencias protegidas, revocaciones visibles y B.R Cambios con admin_change_logs.",
+    "priority": "Completar la validacion fisica Admin de 15.1 Contact Intelligence; no avanzar a 15.2 hasta cerrar o registrar correctamente este gate.",
+    "next_action": "Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.",
+    "context": "Fase 14.5 permanece completed al 100%. Fase 15 esta in_progress al 12%; 15.1 implementa Contact 360 sobre profiles.id y crm_relationships remota con RLS, pero queda pending_validation por no haber navegador Admin conectado.",
+    "session_context": "15.1: migraciones crm_relationships e indices de auditoria aplicadas remotamente; RLS y comando idempotente se validaron en transaccion revertida (admin una fila activa, usuario normal cero updates). Suite local 91/91, lint, TypeScript, build y diff-check pasan. No existe navegador conectado para la validacion fisica.",
+    "musical_classification_sample": {
+      "evaluated_beats": 3,
+      "exact_matches": 1,
+      "broad_matches": 2,
+      "unclassified": 1,
+      "clear_false_positives": 0,
+      "average_confidence_matches": 0.84,
+      "average_confidence_errors": null,
+      "note": "Comparacion aproximada contra metadata manual; genre manual no fue entrada del algoritmo."
+    },
+    "transversal_physical_qa": {
+      "access": "PASS",
+      "requests": "PASS",
+      "payments": "PASS",
+      "commercial": "PASS",
+      "musical_preview_editor": "ACCEPTED_FUNCTIONALLY_BY_USER",
+      "commercial_state_consolidation": "PASS_TECHNICAL_AND_REMOTE_SQL",
+      "final_visual_regression": "PASS_USER_VALIDATED_LOCALHOST_3100"
+    },
     "catalog_rule": "is_active filtra publico; admin ve activos e inactivos. beat_access no filtra catalogo.",
-    "playback_rule": "playback_visibility controla full publico/privado; beat_access controla full privado, descargas y licencias."
-  }
+    "playback_rule": "playback_visibility=public autoriza full mediante endpoint server-side y signed URL temporal incluso sin sesion; beat_access controla full privado, descargas y licencias."
+  },
+  "history": [
+    {
+      "date": "2026-08-14",
+      "version": "fase_14_5",
+      "event": "Auditoria documental y apertura de Fase 14.5",
+      "reason": "El estado Fase 14G.1 al 98% y la siguiente Fase 14G.2 ya no representaban el codigo existente.",
+      "impact": "Analisis musical e identidad reconocidos como implementados; pendientes reales priorizados; Fase 15 CRM definida como siguiente fase y roadmap 16-18 separado."
+    },
+    {
+      "date": "2026-08-16",
+      "version": "fase_14_5_roadmap_architectural_subphases",
+      "event": "Roadmap oficial de Fase 14.5 dividido en subfases arquitectonicas",
+      "reason": "Formalizar los bloqueos de seguridad, acceso, sincronizacion, atomicidad y separacion progresiva antes de CRM sin introducir una nueva arquitectura.",
+      "impact": "14.5A-14.5E y validacion final quedan planificadas; el estado permanece in_progress al 70% y Fase 15 sigue bloqueada hasta el cierre verificable de la base."
+    },
+    {
+      "date": "2026-08-16",
+      "version": "fase_14_5c_realtime_sync_completed",
+      "event": "Cierre de 14.5C - Sincronizacion Realtime",
+      "reason": "La sincronizacion privada, reconciliacion contra beat_access, recuperacion de red y reaccion del Player fueron validadas tecnica y fisicamente.",
+      "impact": "14.5C queda completed; 14.5D - Operaciones Atomicas Criticas pasa a ser la siguiente subfase y el avance global manual permanece en 70%."
+    },
+    {
+      "date": "2026-08-16",
+      "version": "fase_14_5d_atomic_critical_operations_completed",
+      "event": "Cierre de 14.5D - Operaciones Atomicas Criticas",
+      "reason": "Grant, revoke, approve, reject y pago manual requerian evitar estados parciales, carreras TOCTOU y duplicaciones accidentales.",
+      "impact": "Cinco RPCs PostgreSQL minimas garantizan todo-o-nada, locks acotados e idempotencia; rollback, UI, historial y Realtime fueron validados. 14.5E pasa a ser la siguiente subfase y el avance permanece en 70%."
+    },
+    {
+      "date": "2026-08-16",
+      "version": "fase_14_5e_progressive_domain_separation_completed",
+      "event": "Cierre de 14.5E - Separacion Progresiva por Dominio",
+      "reason": "queries.ts concentraba acceso, sesiones, catalogo, perfiles y administracion; se requeria establecer un patron incremental antes de continuar la consolidacion.",
+      "impact": "Autoridad e historial de acceso se extrajeron con facade compatible y cliente compartido; queries.ts redujo 447 lineas sin cambiar consumidores. El siguiente pendiente real es persistencia musical versionada y Fase 15 permanece cerrada."
+    },
+    {
+      "date": "2026-08-17",
+      "version": "public_playback_commercial_access_separation",
+      "event": "Correccion de solicitudes, historial Admin y playback publico",
+      "reason": "La UI confundia full publico con acceso comercial, Account permitia re-solicitar y el endpoint playback exigia sesion antes de evaluar visibilidad.",
+      "impact": "Full publico funciona con signed URL temporal sin otorgar derechos comerciales; beat_access conserva download/license; re-solicitudes cerradas se hacen desde el beat sin limite artificial y Admin muestra historial legible. Fase 14.5 permanece in_progress al 70%."
+    },
+    {
+      "date": "2026-08-17",
+      "version": "pending_payment_admin_history_correction",
+      "event": "Correccion de pago pendiente e historial Admin",
+      "reason": "La aprobacion atomica concedia acceso y cerraba la solicitud antes de confirmar un pago real.",
+      "impact": "Aprobar deja payment_pending sin acceso; el pago manual conserva su transaccion atomica y Admin muestra contadores, estado de pago, acceso vigente e historial de revocaciones por separado. Fase 14.5 permanece in_progress al 70%; la validacion fisica queda pendiente por falta de navegador conectado."
+    },
+    {
+      "date": "2026-08-17",
+      "version": "phase_14_5_transversal_sync_audit",
+      "event": "Auditoria y consolidacion de sincronizacion transversal",
+      "reason": "Eventos locales duplicados, superficies sin relectura y Commercial inferian pago pendiente desde una fuente incorrecta.",
+      "impact": "Dispatcher centralizado, invalidacion por dominio, recuperacion por foco y online, payment_pending alineado con access_requests y estados actuales derivados de beat_access. Realtime remoto y validacion tecnica pasan; Fase 14.5 permanece in_progress al 70% hasta completar validacion fisica y pendientes funcionales."
+    },
+    {
+      "date": "2026-08-17",
+      "version": "phase_14_5_musical_persistence_pending_physical_validation",
+      "event": "Persistencia musical versionada y clasificacion asistida consolidadas tecnicamente",
+      "reason": "El motor calculaba resultados musicales, pero genero/subgenero no usaban las features de audio y la documentacion no distinguia implementacion tecnica de validacion fisica.",
+      "impact": "br-analysis-v1 persiste resultados detectados, confidence nullable, analyzed_at, Quality Score, recomendacion y features compactas en un unico UPDATE; genero/subgenero usan una heuristica conservadora sin sobrescribir metadata manual. El bloque musical queda al 90% y pendiente de los cuatro casos fisicos del Preview Editor."
+    },
+    {
+      "date": "2026-08-18",
+      "version": "phase_14_5_conservative_genre_classification_v2",
+      "event": "Correccion conservadora de genero y subgenero",
+      "reason": "La validacion fisica revelo falsos positivos causados por thresholds bajos, features correlacionadas y subgeneros demasiado especificos.",
+      "impact": "br-analysis-v2 usa categorias amplias, margen minimo, evidencia independiente y penalizaciones por contradiccion; Unclassified prevalece ante duda y los subgeneros requieren evidencia fuerte. Tres resultados v1 quedan stale para reproceso manual; Fase 14.5 y el bloque musical permanecen abiertos hasta validacion fisica."
+    },
+    {
+      "date": "2026-08-18",
+      "version": "phase_14_5_commercial_state_consolidation",
+      "event": "Consolidacion comercial y decision sobre orders",
+      "reason": "Solicitud, pago, acceso, actividad y revocacion necesitaban una lectura unica sin duplicar autoridad ni introducir una orden sin necesidad real.",
+      "impact": "Estados comerciales derivados distinguen pago, acceso comercial, grant administrativo, revocado y restaurado; pagos se cuentan desde manual_payments y beat_access conserva autoridad. Orders se difiere a Fase 15. La fase avanza a 95% y queda abierta solo por regresion visual autenticada final sin navegador conectado."
+    },
+    {
+      "date": "2026-08-18",
+      "version": "phase_14_5_completed",
+      "event": "Cierre oficial de Fase 14.5 - Consolidacion de BR Platform / Beat Room",
+      "reason": "La regresion visual autenticada final fue ejecutada fisicamente por el usuario en localhost:3100 y todos los flujos de salida pasaron.",
+      "impact": "Fase 14.5 queda completed al 100%. Fase 15 - Motor Comercial Inteligente / CRM queda habilitada como siguiente fase oficial sin implementacion iniciada; Artist Foundation se incorpora como expansion estrategica posterior a Fase 18."
+    },
+    {
+      "date": "2026-08-18",
+      "version": "phase_15_0_crm_foundation",
+      "event": "Apertura oficial de Fase 15 y cierre de 15.0 CRM Foundation",
+      "reason": "La informacion comercial existente necesitaba un modelo de persona, relaciones y oportunidades antes de agregar tablas o pantallas CRM.",
+      "impact": "Fase 15 queda in_progress al 12%. profiles.id es la identidad inicial; las seis autoridades existentes se preservan; relaciones y oportunidades se aceptan logicamente; contacts, orders, notas, tareas y tags no se crean. 15.1 pasa a ser la siguiente subfase."
+    }
+  ]
 }

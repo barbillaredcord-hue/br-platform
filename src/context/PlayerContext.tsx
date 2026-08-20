@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Beat } from "@/data/beats";
 import { useUser } from "@/context/UserContext";
 import { userCanAccessBeat, userCanPreviewPrivateBeat } from "@/lib/access";
+import { reconcileFullPlayback } from "@/lib/access-realtime";
+import { getAuthorizedFullAudioUrl } from "@/lib/full-audio-client";
 
 export type PlayerMode = "preview" | "full";
 type PlaybackRequestMode = PlayerMode | "auto";
@@ -158,9 +160,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     recentPlayedKeysRef.current = [key, ...recentPlayedKeysRef.current.filter((item) => item !== key)].slice(0, recentPlaybackLimit);
   }, []);
 
-  const startAudio = useCallback((beat: Beat, nextMode: PlayerMode) => {
+  const startAudio = useCallback(async (beat: Beat, nextMode: PlayerMode) => {
     const previewLimit = getPreviewLimit(beat);
-    const nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl;
+    let nextAudioUrl = nextMode === "full" ? beat.fullAudioUrl : beat.previewUrl;
+
+    if (nextMode === "full") {
+      try {
+        nextAudioUrl = await getAuthorizedFullAudioUrl(beat.dbId ?? beat.id);
+      } catch (error) {
+        warnAudioFailure({ beat, audioUrl: null, mode: nextMode, error });
+        setIsPlaying(false);
+        return;
+      }
+    }
 
     if (!nextAudioUrl) {
       warnAudioFailure({ beat, audioUrl: null, mode: nextMode, error: "missing_audio_url" });
@@ -280,7 +292,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      startAudio(beat, resolvedMode);
+      void startAudio(beat, resolvedMode);
     },
     [queue, rememberCatalogBeats, rememberPlayedBeat, resolvePlaybackMode, startAudio],
   );
@@ -399,6 +411,34 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setDuration(0);
     setCurrentIndex(-1);
   }, []);
+
+  useEffect(() => {
+    if (!currentBeat) {
+      return;
+    }
+
+    const reconciliation = reconcileFullPlayback({
+      mode,
+      isPublicFull: currentBeat.playbackVisibility === "public",
+      isAdmin: currentUser?.role === "admin",
+      hasAccess: userCanAccessBeat(currentUser, currentBeat),
+      canPreview: userCanPreviewPrivateBeat(
+        currentUser,
+        isEmailConfirmed,
+        currentBeat,
+      ),
+    });
+
+    const reconcileId = window.setTimeout(() => {
+      if (reconciliation === "preview") {
+        void startAudio(currentBeat, "preview");
+      } else if (reconciliation === "stop") {
+        closePlayer();
+      }
+    }, 0);
+
+    return () => window.clearTimeout(reconcileId);
+  }, [closePlayer, currentBeat, currentUser, isEmailConfirmed, mode, startAudio]);
 
   const value = useMemo<PlayerContextValue>(
     () => ({

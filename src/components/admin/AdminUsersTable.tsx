@@ -7,6 +7,7 @@ import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { useUser } from "@/context/UserContext";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
 import { deleteUserAsAdmin, getAccessRequests, getBeats, getProfilesResult, isRecentAnsweredRequest, type AccessRequestRow } from "@/lib/supabase/queries";
 
 function getAuthorizedBeats(user: User, beats: Beat[]) {
@@ -219,7 +220,7 @@ export function AdminUsersTable() {
                           <div>
                             <p className="text-xs uppercase text-zinc-500">Solicitudes recientes</p>
                             <div className="mt-2 grid gap-2">
-                              {getUserRequests(user.id).length ? getUserRequests(user.id).map((request) => <span key={request.id} className="text-sm text-zinc-300">{request.status} · {request.created_at ? new Date(request.created_at).toLocaleDateString("es-MX") : "Sin fecha"}</span>) : <span className="text-sm text-zinc-400">Sin solicitudes recientes</span>}
+                              {getUserRequests(user.id).length ? getUserRequests(user.id).map((request) => <span key={request.id} className="text-sm text-zinc-300">{request.status} · {formatLocalDateTime(request.updated_at ?? request.created_at)}</span>) : <span className="text-sm text-zinc-400">Sin solicitudes recientes</span>}
                             </div>
                           </div>
                         </div>

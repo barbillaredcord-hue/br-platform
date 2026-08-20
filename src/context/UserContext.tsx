@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { demoUsers, type User } from "@/data/users";
+import { createAccessRefreshScheduler, isTransientAccessNetworkError, reconcileAccessState, subscribeToAccessChanges } from "@/lib/access-realtime";
+import { notifyAccessStateChanged } from "@/lib/domain-events";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/config";
 import { ensureProfile, getProfiles, getUserBeatAccess, mapProfileToUser, updateProfile } from "@/lib/supabase/queries";
@@ -21,7 +23,7 @@ type UserContextValue = {
   loginAsUser: (email: string, password: string) => Promise<AuthResult>;
   registerUser: (input: { name: string; username: string; email: string; phone: string; password: string }) => Promise<AuthResult>;
   logout: () => Promise<void>;
-  refreshCurrentUser: () => Promise<void>;
+  refreshCurrentUser: () => Promise<boolean>;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isLoadingSession: boolean;
@@ -236,27 +238,90 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const refreshCurrentUser = useCallback(async () => {
     if (!supabase) {
-      return;
+      return false;
     }
 
-    const { data, error } = await supabase.auth.getUser();
-    const sessionUser = error ? null : data.user;
-    const resolvedUser = await getUserFromAuthUser(sessionUser);
-    setAuthEmail(normalizeEmail(sessionUser?.email));
-    setIsEmailConfirmed(getIsEmailConfirmed(sessionUser));
-    setProfileRole(resolvedUser.profileRole);
-    setCurrentUser(resolvedUser.user);
-    if (sessionUser && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
-      setInactiveAccountMessage("Tu cuenta ya no está activa.");
-      await supabase.auth.signOut();
-    } else {
-      setInactiveAccountMessage("");
-    }
-    await refreshUsers();
+    return reconcileAccessState(
+      async () => {
+        const result = await supabase.auth.getUser();
+        if (result.error && isTransientAccessNetworkError(result.error)) {
+          throw result.error;
+        }
+        return result;
+      },
+      async ({ data, error }) => {
+        const sessionUser = error ? null : data.user;
+        const resolvedUser = await getUserFromAuthUser(sessionUser);
+        setAuthEmail(normalizeEmail(sessionUser?.email));
+        setIsEmailConfirmed(getIsEmailConfirmed(sessionUser));
+        setProfileRole(resolvedUser.profileRole);
+        setCurrentUser(resolvedUser.user);
+        if (sessionUser && !resolvedUser.user && resolvedUser.profileRole === "sin profile") {
+          setInactiveAccountMessage("Tu cuenta ya no está activa.");
+          await supabase.auth.signOut();
+        } else {
+          setInactiveAccountMessage("");
+        }
+        await refreshUsers();
+      },
+    );
   }, [refreshUsers]);
 
   const brceoEnvEmail = getBrceoEnvEmail();
   const isAdmin = profileRole === "admin";
+
+  useEffect(() => {
+    if (!supabase || !currentUser?.id) {
+      return;
+    }
+
+    let disposed = false;
+    let unsubscribe: (() => Promise<unknown>) | null = null;
+    const scheduler = createAccessRefreshScheduler(async () => {
+      const refreshed = await refreshCurrentUser();
+      if (refreshed) {
+        notifyAccessStateChanged();
+      }
+    });
+    const reconcile = () => scheduler.schedule();
+    const reconcileVisible = () => {
+      if (document.visibilityState === "visible") {
+        reconcile();
+      }
+    };
+
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("online", reconcile);
+    document.addEventListener("visibilitychange", reconcileVisible);
+
+    void subscribeToAccessChanges({
+      supabase,
+      userId: currentUser.id,
+      onChange: reconcile,
+      onStatus: (status) => {
+        if (status === "SUBSCRIBED") {
+          reconcile();
+        }
+      },
+    }).then((cleanup) => {
+      if (disposed) {
+        void cleanup();
+        return;
+      }
+      unsubscribe = cleanup;
+    });
+
+    return () => {
+      disposed = true;
+      scheduler.dispose();
+      window.removeEventListener("focus", reconcile);
+      window.removeEventListener("online", reconcile);
+      document.removeEventListener("visibilitychange", reconcileVisible);
+      if (unsubscribe) {
+        void unsubscribe();
+      }
+    };
+  }, [currentUser?.id, refreshCurrentUser]);
 
   const value = useMemo(
     () => ({

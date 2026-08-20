@@ -4,7 +4,7 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 
 ## Foco principal
 
-Consolidar el flujo Beat -> preview real -> solicitud -> pago/acceso -> descarga/licencia.
+Construir Fase 15 - Motor Comercial Inteligente / CRM como conocimiento organizado sobre personas, relaciones, oportunidades y seguimiento, sin duplicar las autoridades de Beat Room.
 
 El foco principal de esta app es B.R. BR.autocarmation es soporte interno y no debe sustituir el objetivo del producto.
 
@@ -16,10 +16,10 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 
 - App: `br-platform`
 - Tipo: marketplace musical / plataforma privada de beats
-- Fase: Fase 14G.1 - Admin UX Refinement + AI Beat Analysis Lite
-- Estado: implemented
-- Avance: 98%
-- Siguiente fase: Fase 14G.2 - Clasificacion musical asistida
+- Fase: Fase 15 - Motor Comercial Inteligente / CRM
+- Estado: in_progress
+- Avance: 12%
+- Siguiente fase: 15.1 - Contact Intelligence y Relaciones
 
 ## Oferta del producto
 
@@ -44,14 +44,19 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 - Admin Beats Dashboard
 - Commercial Detail Dock
 - AI Beat Analysis Lite con Procesar de nuevo
+- Deteccion real de BPM y tonalidad con Meyda/chroma y fallback
+- Analisis FFT, features musicales y Beat Quality Score explicable
+- Autoanalisis al abrir Preview Editor y reproceso manual
 - Dashboard comercial compacto
 - Revocaciones de acceso
+- Sincronizacion Realtime privada de beat_access entre sesiones
 - Panel admin B.RCEO
 - B.R Cambios con admin_change_logs
 - Historial temporal de Gestion de Beats por 7 dias
 - Historial permanente agrupado por anio con soft delete
 - Descarga PDF manual del historial temporal
 - Dominio brstudios.org en Vercel con Cloudflare DNS
+- Identidad B.R con app icons, manifest y splash de entrada
 
 ## Usuarios objetivo
 
@@ -69,6 +74,8 @@ Convertir B.R en una plataforma musical premium para productores, musicos, beatm
 - Pagos automaticos completos pendientes
 - Ordenes formales avanzadas pendientes
 - Licencias legales avanzadas pendientes
+- Mejoras futuras de precision y UI del analisis musical conservador
+- Terminos y condiciones pendientes
 - Marketplace multiusuario pendiente
 - Perfiles publicos de productores/artistas pendientes
 - Chat interno pendiente
@@ -112,4 +119,4 @@ Archivos derivados:
 - `CLAUDE.md`
 - `README.md`
 
-Ultima generacion: 2026-06-23T10:26:16
+Ultima generacion: 2026-08-19T12:44:28

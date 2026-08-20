@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Beat } from "@/data/beats";
 import type { User } from "@/data/users";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
 import { createAdminChangeLog, deleteBeatAsAdmin, getAdminChangeLogs, getProfilesResult, updateBeatMetadataAsAdmin, updateBeatPlaybackVisibilityAsAdmin, type AdminChangeLog } from "@/lib/supabase/queries";
 import { PlayButton } from "../PlayButton";
 
@@ -464,7 +465,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
                 <td>${escapePrintText(event.block_title)}</td>
                 <td>${escapePrintText(event.target_name ?? "Sin objetivo")}</td>
                 <td>${escapePrintText(formatChangeDetail(event))}</td>
-                <td>${escapePrintText(new Date(event.created_at).toLocaleTimeString())}</td>
+                <td>${escapePrintText(formatLocalDateTime(event.created_at))}</td>
               </tr>
             `,
           )
@@ -488,7 +489,7 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
         </head>
         <body>
           <h1>Historial de cambios</h1>
-          <p>Últimos 7 días · ${changeEvents.length} eventos · ${escapePrintText(new Date().toLocaleString())}</p>
+          <p>Últimos 7 días · ${changeEvents.length} eventos · ${escapePrintText(formatLocalDateTime(new Date()))}</p>
           <table>
             <thead>
               <tr>
@@ -841,7 +842,11 @@ export function AdminBeatList({ beats, users = [] }: { beats: Beat[]; users?: Us
               </div>
               <div className="rounded-lg border border-white/10 bg-black/20 p-3">
                 <p className="text-[10px] font-bold uppercase text-zinc-500">Full audio</p>
-                <audio className="mt-2 w-full" controls src={selectedBeat.fullAudioUrl} />
+                <div className="mt-2">
+                  <PlayButton variant="light" beat={selectedBeat} mode="full" showPauseState>
+                    Reproducir full autorizado
+                  </PlayButton>
+                </div>
               </div>
             </div>
 

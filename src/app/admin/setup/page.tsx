@@ -5,6 +5,7 @@ import { CircleAlert, CircleCheck, Eye, EyeOff, Lock, PlugZap, Save, ShieldAlert
 import { useCallback, useEffect, useState } from "react";
 import { LogoMark } from "@/components/LogoMark";
 import { useUser } from "@/context/UserContext";
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
 import { getSupabasePublicConfigStatus, SUPABASE_CONNECTION_STATUS_EVENT, SUPABASE_CONNECTION_STATUS_KEY, type SupabaseConnectionStatus } from "@/lib/supabase/config";
 
 const storageKey = "br-setup-config";
@@ -91,7 +92,7 @@ export default function AdminSetupPage() {
   const supabaseAnonKey = publicConfigStatus.supabaseAnonKey;
 
   const verifySupabaseConnection = useCallback(async () => {
-    const verifiedAt = new Date().toLocaleTimeString("es-MX", { hour12: false });
+    const verifiedAt = formatLocalDateTime(new Date());
     setLastVerification(verifiedAt);
 
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -178,7 +179,7 @@ export default function AdminSetupPage() {
         <header className="rounded-lg border border-white/10 bg-[#101317] p-5 md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
-              <LogoMark />
+              <LogoMark decorative />
               <div>
                 <p className="text-sm font-bold uppercase text-cyan-200">Setup B.R</p>
                 <h1 className="text-3xl font-black md:text-5xl">Configuración Supabase</h1>

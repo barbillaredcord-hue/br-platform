@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
 import { deleteAdminChangeLog, getAdminChangeLogs, type AdminChangeLog } from "@/lib/supabase/queries";
 
 function formatChangeValue(value: unknown) {
@@ -134,7 +135,7 @@ export default function AdminBrCambiosPage() {
                 <td>${formatChangeDetail(log)}</td>
                 <td>${log.event_type}</td>
                 <td>${log.target_name ?? log.target_type ?? "Sin objetivo"}</td>
-                <td>${new Date(log.created_at).toLocaleString()}</td>
+                <td>${formatLocalDateTime(log.created_at)}</td>
               </tr>
             `,
           )
@@ -269,7 +270,7 @@ export default function AdminBrCambiosPage() {
             <section class="stats">
               <div class="stat"><span>Año</span><strong>${selectedYear}</strong></div>
               <div class="stat"><span>Registros</span><strong>${visibleLogs.length}</strong></div>
-              <div class="stat"><span>Generado</span><strong>${new Date().toLocaleDateString()}</strong></div>
+              <div class="stat"><span>Generado</span><strong>${formatLocalDateTime(new Date())}</strong></div>
             </section>
           <table>
             <thead>
@@ -353,8 +354,8 @@ export default function AdminBrCambiosPage() {
                 <div className="mt-2 grid gap-1 text-[10px] text-emerald-500/80 sm:grid-cols-2 lg:grid-cols-4">
                   <p><span className="font-bold text-emerald-300">Tipo:</span> {log.event_type}</p>
                   <p><span className="font-bold text-emerald-300">Objetivo:</span> {log.target_name ?? log.target_type ?? "Sin objetivo"}</p>
-                  <p><span className="font-bold text-emerald-300">Fecha:</span> {new Date(log.created_at).toLocaleString()}</p>
-                  <p><span className="font-bold text-emerald-300">Expira:</span> {log.expires_at ? new Date(log.expires_at).toLocaleDateString() : "No"}</p>
+                  <p><span className="font-bold text-emerald-300">Fecha:</span> {formatLocalDateTime(log.created_at)}</p>
+                  <p><span className="font-bold text-emerald-300">Expira:</span> {log.expires_at ? formatLocalDateTime(log.expires_at) : "No"}</p>
                 </div>
                 {log.command_text ? (
                   <p className="mt-2 rounded-md border border-emerald-400/10 bg-black/40 px-2 py-1.5 font-mono text-[10px] text-emerald-100/80">

@@ -41,3 +41,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local audit/export bundles
+br-platform-auditoria.zip
+br-platform-mini.zip
+br-platform-review.zip
+br-platform-sync-audit.zip
+install/br-platform-sync-audit.zip

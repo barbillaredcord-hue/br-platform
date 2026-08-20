@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AccessRequestStatus } from "@/data/accessRequests";
 import { useUser } from "@/context/UserContext";
-import { createAccessRequestWithPhone, getAccessRequestForBeat, getAccessRequestsForUser, getUserAccessRevocations, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
+import { isBlockingAccessRequest, resolveBeatPermissions } from "@/lib/beat-permissions";
+import { createAccessRequestWithPhone, getAccessRequestForBeat, getUserAccessRevocations, type AccessRequestRow, type AccessRevocationRow } from "@/lib/supabase/queries";
 
-const activeStatuses: AccessRequestStatus[] = ["pending", "contacted", "payment_pending", "paid"];
-const retryStatuses: AccessRequestStatus[] = ["rejected", "cancelled"];
+const retryStatuses: AccessRequestStatus[] = ["rejected"];
 
 const statusLabels: Record<AccessRequestStatus, string> = {
   pending: "Pendiente",
@@ -17,6 +17,9 @@ const statusLabels: Record<AccessRequestStatus, string> = {
   fulfilled: "Completada",
   approved: "Aprobada",
   rejected: "Rechazada",
+  review_pending: "Revisión pendiente",
+  review_approved: "Revisión aceptada",
+  review_rejected: "Revisión rechazada",
   cancelled: "Cancelada",
 };
 
@@ -25,7 +28,7 @@ function getRequestMessage(request: AccessRequestRow | null) {
     return "";
   }
 
-  if (activeStatuses.includes(request.status)) {
+  if (isBlockingAccessRequest(request.status)) {
     return `Tu solicitud está en proceso: ${statusLabels[request.status]}. B.R te responderá pronto.`;
   }
 
@@ -40,13 +43,13 @@ function getRequestMessage(request: AccessRequestRow | null) {
   return "";
 }
 
-function revocationMatchesBeat(revocation: AccessRevocationRow, beatId: string) {
+function revocationMatchesBeat(revocation: AccessRevocationRow, userId: string, beatId: string) {
   const beat = Array.isArray(revocation.beats) ? revocation.beats[0] : revocation.beats;
 
-  return revocation.beat_id === beatId || beat?.slug === beatId;
+  return revocation.user_id === userId && (revocation.beat_id === beatId || beat?.slug === beatId);
 }
 
-export function RequestAccessButton({ beatId }: { beatId: string }) {
+export function RequestAccessButton({ beatId, hasBeatAccess, isPublicPlayback }: { beatId: string; hasBeatAccess: boolean; isPublicPlayback: boolean }) {
   const router = useRouter();
   const { currentUser, refreshCurrentUser } = useUser();
   const [existingRequest, setExistingRequest] = useState<AccessRequestRow | null>(null);
@@ -58,34 +61,25 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
   const [isLoadingRequest, setIsLoadingRequest] = useState(false);
 
   const refreshRequest = useCallback(async () => {
-    if (!currentUser) {
+    const userId = currentUser?.id;
+
+    if (!userId) {
       setExistingRequest(null);
       setRevocation(null);
       return;
     }
 
-    if (!existingRequest) {
-      setIsLoadingRequest(true);
-    }
+    setIsLoadingRequest(true);
+    const [directRequest, userRevocations] = await Promise.all([
+      getAccessRequestForBeat(userId, beatId),
+      getUserAccessRevocations(userId),
+    ]);
+    const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, userId, beatId)) ?? null;
 
-    const userRevocations = await getUserAccessRevocations(currentUser.id);
-    const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, beatId) && !item.acknowledged_by_user) ?? null;
+    setExistingRequest(directRequest);
     setRevocation(foundRevocation);
-
-    const directRequest = await getAccessRequestForBeat(currentUser.id, beatId);
-
-    if (directRequest) {
-      setExistingRequest(directRequest);
-      setIsLoadingRequest(false);
-      return;
-    }
-
-    const userRequests = await getAccessRequestsForUser(currentUser.id);
-    const fallbackRequest = userRequests.find((request) => request.beat_id === beatId) ?? null;
-
-    setExistingRequest(fallbackRequest);
     setIsLoadingRequest(false);
-  }, [beatId, currentUser, existingRequest]);
+  }, [beatId, currentUser?.id]);
 
   useEffect(() => {
     const loadId = window.setTimeout(() => {
@@ -115,7 +109,7 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
       return;
     }
 
-    if (existingRequest && activeStatuses.includes(existingRequest.status)) {
+    if (isBlockingAccessRequest(existingRequest?.status)) {
       setMessage(getRequestMessage(existingRequest));
       return;
     }
@@ -151,8 +145,6 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
       setPhone("");
       setNote("");
       setMessage(result.message || "Solicitud reenviada al admin.");
-      setRevocation(null);
-
       await refreshCurrentUser();
     }
 
@@ -160,10 +152,16 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
   }
 
   const requestMessage = getRequestMessage(existingRequest);
-  const hasRevocation = Boolean(revocation);
-  const showRevocationNotice = Boolean(revocation);
-  const isBlockedByActiveRequest = Boolean(!hasRevocation && existingRequest && activeStatuses.includes(existingRequest.status));
-  const canRetry = Boolean(hasRevocation || (existingRequest && retryStatuses.includes(existingRequest.status)));
+  const permissions = resolveBeatPermissions({
+    isAuthenticated: Boolean(currentUser),
+    isAdmin: currentUser?.role === "admin",
+    hasBeatAccess,
+    isPublicPlayback,
+    requestStatus: existingRequest?.status,
+  });
+  const isBlockedByActiveRequest = isBlockingAccessRequest(existingRequest?.status);
+  const hasSubmittedReview = existingRequest?.status === "review_pending";
+  const canRetry = Boolean(existingRequest && permissions.canRequestAccess);
 
   if (isLoadingRequest) {
     return (
@@ -173,48 +171,23 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
     );
   }
 
-  if (showRevocationNotice && revocation) {
+  if (isBlockedByActiveRequest || !permissions.canRequestAccess) {
     return (
-      <div className="grid gap-3 rounded-md border border-amber-300/20 bg-amber-300/10 p-3">
-        <div>
-          <p className="text-sm font-bold text-amber-100">Acceso revocado</p>
-          <p className="mt-1 text-xs leading-5 text-zinc-300">Motivo: {revocation.reason}</p>
-          <p className="mt-1 text-xs leading-5 text-zinc-400">Puedes enviar una nueva solicitud de acceso. El seguimiento y cualquier revisión se gestionan desde tu cuenta, en Solicitudes.</p>
-        </div>
-
-        {currentUser?.phone ? (
-          <p className="text-xs font-semibold text-amber-100">Teléfono: {currentUser.phone}</p>
-        ) : (
-          <label className="grid gap-2">
-            <span className="text-xs font-bold uppercase text-zinc-400">Teléfono obligatorio</span>
-            <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+52..." className="h-10 rounded-md border border-white/10 bg-black/20 px-3 text-sm outline-none focus:border-amber-300" />
-          </label>
-        )}
-
-        <label className="grid gap-2">
-          <span className="text-xs font-bold uppercase text-zinc-400">Mensaje opcional</span>
-          <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Cuéntale a B.R cómo quieres coordinar el pago" className="min-h-20 rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-amber-300" />
-        </label>
-
-        <button
-          type="button"
-          onClick={() => void handleRequest()}
-          disabled={isSubmitting}
-          className="rounded-md border border-amber-300/30 px-5 py-3 text-sm font-bold text-amber-100 transition hover:border-amber-300 hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting ? "Enviando..." : "Solicitar acceso"}
-        </button>
-
-        {message ? <p className="text-sm font-semibold text-amber-100">{message}</p> : null}
-      </div>
-    );
-  }
-
-  if (!hasRevocation && (isBlockedByActiveRequest || existingRequest?.status === "fulfilled" || existingRequest?.status === "approved")) {
-    return (
-      <div className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3">
+      <div className="grid gap-3 rounded-md border border-cyan-300/20 bg-cyan-300/10 p-3">
+        {hasSubmittedReview ? (
+          <p className="text-sm font-semibold text-amber-100">
+            Solicitud de revisión enviada
+          </p>
+        ) : null}
         <p className="text-sm font-semibold text-cyan-100">{requestMessage}</p>
         <p className="mt-2 text-xs leading-5 text-zinc-400">Puedes revisar el avance en tu cuenta, sección de solicitudes.</p>
+        <button
+          type="button"
+          disabled
+          className="rounded-md border border-cyan-300/30 px-5 py-3 text-sm font-bold text-cyan-200 opacity-60"
+        >
+          Solicitar acceso
+        </button>
       </div>
     );
   }
@@ -223,8 +196,10 @@ export function RequestAccessButton({ beatId }: { beatId: string }) {
     <div className="grid gap-3 rounded-md border border-white/10 bg-white/5 p-3">
       {canRetry ? (
         <div className="rounded-md border border-amber-300/20 bg-amber-300/10 p-3">
-          <p className="text-sm font-semibold text-amber-100">{requestMessage}</p>
-          <p className="mt-1 text-xs leading-5 text-zinc-400">Puedes enviar una nueva solicitud para que B.R la revise otra vez.</p>
+          <p className="text-sm font-bold text-amber-100">Puedes solicitar acceso comercial nuevamente</p>
+          {existingRequest?.rejection_reason ? <p className="mt-1 text-sm text-zinc-300">Último rechazo: {existingRequest.rejection_reason}</p> : null}
+          {revocation ? <p className="mt-1 text-sm text-zinc-300">Última revocación: {revocation.reason}</p> : null}
+          <p className="mt-1 text-xs leading-5 text-zinc-400">El historial no bloquea una nueva solicitud cuando no existe acceso ni solicitud activa.</p>
         </div>
       ) : null}
 

@@ -7,10 +7,11 @@ export type KnownAccessRequestStatus =
   | "approved"
   | "rejected"
   | "review_pending"
+  | "review_approved"
   | "review_rejected"
   | "cancelled";
 
-export type AccessRequestStatus = string;
+export type AccessRequestStatus = KnownAccessRequestStatus;
 
 export type AccessRequest = {
   id: string;

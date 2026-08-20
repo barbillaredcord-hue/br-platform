@@ -1,3 +1,5 @@
+import type { MusicFeatures } from "@/lib/music-analysis/features";
+
 type BeatMetadataInput = {
   title?: string;
   fileName?: string;
@@ -45,33 +47,6 @@ export function detectBeatGenre(input: BeatMetadataInput): string {
   const match = genreKeywords.find((item) => item.keywords.some((keyword) => text.includes(keyword)));
 
   return match?.genre ?? "Unclassified";
-}
-
-function detectBeatGenreSignal(input: BeatMetadataInput) {
-  const text = metadataText(input).toLowerCase();
-  const match = genreKeywords.find((item) => item.keywords.some((keyword) => text.includes(keyword)));
-
-  if (input.currentGenre?.trim()) {
-    return {
-      genre: input.currentGenre.trim(),
-      source: "existing_genre_manual_review",
-      confidenceBoost: -0.04,
-    };
-  }
-
-  if (match) {
-    return {
-      genre: "Unclassified",
-      source: `metadata_keyword_candidate:${match.genre}`,
-      confidenceBoost: -0.1,
-    };
-  }
-
-  return {
-    genre: "Unclassified",
-    source: "audio_genre_not_available",
-    confidenceBoost: -0.14,
-  };
 }
 
 export function detectBeatBpm(input: BeatMetadataInput): number | null {
@@ -122,6 +97,17 @@ type BeatClassificationInput = BeatMetadataInput & {
   durationSeconds?: number;
   waveformSamples?: number[];
   notes?: string;
+  musicFeatures?: Pick<
+    MusicFeatures,
+    | "bass"
+    | "brightness"
+    | "danceability"
+    | "drums"
+    | "dynamics"
+    | "aggressiveness"
+    | "musicality"
+    | "vocals"
+  >;
 };
 
 export type BeatClassification = {
@@ -130,7 +116,7 @@ export type BeatClassification = {
   mood: string;
   energy: string;
   useCase: string;
-  confidence: number;
+  confidence: number | null;
   source: string;
   reasoning: string;
   recommendedPreviewStart: number;
@@ -149,6 +135,202 @@ function average(values: number[]) {
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function tempoFit(bpm: number | null, min: number, max: number) {
+  if (!bpm) {
+    return 0;
+  }
+
+  if (bpm >= min && bpm <= max) {
+    return 100;
+  }
+
+  const distance = bpm < min ? min - bpm : bpm - max;
+  return clampNumber(100 - distance * 5, 0, 100);
+}
+
+type GenreCandidate = {
+  genre: "Hip Hop" | "Electronic" | "R&B" | "Pop";
+  score: number;
+  independentFamilies: number;
+  contradictions: string[];
+};
+
+function meanScore(...values: number[]) {
+  return average(values.map((value) => clampNumber(value, 0, 100)));
+}
+
+function spectralBrightness(input: BeatClassificationInput) {
+  const brightness = input.musicFeatures?.brightness;
+
+  if (!brightness) return 0;
+
+  const centroidScore = clampNumber((brightness.spectralCentroid - 1_200) / 18, 0, 100);
+  const highFrequencyScore = clampNumber(brightness.highFrequencyRatio * 180, 0, 100);
+  return meanScore(centroidScore, highFrequencyScore);
+}
+
+function rhythmicEvidence(input: BeatClassificationInput) {
+  const features = input.musicFeatures;
+
+  if (!features) return 0;
+
+  return meanScore(
+    features.danceability.rhythmicRegularity * 100,
+    (features.drums.transientDensity / 0.32) * 100,
+  );
+}
+
+function bassEvidence(input: BeatClassificationInput) {
+  const bass = input.musicFeatures?.bass;
+
+  if (!bass) return 0;
+
+  return meanScore(
+    bass.lowFrequencyEnergy * 100,
+    (Math.min(bass.subBassPresence, 0.75) / 0.75) * 100,
+  );
+}
+
+function confidenceForCandidate(
+  level: "strong" | "partial",
+  score: number,
+  margin: number,
+  contradictionCount: number,
+) {
+  if (level === "strong") {
+    return Number(clampNumber(0.72 + (score - 78) * 0.006 + (margin - 12) * 0.004, 0.72, 0.84).toFixed(2));
+  }
+
+  return Number(clampNumber(0.55 + (score - 68) * 0.004 + (margin - 10) * 0.003 - contradictionCount * 0.08, 0.55, 0.66).toFixed(2));
+}
+
+function inferStrictSubgenres(
+  genre: GenreCandidate["genre"],
+  confidence: number,
+  input: BeatClassificationInput,
+  bpm: number | null,
+) {
+  const features = input.musicFeatures;
+
+  if (!features || confidence < 0.76 || !bpm) return [];
+
+  if (
+    genre === "Hip Hop" &&
+    bpm >= 135 && bpm <= 160 &&
+    features.bass.lowFrequencyEnergy >= 0.55 &&
+    features.bass.subBassPresence >= 0.55 &&
+    features.drums.transientDensity >= 0.2 &&
+    features.danceability.rhythmicRegularity >= 0.5 &&
+    features.vocals.instrumentalProbability >= 0.65
+  ) {
+    return ["Trap"];
+  }
+
+  if (
+    genre === "Hip Hop" &&
+    bpm >= 78 && bpm <= 98 &&
+    features.drums.transientDensity >= 0.22 &&
+    features.drums.transientStrength >= 0.018 &&
+    features.brightness.spectralCentroid >= 900 &&
+    features.brightness.spectralCentroid <= 3_000 &&
+    features.musicality.score >= 70 &&
+    features.aggressiveness.score <= 55
+  ) {
+    return ["Boom Bap"];
+  }
+
+  if (
+    genre === "Electronic" &&
+    confidence >= 0.8 &&
+    bpm >= 120 && bpm <= 130 &&
+    features.danceability.score >= 82 &&
+    features.danceability.rhythmicRegularity >= 0.68 &&
+    features.brightness.spectralCentroid >= 1_600
+  ) {
+    return ["House"];
+  }
+
+  return [];
+}
+
+function inferGenreFromAudioFeatures(input: BeatClassificationInput, bpm: number | null) {
+  const features = input.musicFeatures;
+
+  if (!features) {
+    return {
+      genre: "Unclassified",
+      subgenres: [] as string[],
+      confidence: null,
+      source: "audio_features_unavailable",
+    };
+  }
+
+  const rhythm = rhythmicEvidence(input);
+  const bass = bassEvidence(input);
+  const brightness = spectralBrightness(input);
+  const instrumental = features.vocals.instrumentalProbability * 100;
+  const vocal = features.vocals.vocalProbability * 100;
+  const hipHopTempo = Math.max(tempoFit(bpm, 76, 104), tempoFit(bpm, 132, 160));
+  const hipHopContradictions = [
+    bpm && bpm >= 76 && bpm <= 104 && features.drums.transientDensity < 0.2
+      ? "low_tempo_without_distinct_transients"
+      : "",
+    bpm && bpm >= 118 && bpm <= 132 && brightness >= 70 && features.danceability.rhythmicRegularity >= 0.68
+      ? "electronic_profile_competes"
+      : "",
+  ].filter(Boolean);
+  const candidates = ([
+    {
+      genre: "Hip Hop",
+      score: hipHopTempo * 0.28 + rhythm * 0.28 + bass * 0.24 + features.musicality.score * 0.12 + instrumental * 0.08 - hipHopContradictions.length * 18,
+      independentFamilies: [hipHopTempo, rhythm, bass, features.musicality.score].filter((score) => score >= 65).length,
+      contradictions: hipHopContradictions,
+    },
+    {
+      genre: "Electronic",
+      score: tempoFit(bpm, 118, 132) * 0.32 + rhythm * 0.28 + brightness * 0.22 + features.danceability.score * 0.18,
+      independentFamilies: [tempoFit(bpm, 118, 132), rhythm, brightness, features.danceability.score].filter((score) => score >= 70).length,
+      contradictions: [brightness < 45 ? "dark_spectrum" : "", rhythm < 60 ? "weak_rhythmic_regularity" : ""].filter(Boolean),
+    },
+    {
+      genre: "R&B",
+      score: tempoFit(bpm, 68, 105) * 0.28 + features.musicality.score * 0.26 + vocal * 0.24 + (100 - features.aggressiveness.score) * 0.12 + features.dynamics.score * 0.1,
+      independentFamilies: [tempoFit(bpm, 68, 105), features.musicality.score, vocal, 100 - features.aggressiveness.score].filter((score) => score >= 68).length,
+      contradictions: [vocal < 38 ? "insufficient_vocal_evidence" : "", features.vocals.confidence < 0.55 ? "low_vocal_detector_confidence" : ""].filter(Boolean),
+    },
+    {
+      genre: "Pop",
+      score: tempoFit(bpm, 90, 135) * 0.24 + features.musicality.score * 0.26 + vocal * 0.24 + brightness * 0.16 + features.danceability.score * 0.1,
+      independentFamilies: [tempoFit(bpm, 90, 135), features.musicality.score, vocal, brightness].filter((score) => score >= 70).length,
+      contradictions: [vocal < 45 ? "insufficient_vocal_evidence" : "", brightness < 55 ? "insufficient_brightness" : "", features.vocals.confidence < 0.55 ? "low_vocal_detector_confidence" : ""].filter(Boolean),
+    },
+  ] satisfies GenreCandidate[]).sort((first, second) => second.score - first.score);
+  const first = candidates[0];
+  const second = candidates[1];
+  const margin = first.score - second.score;
+  const strong = first.score >= 78 && margin >= 12 && first.independentFamilies >= 3 && first.contradictions.length === 0;
+  const partial = first.score >= 68 && margin >= 10 && first.independentFamilies >= 2 && first.contradictions.length <= 1;
+
+  if (!strong && !partial) {
+    return {
+      genre: "Unclassified",
+      subgenres: [] as string[],
+      confidence: null,
+      source: `audio_feature_heuristic_v2_ambiguous:${first.genre.toLowerCase().replaceAll(" ", "_")}:${Math.round(first.score)}:${Math.round(margin)}`,
+    };
+  }
+
+  const level = strong ? "strong" : "partial";
+  const confidence = confidenceForCandidate(level, first.score, margin, first.contradictions.length);
+
+  return {
+    genre: first.genre,
+    subgenres: inferStrictSubgenres(first.genre, confidence, input, bpm),
+    confidence,
+    source: `audio_feature_heuristic_v2_${level}:${Math.round(first.score)}:${Math.round(margin)}`,
+  };
 }
 
 function normalizePreviewDurationByAudioLength(durationSeconds?: number) {
@@ -247,8 +429,12 @@ function detectWaveformEnergy(samples: number[]) {
 function detectMood(input: BeatClassificationInput, primaryGenre: string) {
   const text = metadataText(input).toLowerCase();
   const key = input.currentKey?.toLowerCase() ?? "";
+  const features = input.musicFeatures;
 
-  if (["dark", "minor", "evil", "night", "drill", "trap"].some((word) => text.includes(word)) || key.includes("minor")) {
+  if (
+    ["dark", "minor", "evil", "night", "drill", "trap"].some((word) => text.includes(word)) ||
+    (key.includes("minor") && (features?.aggressiveness.score ?? 0) >= 50)
+  ) {
     return "Dark";
   }
 
@@ -256,7 +442,11 @@ function detectMood(input: BeatClassificationInput, primaryGenre: string) {
     return "Emotional";
   }
 
-  if (["club", "party", "dance", "perreo"].some((word) => text.includes(word)) || ["Reggaeton", "Dembow", "House"].includes(primaryGenre)) {
+  if (
+    ["club", "party", "dance", "perreo"].some((word) => text.includes(word)) ||
+    ["Reggaeton", "Dembow", "House"].includes(primaryGenre) ||
+    (features?.danceability.score ?? 0) >= 78
+  ) {
     return "Club";
   }
 
@@ -290,9 +480,9 @@ function detectUseCase(input: BeatClassificationInput, mood: string, energy: str
 }
 
 export function classifyBeatFromRealData(input: BeatClassificationInput): BeatClassification {
-  const genreSignal = detectBeatGenreSignal(input);
-  const primaryGenre = genreSignal.genre;
   const bpm = detectBeatBpm(input);
+  const genreSignal = inferGenreFromAudioFeatures(input, bpm);
+  const primaryGenre = genreSignal.genre;
   const energyFromWaveform = detectWaveformEnergy(input.waveformSamples ?? []);
   const energy =
     bpm && bpm >= 135 && energyFromWaveform !== "Low Energy"
@@ -305,21 +495,9 @@ export function classifyBeatFromRealData(input: BeatClassificationInput): BeatCl
   const useCase = detectUseCase(input, mood, energy);
   const previewSuggestion = findBestPreviewSegment(input.waveformSamples, input.durationSeconds);
 
-  const subgenres = [primaryGenre].filter((value, index, values) => value && value !== "Unclassified" && values.indexOf(value) === index);
+  const subgenres = genreSignal.subgenres;
 
-  const signals = [
-    input.title ? "title" : "",
-    input.fileName ? "fileName" : "",
-    input.audioUrl ? "audioUrl" : "",
-    genreSignal.source,
-    bpm ? "bpm" : "",
-    input.currentKey ? "key" : "",
-    input.durationSeconds ? "duration" : "",
-    input.waveformSamples?.length ? "waveform" : "",
-    input.notes ? "notes" : "",
-  ].filter(Boolean);
-
-  const confidence = clampNumber(0.42 + signals.length * 0.05 + genreSignal.confidenceBoost, 0.18, 0.92);
+  const genreSignals = "BPM, espectro de bajos, ritmo/transientes, danceability, brightness espectral, estimación vocal y musicality";
 
   return {
     primaryGenre,
@@ -327,12 +505,12 @@ export function classifyBeatFromRealData(input: BeatClassificationInput): BeatCl
     mood,
     energy,
     useCase,
-    confidence: Number(confidence.toFixed(2)),
-    source: signals.join("+") || "metadata",
+    confidence: genreSignal.confidence,
+    source: genreSignal.source,
     reasoning:
       primaryGenre === "Unclassified"
-        ? `B.R detectó BPM, tonalidad, duración, energía y preview desde el audio, pero todavía no tiene suficiente análisis musical para determinar género real. Fuente: ${genreSignal.source}. Señales usadas: ${signals.join(", ") || "metadata disponible"}. Mood ${mood}, energía ${energy}, uso recomendado ${useCase}. ${previewSuggestion.previewReason}`
-        : `Clasificación basada en ${signals.join(", ") || "metadata disponible"}: ${primaryGenre}, ${mood}, ${energy}, uso recomendado ${useCase}. Fuente de género: ${genreSignal.source}. ${previewSuggestion.previewReason}`,
+        ? `B.R detectó BPM, tonalidad, duración, energía y preview desde el audio, pero las features no separan un género con margen suficiente. Fuente: ${genreSignal.source}. Señales de género: ${genreSignals}. Mood ${mood}, energía ${energy}, uso recomendado ${useCase}. ${previewSuggestion.previewReason}`
+        : `Clasificación asistida, no modelo ML: ${primaryGenre}${subgenres.length ? ` / ${subgenres.join(", ")}` : ""}, ${mood}, ${energy}. Fuente: ${genreSignal.source}; usa BPM, bass, drums, danceability, aggressiveness, musicality, vocals y brightness. Confianza conservadora ${genreSignal.confidence ?? "sin dato"}. ${previewSuggestion.previewReason}`,
     recommendedPreviewStart: previewSuggestion.recommendedPreviewStart,
     recommendedPreviewDuration: previewSuggestion.recommendedPreviewDuration,
     previewConfidence: previewSuggestion.previewConfidence,

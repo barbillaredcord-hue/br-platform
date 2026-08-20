@@ -12,7 +12,7 @@ export function Sidebar() {
   return (
     <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-[#090b0d] px-5 py-6 lg:block">
       <div className="mb-10 flex items-center gap-3">
-        <LogoMark />
+        <LogoMark decorative />
         <div>
           <p className="text-sm font-semibold text-white">Beat Room</p>
           <p className="text-xs text-zinc-500">Acceso privado</p>

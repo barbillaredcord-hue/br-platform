@@ -19,7 +19,7 @@ export default function RegisterPage() {
     <main className="min-h-screen bg-[#050607] px-4 py-10 text-white">
       <section className="mx-auto max-w-md rounded-lg border border-white/10 bg-[#101317] p-6">
         <div className="mb-8 flex items-center gap-3">
-          <LogoMark />
+          <LogoMark decorative />
           <div>
             <h1 className="text-2xl font-black">Crear cuenta</h1>
             <p className="text-sm text-zinc-400">Registro visual B.R</p>

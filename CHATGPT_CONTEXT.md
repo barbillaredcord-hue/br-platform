@@ -7,7 +7,7 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 El foco principal de esta sesión debe ser `B.R`, no BR.autocar.
 
 Foco del producto:
-Consolidar el flujo Beat -> preview real -> solicitud -> pago/acceso -> descarga/licencia.
+Construir Fase 15 - Motor Comercial Inteligente / CRM como conocimiento organizado sobre personas, relaciones, oportunidades y seguimiento, sin duplicar las autoridades de Beat Room.
 
 Regla:
 El foco principal de esta app es B.R. BR.autocarmation es soporte interno y no debe sustituir el objetivo del producto.
@@ -28,11 +28,11 @@ Plataforma musical privada y escalable con acceso controlado, playback publico/p
 
 ## Estado actual
 
-- Fase: Fase 14G.1 - Admin UX Refinement + AI Beat Analysis Lite
-- Estado: implemented
-- Avance: 98%
+- Fase: Fase 15 - Motor Comercial Inteligente / CRM
+- Estado: in_progress
+- Avance: 12%
 - Health: 3 healthy / 0 risk / 0 blocked
-- Siguiente accion: Implementar clasificacion musical asistida y preparar B.R Radio / playlist publica continua.
+- Siguiente accion: Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.
 
 ## Reglas de continuidad
 
@@ -44,18 +44,20 @@ Plataforma musical privada y escalable con acceso controlado, playback publico/p
 
 ## Contexto de continuidad
 
-Sin contexto registrado
+15.1: migraciones crm_relationships e indices de auditoria aplicadas remotamente; RLS y comando idempotente se validaron en transaccion revertida (admin una fila activa, usuario normal cero updates). Suite local 91/91, lint, TypeScript, build y diff-check pasan. No existe navegador conectado para la validacion fisica.
 
 ## Pendiente principal
 
-- Fase 14 M2: estados formales de orden y pago
 - Aplicar/actualizar schema consolidado si se decide sincronizar docs/supabase/schema.sql con phase-14d
-- Evaluar bucket privado y signed URLs
 - Terminos y condiciones
 - Licencias legales avanzadas
 - Pagos automaticos completos
+- 15.1 Contact Intelligence y relaciones explicitas
+- 15.2 Opportunities separadas de access_requests
+- Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout
+- Mejoras futuras de precision y UI del analisis musical
 - Marketplace multiusuario
 - B.R Radio
 - Portadas reales
 
-Ultima generacion: 2026-06-23T10:26:16
+Ultima generacion: 2026-08-19T12:44:28

@@ -7,16 +7,30 @@ export async function GET(request: Request) {
     return admin.response;
   }
 
-  const { data, error } = await admin.supabase
-    .from("commercial_activity")
-    .select("id,event_type,user_id,user_email,beat_id,beat_title,beat_slug,metadata,created_at")
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const [activityResult, paymentsResult] = await Promise.all([
+    admin.supabase
+      .from("commercial_activity")
+      .select("id,event_type,user_id,user_email,beat_id,beat_title,beat_slug,metadata,created_at")
+      .order("created_at", { ascending: false })
+      .limit(50),
+    admin.supabase
+      .from("manual_payments")
+      .select("id", { count: "exact", head: true }),
+  ]);
 
-  if (error) {
-    console.error("B.R commercial activity admin list error", error);
+  if (activityResult.error) {
+    console.error("B.R commercial activity admin list error", activityResult.error);
     return Response.json({ ok: false, message: "No se pudo cargar la actividad comercial." }, { status: 500 });
   }
 
-  return Response.json({ ok: true, activity: data ?? [] });
+  if (paymentsResult.error) {
+    console.error("B.R commercial payments count error", paymentsResult.error);
+    return Response.json({ ok: false, message: "No se pudieron contar los pagos confirmados." }, { status: 500 });
+  }
+
+  return Response.json({
+    ok: true,
+    activity: activityResult.data ?? [],
+    summary: { confirmed_payments: paymentsResult.count ?? 0 },
+  });
 }

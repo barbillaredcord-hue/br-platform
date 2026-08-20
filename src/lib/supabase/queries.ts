@@ -1,11 +1,33 @@
-import { createClient, type User as SupabaseAuthUser } from "@supabase/supabase-js";
+import type { User as SupabaseAuthUser } from "@supabase/supabase-js";
 import type { AccessRequestStatus } from "@/data/accessRequests";
 import { allBeats, type Beat, type BeatRow } from "@/data/beats";
 import type { User } from "@/data/users";
-import { createSupabaseBrowserClient } from "./client";
-import { getSupabasePublicConfigStatus } from "./config";
+import { notifyAccessStateChanged, notifyDomainChange } from "@/lib/domain-events";
+import { FULL_AUDIO_BUCKET, toStorageObjectReference } from "@/lib/full-audio";
+import { isUuid, resolveBeatId } from "./beat-identifiers";
+import {
+  getAuthenticatedAdminBrowserClient,
+  getAuthenticatedBrowserClient,
+  getSupabaseBrowserSessionClient,
+  getSupabaseClient,
+  type SupabaseClient,
+} from "./session-client";
+import { approveAccessRequest as approveAccessRequestAtomic } from "./access";
 
-type SupabaseClient = NonNullable<ReturnType<typeof createSupabaseBrowserClient>>;
+export {
+  acknowledgeAccessRevocation,
+  canAccessBeatSupabase,
+  getAccessRevocations,
+  getAccessRevocationsForBeat,
+  getBeatAccessKey,
+  getUserAccessRevocations,
+  getUserBeatAccess,
+  grantBeatAccess,
+  rejectAccessRequest,
+  revokeBeatAccess,
+} from "./access";
+export type { AccessRevocationRow } from "./access";
+export { notifyAccessStateChanged };
 
 export type ProfileRow = {
   id: string;
@@ -41,6 +63,12 @@ type BeatMetadataInput = {
   isActive?: boolean;
 };
 
+type BeatAccessRow = {
+  user_id: string;
+  beat_id: string;
+  beats?: { slug: string | null } | { slug: string | null }[] | null;
+};
+
 export type AdminChangeLog = {
   id: string;
   year: number;
@@ -69,14 +97,6 @@ type AdminChangeLogInput = {
   temporary?: boolean;
 };
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-type BeatAccessRow = {
-  user_id: string;
-  beat_id: string;
-  beats?: { slug: string | null } | { slug: string | null }[] | null;
-};
-
 export type AccessRequestRow = {
   id: string;
   user_id: string;
@@ -97,25 +117,29 @@ export type AccessRequestRow = {
   review_rejected_at?: string | null;
   review_rejected_by?: string | null;
   review_rejection_acknowledged_at?: string | null;
-  profiles?: Pick<ProfileRow, "email" | "username" | "display_name" | "phone"> | Pick<ProfileRow, "email" | "username" | "display_name" | "phone">[] | null;
-  beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
+  profiles?:
+    | Pick<ProfileRow, "email" | "username" | "display_name" | "phone">
+    | Pick<ProfileRow, "email" | "username" | "display_name" | "phone">[]
+    | null;
+  beats?:
+    | Pick<BeatRowDb, "slug" | "title">
+    | Pick<BeatRowDb, "slug" | "title">[]
+    | null;
 };
 
 export type AccessRequestReviewContext =
-  | "initial_rejection"
-  | "access_revocation";
+  "initial_rejection" | "access_revocation";
 
-export type AccessRevocationRow = {
+export type ManualPaymentRow = {
   id: string;
-  user_id: string;
-  beat_id: string;
-  reason: string;
-  revoked_by: string | null;
-  revoked_at: string | null;
-  created_at: string | null;
-  acknowledged_by_user: boolean;
-  acknowledged_at: string | null;
-  beats?: Pick<BeatRowDb, "slug" | "title"> | Pick<BeatRowDb, "slug" | "title">[] | null;
+  user_id: string | null;
+  beat_id: string | null;
+  amount: number;
+  currency: string;
+  payment_method: string | null;
+  note: string | null;
+  license_type: "basic" | "premium" | "exclusive";
+  created_at: string;
 };
 
 export const ACCESS_REVIEW_MARKER = "[revisión]";
@@ -125,8 +149,9 @@ export function isAccessReviewRequest(
 ) {
   return Boolean(
     request?.status === "review_pending" ||
-      request?.status === "review_rejected" ||
-      request?.message?.includes(ACCESS_REVIEW_MARKER),
+    request?.status === "review_approved" ||
+    request?.status === "review_rejected" ||
+    request?.message?.includes(ACCESS_REVIEW_MARKER),
   );
 }
 
@@ -135,13 +160,13 @@ export function isOpenAccessRequest(
 ) {
   return Boolean(
     request &&
-      [
-        "pending",
-        "contacted",
-        "payment_pending",
-        "paid",
-        "review_pending",
-      ].includes(request.status),
+    [
+      "pending",
+      "contacted",
+      "payment_pending",
+      "paid",
+      "review_pending",
+    ].includes(request.status),
   );
 }
 
@@ -157,121 +182,49 @@ export function isReviewRejectedRequest(
   return request?.status === "review_rejected";
 }
 
+export function isReviewApprovedRequest(
+  request: Pick<AccessRequestRow, "status"> | null | undefined,
+) {
+  return request?.status === "review_approved";
+}
+
 export function canRequestReview(
   request: Pick<AccessRequestRow, "status"> | null | undefined,
   hasActiveRevocation = false,
 ) {
-  if (isOpenAccessRequest(request) || isReviewRejectedRequest(request)) {
+  if (
+    isOpenAccessRequest(request) ||
+    isReviewApprovedRequest(request) ||
+    isReviewRejectedRequest(request)
+  ) {
     return false;
   }
 
-  return request?.status === "rejected" || hasActiveRevocation;
+  return Boolean(request && hasActiveRevocation);
 }
 
 export function canAcknowledgeReviewRejection(
   request:
-    | Pick<
-        AccessRequestRow,
-        "status" | "review_rejection_acknowledged_at"
-      >
+    | Pick<AccessRequestRow, "status" | "review_rejection_acknowledged_at">
     | null
     | undefined,
 ) {
   return Boolean(
     request?.status === "review_rejected" &&
-      !request.review_rejection_acknowledged_at,
+    !request.review_rejection_acknowledged_at,
   );
 }
 
 export function canCreateNewAccessRequest(
   request:
-    | Pick<
-        AccessRequestRow,
-        "status" | "review_rejection_acknowledged_at"
-      >
+    | Pick<AccessRequestRow, "status" | "review_rejection_acknowledged_at">
     | null
     | undefined,
 ) {
-  return Boolean(
-    !request ||
-      (request.status === "review_rejected" &&
-        request.review_rejection_acknowledged_at),
-  );
+  return !isOpenAccessRequest(request) && !isReviewApprovedRequest(request);
 }
 
 const answeredRequestVisibleMs = 3 * 24 * 60 * 60 * 1000;
-
-let supabaseClient: SupabaseClient | null = null;
-let supabaseBrowserSessionClient: SupabaseClient | null = null;
-
-function getSupabaseClient() {
-  if (typeof window !== "undefined") {
-    return getSupabaseBrowserSessionClient();
-  }
-  if (supabaseClient) {
-    return supabaseClient;
-  }
-
-  const config = getSupabasePublicConfigStatus();
-
-  if (!config.supabaseUrl || !config.supabaseAnonKey) {
-    return null;
-  }
-
-  supabaseClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: {
-      persistSession: typeof window !== "undefined",
-      autoRefreshToken: typeof window !== "undefined",
-    },
-  });
-
-  return supabaseClient;
-}
-
-function getSupabaseBrowserSessionClient() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  if (supabaseBrowserSessionClient) {
-    return supabaseBrowserSessionClient;
-  }
-
-  supabaseBrowserSessionClient = createSupabaseBrowserClient() as SupabaseClient | null;
-
-  return supabaseBrowserSessionClient;
-}
-
-async function getAuthenticatedBrowserClient() {
-  const supabase = getSupabaseBrowserSessionClient();
-  const sessionInfo = {
-    hasSession: false,
-    hasAccessToken: false,
-    userId: null as string | null,
-    userEmail: null as string | null,
-  };
-
-  if (!supabase) {
-    return { supabase: null as SupabaseClient | null, sessionInfo, message: "Supabase no está configurado." };
-  }
-
-  const { data: sessionData, error } = await supabase.auth.getSession();
-  const session = sessionData.session;
-  sessionInfo.hasSession = Boolean(session);
-  sessionInfo.hasAccessToken = Boolean(session?.access_token);
-  sessionInfo.userId = session?.user.id ?? null;
-  sessionInfo.userEmail = session?.user.email ?? null;
-
-  if (error || !session?.access_token) {
-    return {
-      supabase: null as SupabaseClient | null,
-      sessionInfo,
-      message: "No hay sesión autenticada real. Vuelve a iniciar sesión.",
-    };
-  }
-
-  return { supabase, sessionInfo, message: "" };
-}
 
 function first<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) {
@@ -279,16 +232,6 @@ function first<T>(value: T | T[] | null | undefined): T | null {
   }
 
   return value ?? null;
-}
-
-function notifyAccessStateChanged() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.dispatchEvent(new Event("br-access-state-changed"));
-  window.dispatchEvent(new Event("br-access-requests-refresh"));
-  window.dispatchEvent(new Event("br-commercial-activity-refresh"));
 }
 
 const accessRequestColumns =
@@ -314,36 +257,26 @@ function normalizeRequiredReason(reason: string | null | undefined) {
   return { ok: true as const, reason: cleanReason };
 }
 
-async function getAuthenticatedAdminBrowserClient() {
-  const authClient = await getAuthenticatedBrowserClient();
-
-  if (!authClient.supabase || !authClient.sessionInfo.userId) {
-    return { ...authClient, isAdmin: false as const };
-  }
-
-  const { data: profile, error } = await authClient.supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", authClient.sessionInfo.userId)
-    .maybeSingle<{ role: "admin" | "user" }>();
-
-  if (error || profile?.role !== "admin") {
-    return {
-      ...authClient,
-      isAdmin: false as const,
-      message: "Esta acción requiere permisos de administrador.",
-    };
-  }
-
-  return { ...authClient, isAdmin: true as const };
-}
-
 function getFallbackRows(): BeatRow[] {
   return buildBeatRows(allBeats);
 }
 
-export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status" | "updated_at" | "created_at" | "message" | "review_rejection_acknowledged_at">) {
-  if (isOpenAccessRequest(request) || canAcknowledgeReviewRejection(request)) {
+export function isRecentAnsweredRequest(
+  request: Pick<
+    AccessRequestRow,
+    | "status"
+    | "updated_at"
+    | "created_at"
+    | "message"
+    | "review_rejection_acknowledged_at"
+  >,
+) {
+  if (
+    request.status === "rejected" ||
+    isReviewApprovedRequest(request) ||
+    isOpenAccessRequest(request) ||
+    canAcknowledgeReviewRejection(request)
+  ) {
     return true;
   }
 
@@ -353,7 +286,9 @@ export function isRecentAnsweredRequest(request: Pick<AccessRequestRow, "status"
     return false;
   }
 
-  return Date.now() - new Date(answeredAt).getTime() <= answeredRequestVisibleMs;
+  return (
+    Date.now() - new Date(answeredAt).getTime() <= answeredRequestVisibleMs
+  );
 }
 
 export function mapSupabaseBeat(row: BeatRowDb): Beat {
@@ -366,9 +301,10 @@ export function mapSupabaseBeat(row: BeatRowDb): Beat {
     locked: true,
     key: row.musical_key ?? undefined,
     status: "Privado",
-    playbackVisibility: row.playback_visibility === "public" ? "public" : "private",
+    playbackVisibility:
+      row.playback_visibility === "public" ? "public" : "private",
     previewUrl: row.preview_url,
-    fullAudioUrl: row.full_audio_url,
+    fullAudioUrl: `/api/beats/${encodeURIComponent(row.id)}/playback`,
     isDemoAudio: false,
   };
 
@@ -381,12 +317,26 @@ export function mapSupabaseBeat(row: BeatRowDb): Beat {
 
 export function buildBeatRows(beats: Beat[]): BeatRow[] {
   const groups = new Map<string, Beat[]>();
-  const priority = ["Full Beats", "Trap", "Dark Trap", "Drill", "Boom Bap", "R&B", "Reggaeton", "Afrobeat", "Cinematic"];
-  const priorityMap = new Map(priority.map((title, index) => [title.toLowerCase(), index]));
+  const priority = [
+    "Full Beats",
+    "Trap",
+    "Dark Trap",
+    "Drill",
+    "Boom Bap",
+    "R&B",
+    "Reggaeton",
+    "Afrobeat",
+    "Cinematic",
+  ];
+  const priorityMap = new Map(
+    priority.map((title, index) => [title.toLowerCase(), index]),
+  );
 
   const normalizeGenreTitle = (genre: string) => {
     const normalized = genre.trim().replace(/\s+/g, " ");
-    const priorityTitle = priority.find((title) => title.toLowerCase() === normalized.toLowerCase());
+    const priorityTitle = priority.find(
+      (title) => title.toLowerCase() === normalized.toLowerCase(),
+    );
 
     if (priorityTitle) {
       return priorityTitle;
@@ -440,7 +390,10 @@ export function buildBeatRows(beats: Beat[]): BeatRow[] {
       const priorityB = priorityMap.get(titleB.toLowerCase());
 
       if (priorityA !== undefined || priorityB !== undefined) {
-        return (priorityA ?? Number.MAX_SAFE_INTEGER) - (priorityB ?? Number.MAX_SAFE_INTEGER);
+        return (
+          (priorityA ?? Number.MAX_SAFE_INTEGER) -
+          (priorityB ?? Number.MAX_SAFE_INTEGER)
+        );
       }
 
       return titleA.localeCompare(titleB, "es");
@@ -448,11 +401,10 @@ export function buildBeatRows(beats: Beat[]): BeatRow[] {
     .map(([title, rowBeats]) => ({ title, beats: rowBeats }));
 }
 
-export function getBeatAccessKey(beat: Pick<Beat, "id" | "dbId"> | string) {
-  return typeof beat === "string" ? beat : beat.dbId ?? beat.id;
-}
-
-export function mapProfileToUser(profile: ProfileRow, accessibleBeatIds: string[] = []): User {
+export function mapProfileToUser(
+  profile: ProfileRow,
+  accessibleBeatIds: string[] = [],
+): User {
   const username = profile.username || profile.email.split("@")[0] || "usuario";
 
   return {
@@ -482,7 +434,10 @@ export async function getCurrentProfile() {
   return ensureProfile(authData.user);
 }
 
-export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?: string; username?: string; phone?: string }) {
+export async function ensureProfile(
+  authUser: SupabaseAuthUser,
+  input?: { name?: string; username?: string; phone?: string },
+) {
   const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
 
   if (!supabase || !authUser.email) {
@@ -490,12 +445,21 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
   }
 
   const authEmail = authUser.email.trim().toLowerCase();
-  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "").trim().toLowerCase();
+  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "")
+    .trim()
+    .toLowerCase();
   const isBrceoEmail = Boolean(brceoEmail) && authEmail === brceoEmail;
   const metadata = authUser.user_metadata as Record<string, unknown>;
-  const metadataUsername = typeof metadata.username === "string" ? metadata.username : "";
-  const metadataName = typeof metadata.display_name === "string" ? metadata.display_name : typeof metadata.name === "string" ? metadata.name : "";
-  const metadataPhone = typeof metadata.phone === "string" ? metadata.phone : "";
+  const metadataUsername =
+    typeof metadata.username === "string" ? metadata.username : "";
+  const metadataName =
+    typeof metadata.display_name === "string"
+      ? metadata.display_name
+      : typeof metadata.name === "string"
+        ? metadata.name
+        : "";
+  const metadataPhone =
+    typeof metadata.phone === "string" ? metadata.phone : "";
   const inputUsername = input?.username || metadataUsername;
   const inputName = input?.name || metadataName;
   const inputPhone = input?.phone || metadataPhone;
@@ -511,13 +475,19 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
       display_name: profile.display_name || inputName || null,
       phone: profile.phone || inputPhone || null,
     };
-    const shouldSyncProfile = patch.username !== profile.username || patch.display_name !== profile.display_name || patch.phone !== profile.phone;
+    const shouldSyncProfile =
+      patch.username !== profile.username ||
+      patch.display_name !== profile.display_name ||
+      patch.phone !== profile.phone;
 
     if (!shouldSyncProfile) {
       return profile;
     }
 
-    const { error } = await supabase.from("profiles").update(patch).eq("id", authUser.id);
+    const { error } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", authUser.id);
 
     if (error) {
       if (process.env.NODE_ENV === "development") {
@@ -533,7 +503,9 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
   const emailName = authEmail.split("@")[0] || "usuario";
 
   if (isBrceoEmail) {
-    console.warn("B.RCEO debe existir en Supabase public.profiles con role='admin'. Usando profile temporal sin permisos admin.");
+    console.warn(
+      "B.RCEO debe existir en Supabase public.profiles con role='admin'. Usando profile temporal sin permisos admin.",
+    );
 
     return {
       id: authUser.id,
@@ -549,7 +521,9 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
     return null;
   }
 
-  console.warn("Profile aún no existe. Usando datos temporales tras registro mientras Supabase sincroniza el trigger.");
+  console.warn(
+    "Profile aún no existe. Usando datos temporales tras registro mientras Supabase sincroniza el trigger.",
+  );
 
   return {
     id: authUser.id,
@@ -562,6 +536,20 @@ export async function ensureProfile(authUser: SupabaseAuthUser, input?: { name?:
 }
 
 export async function getBeats() {
+  if (typeof window !== "undefined") {
+    try {
+      const response = await fetch("/api/beats", { cache: "no-store" });
+      const payload = await response.json() as { ok?: boolean; beats?: Beat[] };
+      if (response.ok && payload.ok && payload.beats?.length) {
+        return { beats: payload.beats, rows: buildBeatRows(payload.beats), usingFallback: false };
+      }
+    } catch {
+      // Mantener fallback local cuando el catálogo protegido no está disponible.
+    }
+
+    return { beats: allBeats, rows: getFallbackRows(), usingFallback: true };
+  }
+
   const supabase = getSupabaseClient();
 
   if (!supabase) {
@@ -570,7 +558,9 @@ export async function getBeats() {
 
   const { data, error } = await supabase
     .from("beats")
-    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active")
+    .select(
+      "id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active",
+    )
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -592,7 +582,9 @@ export async function getAdminBeats() {
 
   const { data, error } = await supabase
     .from("beats")
-    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active")
+    .select(
+      "id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active",
+    )
     .order("created_at", { ascending: false });
 
   if (error || !data?.length) {
@@ -605,6 +597,20 @@ export async function getAdminBeats() {
 }
 
 export async function getBeatBySlug(slug: string) {
+  if (typeof window !== "undefined") {
+    try {
+      const response = await fetch(`/api/beats?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
+      const payload = await response.json() as { ok?: boolean; beat?: Beat | null };
+      if (response.ok && payload.ok) {
+        return payload.beat ?? null;
+      }
+    } catch {
+      // El fallback conserva el comportamiento de desarrollo sin entregar full_audio_url.
+    }
+
+    return allBeats.find((beat) => beat.id === slug) ?? null;
+  }
+
   const supabase = getSupabaseClient();
 
   if (!supabase) {
@@ -613,7 +619,9 @@ export async function getBeatBySlug(slug: string) {
 
   const { data, error } = await supabase
     .from("beats")
-    .select("id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active")
+    .select(
+      "id,slug,title,genre,bpm,musical_key,preview_url,full_audio_url,preview_duration_seconds,preview_updated_at,playback_visibility,is_active",
+    )
     .eq("slug", slug)
     .maybeSingle<BeatRowDb>();
 
@@ -624,58 +632,26 @@ export async function getBeatBySlug(slug: string) {
   return mapSupabaseBeat(data);
 }
 
-export async function beatSlugExists(slug: string, supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
+export async function beatSlugExists(
+  slug: string,
+  supabaseOverride?: SupabaseClient | null,
+) {
+  const supabase =
+    supabaseOverride ??
+    getSupabaseBrowserSessionClient() ??
+    getSupabaseClient();
 
   if (!supabase || !slug) {
     return false;
   }
 
-  const { data, error } = await supabase.from("beats").select("id").eq("slug", slug).maybeSingle<{ id: string }>();
+  const { data, error } = await supabase
+    .from("beats")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle<{ id: string }>();
 
   return !error && Boolean(data?.id);
-}
-
-async function resolveBeatId(beatId: string, supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-
-  if (!supabase) {
-    return beatId;
-  }
-
-  if (uuidPattern.test(beatId)) {
-    return beatId;
-  }
-
-  const { data, error } = await supabase.from("beats").select("id").eq("slug", beatId).maybeSingle<{ id: string }>();
-
-  if (error || !data?.id) {
-    return "";
-  }
-
-  return data.id;
-}
-
-export async function getUserBeatAccess(userId: string, supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-
-  if (!supabase || !userId) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("beat_access")
-    .select("user_id,beat_id,beats(slug)")
-    .eq("user_id", userId);
-
-  if (error || !data) {
-    return [];
-  }
-
-  return (data as BeatAccessRow[]).flatMap((row) => {
-    const beat = first(row.beats);
-    return [row.beat_id, beat?.slug].filter(Boolean) as string[];
-  });
 }
 
 export async function getUserAccessibleBeats(userId: string) {
@@ -685,7 +661,8 @@ export async function getUserAccessibleBeats(userId: string) {
     return [] as Beat[];
   }
 
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
 
   if (sessionError || !token) {
@@ -710,90 +687,9 @@ export async function getUserAccessibleBeats(userId: string) {
   return (payload.beats as BeatRowDb[]).map(mapSupabaseBeat);
 }
 
-export async function getUserAccessRevocations(userId: string, supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-
-  if (!supabase || !userId) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("access_revocations")
-    .select("id,user_id,beat_id,reason,revoked_by,revoked_at,created_at,acknowledged_by_user,acknowledged_at,beats(slug,title)")
-    .eq("user_id", userId)
-    .order("revoked_at", { ascending: false });
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data as AccessRevocationRow[];
-}
-
-export async function acknowledgeAccessRevocation(userId: string, revocationId: string) {
-  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-
-  if (!supabase || !userId || !revocationId) {
-    return { ok: false, message: "No se pudo reconocer la revocación." };
-  }
-
-  const { error } = await supabase
-    .from("access_revocations")
-    .update({
-      acknowledged_by_user: true,
-      acknowledged_at: new Date().toISOString(),
-    })
-    .eq("id", revocationId)
-    .eq("user_id", userId);
-
-  if (error) {
-    return { ok: false, message: "No se pudo ocultar el aviso. Intenta de nuevo." };
-  }
-
-  notifyAccessStateChanged();
-  return { ok: true };
-}
-
-export async function getAccessRevocationsForBeat(beatId: string, supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-  const resolvedBeatId = await resolveBeatId(beatId, supabase);
-
-  if (!supabase || !resolvedBeatId) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("access_revocations")
-    .select("id,user_id,beat_id,reason,revoked_by,revoked_at,created_at,acknowledged_by_user,acknowledged_at,beats(slug,title)")
-    .eq("beat_id", resolvedBeatId)
-    .order("revoked_at", { ascending: false });
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data as AccessRevocationRow[];
-}
-
-export async function canAccessBeatSupabase(userId: string, beatId: string) {
-  const supabase = getSupabaseBrowserSessionClient() ?? getSupabaseClient();
-  const resolvedBeatId = await resolveBeatId(beatId, supabase);
-
-  if (!supabase || !userId || !resolvedBeatId) {
-    return false;
-  }
-
-  const { data, error } = await supabase
-    .from("beat_access")
-    .select("user_id,beat_id")
-    .eq("user_id", userId)
-    .eq("beat_id", resolvedBeatId)
-    .maybeSingle<{ user_id: string; beat_id: string }>();
-
-  return !error && Boolean(data);
-}
-
-export async function getUsersWithAccessToBeat(beatId: string): Promise<User[]> {
+export async function getUsersWithAccessToBeat(
+  beatId: string,
+): Promise<User[]> {
   const supabase = getSupabaseClient();
   const resolvedBeatId = await resolveBeatId(beatId);
 
@@ -811,12 +707,18 @@ export async function getUsersWithAccessToBeat(beatId: string): Promise<User[]> 
   }
 
   return data
-    .map((row) => first((row as { profiles?: ProfileRow | ProfileRow[] | null }).profiles))
+    .map((row) =>
+      first((row as { profiles?: ProfileRow | ProfileRow[] | null }).profiles),
+    )
     .filter((profile): profile is ProfileRow => Boolean(profile))
     .map((profile) => mapProfileToUser(profile));
 }
 
-export async function createAccessRequest(userId: string, beatId: string, message?: string) {
+export async function createAccessRequest(
+  userId: string,
+  beatId: string,
+  message?: string,
+) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const resolvedBeatId = await resolveBeatId(beatId, supabase);
@@ -826,7 +728,10 @@ export async function createAccessRequest(userId: string, beatId: string, messag
   }
 
   if (!resolvedBeatId) {
-    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
+    return {
+      ok: false,
+      message: "No se encontró el UUID real del beat en Supabase.",
+    };
   }
 
   const { data: existingRequest, error: existingError } = await supabase
@@ -837,7 +742,10 @@ export async function createAccessRequest(userId: string, beatId: string, messag
     .maybeSingle<AccessRequestRow>();
 
   if (existingError) {
-    return { ok: false, message: "No se pudo revisar tu solicitud anterior. Intenta de nuevo." };
+    return {
+      ok: false,
+      message: "No se pudo revisar tu solicitud anterior. Intenta de nuevo.",
+    };
   }
 
   if (existingRequest) {
@@ -860,25 +768,20 @@ export async function createAccessRequest(userId: string, beatId: string, messag
   });
 
   if (!error) {
-    notifyAccessStateChanged();
+    notifyDomainChange("requests");
     return { ok: true, message: "Solicitud enviada al admin." };
   }
 
-  return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
+  return {
+    ok: false,
+    message: "No se pudo actualizar la información. Intenta de nuevo.",
+  };
 }
 
 export async function createAccessReviewRequest(
   userId: string,
   beatId: string,
 ) {
-  const existingRequest = await getAccessRequestForBeat(userId, beatId);
-
-  if (existingRequest?.status === "rejected") {
-    return requestAccessReview(userId, beatId, {
-      reviewContext: "initial_rejection",
-    });
-  }
-
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const resolvedBeatId = await resolveBeatId(beatId, supabase);
@@ -970,12 +873,10 @@ export async function requestAccessReview(
   let reviewRevocationId: string | null = null;
 
   if (input.reviewContext === "initial_rejection") {
-    if (existingRequest?.status !== "rejected") {
-      return {
-        ok: false,
-        message: "Solo una solicitud rechazada puede pedir esta revisión.",
-      };
-    }
+    return {
+      ok: false,
+      message: "Un rechazo inicial debe volver a solicitar acceso directamente.",
+    };
   } else {
     if (!input.reviewRevocationId) {
       return {
@@ -1029,7 +930,7 @@ export async function requestAccessReview(
     return { ok: false, message: error.message };
   }
 
-  notifyAccessStateChanged();
+  notifyDomainChange("requests");
   return { ok: true, message: "Solicitud de revisión enviada" };
 }
 
@@ -1041,7 +942,11 @@ function isValidPhone(phone: string) {
   return /^[0-9+\-()\s]+$/.test(phone) && phone.replace(/\D/g, "").length >= 8;
 }
 
-export async function createAccessRequestWithPhone(userId: string, beatId: string, input: { phone: string; message?: string; currentPhone?: string | null }) {
+export async function createAccessRequestWithPhone(
+  userId: string,
+  beatId: string,
+  input: { phone: string; message?: string; currentPhone?: string | null },
+) {
   const phone = normalizePhone(input.currentPhone || input.phone);
 
   if (!phone || !isValidPhone(phone)) {
@@ -1056,7 +961,11 @@ export async function createAccessRequestWithPhone(userId: string, beatId: strin
     }
   }
 
-  return createAccessRequest(userId, beatId, `Teléfono: ${phone}\nMensaje: ${input.message?.trim() || "Sin mensaje"}`);
+  return createAccessRequest(
+    userId,
+    beatId,
+    `Teléfono: ${phone}\nMensaje: ${input.message?.trim() || "Sin mensaje"}`,
+  );
 }
 
 export async function getAccessRequests() {
@@ -1068,14 +977,56 @@ export async function getAccessRequests() {
 
   const { data, error } = await supabase
     .from("access_requests")
-    .select(`${accessRequestColumns},profiles(email,username,display_name,phone),beats(slug,title)`)
+    .select(
+      `${accessRequestColumns},profiles:profiles!access_requests_user_id_fkey(email,username,display_name,phone),beats(slug,title)`,
+    )
     .order("created_at", { ascending: true });
+
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        "B.R getAccessRequests error:",
+        JSON.stringify(
+          {
+            message: error.message || null,
+            code: error.code || null,
+            details: error.details || null,
+            hint: error.hint || null,
+          },
+          null,
+          2,
+        ),
+      );
+    }
+
+    return [];
+  }
+
+  if (!data) {
+    return [];
+  }
+
+  return data as AccessRequestRow[];
+}
+
+export async function getManualPayments() {
+  const authClient = await getAuthenticatedAdminBrowserClient();
+  const supabase = authClient.supabase;
+
+  if (!supabase || !authClient.isAdmin) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("manual_payments")
+    .select("id,user_id,beat_id,amount,currency,payment_method,note,license_type,created_at")
+    .order("created_at", { ascending: false });
 
   if (error || !data) {
     return [];
   }
 
-  return data as AccessRequestRow[];
+  return data as ManualPaymentRow[];
 }
 
 export async function getAccessRequestsForUser(userId: string) {
@@ -1121,54 +1072,6 @@ export async function getAccessRequestForBeat(userId: string, beatId: string) {
 }
 
 export async function approveAccessRequest(requestId: string) {
-  const authClient = await getAuthenticatedBrowserClient();
-  const supabase = authClient.supabase;
-
-  if (!supabase) {
-    return { ok: false, message: authClient.message };
-  }
-
-  const { data: request, error: requestError } = await supabase
-    .from("access_requests")
-    .select("id,user_id,beat_id")
-    .eq("id", requestId)
-    .single<{ id: string; user_id: string; beat_id: string }>();
-
-  if (requestError || !request) {
-    return { ok: false, message: requestError?.message ?? "Solicitud no encontrada." };
-  }
-
-  const { error: accessError } = await supabase.from("beat_access").upsert(
-    {
-      user_id: request.user_id,
-      beat_id: request.beat_id,
-      granted_by: authClient.sessionInfo.userId,
-    },
-    { onConflict: "user_id,beat_id" },
-  );
-
-  if (accessError) {
-    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
-  }
-
-
-  const { error: updateError } = await supabase.from("access_requests").update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId);
-
-  if (updateError) {
-    return { ok: false, message: "El acceso se concedió, pero no se pudo cerrar la solicitud." };
-  }
-
-  notifyAccessStateChanged();
-  return { ok: true };
-}
-
-export async function rejectAccessRequest(requestId: string, reason?: string) {
-  const reasonResult = normalizeRequiredReason(reason);
-
-  if (!reasonResult.ok) {
-    return reasonResult;
-  }
-
   const authClient = await getAuthenticatedAdminBrowserClient();
   const supabase = authClient.supabase;
 
@@ -1183,67 +1086,122 @@ export async function rejectAccessRequest(requestId: string, reason?: string) {
     .maybeSingle<AccessRequestRow>();
 
   if (requestError || !request) {
-    return { ok: false, message: requestError?.message ?? "Solicitud no encontrada." };
+    return { ok: false, message: "Solicitud no encontrada." };
   }
 
-  if (
-    !["pending", "contacted", "payment_pending", "paid"].includes(
-      request.status,
-    )
-  ) {
+  if (request.status === "review_pending") {
     return {
       ok: false,
-      message: `No se puede rechazar una solicitud con estado ${request.status}.`,
+      message: "Primero acepta o rechaza la revisión.",
     };
   }
 
-  const { data: activeAccess, error: accessError } = await supabase
-    .from("beat_access")
-    .select("user_id,beat_id")
-    .eq("user_id", request.user_id)
-    .eq("beat_id", request.beat_id)
-    .maybeSingle<{ user_id: string; beat_id: string }>();
+  if (request.status === "review_approved") {
+    const { error: grantError } = await supabase.rpc("grant_beat_access_atomic", {
+      p_user_id: request.user_id,
+      p_beat_id: request.beat_id,
+    });
 
-  if (accessError || activeAccess) {
+    if (grantError) {
+      return { ok: false, message: grantError.message };
+    }
+
+    const now = new Date().toISOString();
+    const { data: restoredRequest, error: restoreError } = await supabase
+      .from("access_requests")
+      .update({ status: "fulfilled", responded_at: now, updated_at: now })
+      .eq("id", requestId)
+      .eq("status", "review_approved")
+      .select("id,status")
+      .maybeSingle<{ id: string; status: AccessRequestStatus }>();
+
+    if (restoreError || restoredRequest?.status !== "fulfilled") {
+      return {
+        ok: false,
+        message: "El acceso se concedió, pero no se pudo cerrar la solicitud. Revisa el estado antes de reintentar.",
+      };
+    }
+
+    notifyAccessStateChanged();
+    notifyDomainChange("requests");
+    return { ok: true, message: "Acceso restaurado correctamente." };
+  }
+
+  if (![
+    "pending",
+    "contacted",
+    "payment_pending",
+    "paid",
+    "approved",
+    "fulfilled",
+  ].includes(request.status)) {
     return {
       ok: false,
-      message: activeAccess
-        ? "La solicitud no puede rechazarse porque el acceso ya está activo."
-        : "No se pudo comprobar el acceso actual.",
+      message: "La solicitud no puede aprobarse desde su estado actual.",
+    };
+  }
+
+  return approveAccessRequestAtomic(requestId);
+}
+
+export async function acceptAccessReview(requestId: string) {
+  const authClient = await getAuthenticatedAdminBrowserClient();
+  const supabase = authClient.supabase;
+
+  if (!supabase || !authClient.isAdmin || !authClient.sessionInfo.userId) {
+    return { ok: false, message: authClient.message };
+  }
+
+  const { data: request, error: requestError } = await supabase
+    .from("access_requests")
+    .select(accessRequestColumns)
+    .eq("id", requestId)
+    .maybeSingle<AccessRequestRow>();
+
+  if (requestError || !request) {
+    return { ok: false, message: "Solicitud de revisión no encontrada." };
+  }
+
+  if (!isReviewPendingRequest(request)) {
+    return {
+      ok: false,
+      message: "Solo una revisión pendiente puede aceptarse.",
     };
   }
 
   const now = new Date().toISOString();
-  const { data: rejectedRequest, error } = await supabase
+  const { data: acceptedReview, error } = await supabase
     .from("access_requests")
     .update({
-      status: "rejected",
-      rejection_reason: reasonResult.reason,
-      rejected_at: now,
-      rejected_by: authClient.sessionInfo.userId,
+      status: "review_approved",
       responded_at: now,
       updated_at: now,
+      review_rejection_reason: null,
+      review_rejected_at: null,
+      review_rejected_by: null,
+      review_rejection_acknowledged_at: null,
     })
     .eq("id", requestId)
-    .eq("status", request.status)
+    .eq("status", "review_pending")
     .select("id,status")
     .maybeSingle<{ id: string; status: AccessRequestStatus }>();
 
-  if (error || rejectedRequest?.status !== "rejected") {
+  if (error || acceptedReview?.status !== "review_approved") {
     return {
       ok: false,
-      message: "No se pudo rechazar la solicitud desde su estado actual.",
+      message: "No se pudo aceptar la revisión desde su estado actual.",
     };
   }
 
   notifyAccessStateChanged();
-  return { ok: true, message: "Solicitud rechazada." };
+  notifyDomainChange("requests");
+  return {
+    ok: true,
+    message: "Revisión aceptada. El acceso aún no ha sido restaurado.",
+  };
 }
 
-export async function rejectAccessReview(
-  requestId: string,
-  reason: string,
-) {
+export async function rejectAccessReview(requestId: string, reason: string) {
   const reasonResult = normalizeRequiredReason(reason);
 
   if (!reasonResult.ok) {
@@ -1298,7 +1256,7 @@ export async function rejectAccessReview(
     };
   }
 
-  notifyAccessStateChanged();
+  notifyDomainChange("requests");
   return { ok: true, message: "Revisión rechazada." };
 }
 
@@ -1329,18 +1287,15 @@ export async function acknowledgeAccessReviewRejection(requestId: string) {
     };
   }
 
-  const { error } = await supabase.rpc(
-    "acknowledge_access_review_rejection",
-    {
-      p_request_id: requestId,
-    },
-  );
+  const { error } = await supabase.rpc("acknowledge_access_review_rejection", {
+    p_request_id: requestId,
+  });
 
   if (error) {
     return { ok: false, message: error.message };
   }
 
-  notifyAccessStateChanged();
+  notifyDomainChange("requests");
   return { ok: true, message: "Motivo del rechazo aceptado." };
 }
 
@@ -1367,8 +1322,7 @@ export async function reopenAccessRequest(requestId: string) {
   if (!canCreateNewAccessRequest(request)) {
     return {
       ok: false,
-      message:
-        "La solicitud no puede reabrirse hasta aceptar el rechazo de la revisión.",
+      message: "Ya existe una solicitud activa para este beat.",
     };
   }
 
@@ -1380,11 +1334,14 @@ export async function reopenAccessRequest(requestId: string) {
     return { ok: false, message: error.message };
   }
 
-  notifyAccessStateChanged();
+  notifyDomainChange("requests");
   return { ok: true, message: "Solicitud reenviada al admin." };
 }
 
-export async function markAccessRequestContacted(requestId: string, currentMessage?: string | null) {
+export async function markAccessRequestContacted(
+  requestId: string,
+  currentMessage?: string | null,
+) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
 
@@ -1393,133 +1350,31 @@ export async function markAccessRequestContacted(requestId: string, currentMessa
   }
 
   const marker = "[contactado]";
-  const message = currentMessage?.includes(marker) ? currentMessage : `${currentMessage || ""}\n${marker}`.trim();
-  const { error } = await supabase.from("access_requests").update({ status: "payment_pending", message, contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId);
-
-  if (error) {
-    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
-  }
-
-  notifyAccessStateChanged();
-  return { ok: true, message: "Cliente contactado. Solicitud marcada como pago pendiente." };
-}
-
-export async function grantBeatAccess(userId: string, beatId: string) {
-  const authClient = await getAuthenticatedBrowserClient();
-  const supabase = authClient.supabase;
-  const resolvedBeatId = await resolveBeatId(beatId, supabase);
-
-  if (!supabase) {
-    return { ok: false, message: authClient.message };
-  }
-
-  if (!resolvedBeatId) {
-    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
-  }
-
-  const { error } = await supabase.from("beat_access").upsert(
-    {
-      user_id: userId,
-      beat_id: resolvedBeatId,
-      granted_by: authClient.sessionInfo.userId,
-    },
-    { onConflict: "user_id,beat_id" },
-  );
-
-  if (error) {
-    return { ok: false, message: "No se pudo actualizar la información. Intenta de nuevo." };
-  }
-
-
-  await supabase
+  const message = currentMessage?.includes(marker)
+    ? currentMessage
+    : `${currentMessage || ""}\n${marker}`.trim();
+  const { error } = await supabase
     .from("access_requests")
-    .update({ status: "fulfilled", responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .eq("beat_id", resolvedBeatId)
-    .in("status", ["pending", "contacted", "payment_pending", "paid", "approved"]);
+    .update({
+      status: "contacted",
+      message,
+      contacted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
 
-  notifyAccessStateChanged();
-  return { ok: true };
-}
-
-export async function revokeBeatAccess(userId: string, beatId: string, reason: string) {
-  const authClient = await getAuthenticatedBrowserClient();
-  const supabase = authClient.supabase;
-  const resolvedBeatId = await resolveBeatId(beatId, supabase);
-  const cleanReason = reason.trim();
-
-  if (!supabase) {
-    return { ok: false, message: authClient.message };
-  }
-
-  if (!resolvedBeatId) {
-    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
-  }
-
-  if (cleanReason.length < 5) {
-    return { ok: false, message: "El motivo debe tener al menos 5 caracteres." };
-  }
-
-  if (cleanReason.length > 500) {
-    return { ok: false, message: "El motivo no puede superar 500 caracteres." };
-  }
-
-  const { data: activeAccess, error: activeAccessError } = await supabase
-    .from("beat_access")
-    .select("user_id,beat_id")
-    .eq("user_id", userId)
-    .eq("beat_id", resolvedBeatId)
-    .maybeSingle<{ user_id: string; beat_id: string }>();
-
-  if (activeAccessError) {
-    return { ok: false, message: "No se pudo comprobar el acceso actual." };
-  }
-
-  if (!activeAccess) {
-    notifyAccessStateChanged();
-    return { ok: true, message: "El acceso ya estaba revocado." };
-  }
-
-  const { error: deleteError } = await supabase
-    .from("beat_access")
-    .delete()
-    .eq("user_id", userId)
-    .eq("beat_id", resolvedBeatId);
-
-  if (deleteError) {
-    return { ok: false, message: "No se pudo eliminar el acceso activo." };
-  }
-
-  const { error: revocationError } = await supabase.from("access_revocations").insert({
-    user_id: userId,
-    beat_id: resolvedBeatId,
-    reason: cleanReason,
-    revoked_by: authClient.sessionInfo.userId,
-    revoked_at: new Date().toISOString(),
-  });
-
-  if (revocationError) {
-    await supabase.from("beat_access").upsert(
-      {
-        user_id: userId,
-        beat_id: resolvedBeatId,
-        granted_by: authClient.sessionInfo.userId,
-      },
-      { onConflict: "user_id,beat_id" },
-    );
-
-    if (process.env.NODE_ENV === "development") {
-      console.error("B.R access revocation insert error", revocationError);
-    }
-
+  if (error) {
     return {
       ok: false,
-      message: `No se pudo registrar el motivo de revocación: ${revocationError.message}`,
+      message: "No se pudo actualizar la información. Intenta de nuevo.",
     };
   }
 
-  notifyAccessStateChanged();
-  return { ok: true, message: "Acceso revocado correctamente." };
+  notifyDomainChange("requests");
+  return {
+    ok: true,
+    message: "Cliente contactado. La solicitud sigue pendiente de aprobación.",
+  };
 }
 
 export async function getProfiles() {
@@ -1528,25 +1383,34 @@ export async function getProfiles() {
   return result.users;
 }
 
-export async function getProfilesResult(supabaseOverride?: SupabaseClient | null) {
-  const supabase = supabaseOverride ?? getSupabaseBrowserSessionClient() ?? getSupabaseClient();
+export async function getProfilesResult(
+  supabaseOverride?: SupabaseClient | null,
+) {
+  const supabase =
+    supabaseOverride ??
+    getSupabaseBrowserSessionClient() ??
+    getSupabaseClient();
 
   if (!supabase) {
     return {
       users: [],
       error: "Supabase no está configurado.",
-      emptyReason: "Revisa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      emptyReason:
+        "Revisa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     };
   }
 
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
   const session = sessionData.session;
 
   if (sessionError || !session) {
     return {
       users: [],
       error: "Sesión no cargada. Vuelve a iniciar sesión.",
-      emptyReason: sessionError?.message ?? "No hay sesión Supabase activa en el navegador.",
+      emptyReason:
+        sessionError?.message ??
+        "No hay sesión Supabase activa en el navegador.",
     };
   }
 
@@ -1555,7 +1419,9 @@ export async function getProfilesResult(supabaseOverride?: SupabaseClient | null
     .select("id,email,username,display_name,phone,role,created_at,updated_at")
     .order("created_at", { ascending: false });
 
-  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "").trim().toLowerCase();
+  const brceoEmail = (process.env.NEXT_PUBLIC_BRCEO_EMAIL ?? "")
+    .trim()
+    .toLowerCase();
   const authEmail = (session.user.email ?? "").trim().toLowerCase();
   const isBrceoEmail = Boolean(brceoEmail) && authEmail === brceoEmail;
 
@@ -1589,7 +1455,8 @@ export async function getProfilesResult(supabaseOverride?: SupabaseClient | null
     return {
       users: [],
       error: accessError.message,
-      emptyReason: "No se pudieron cargar los accesos activos desde beat_access.",
+      emptyReason:
+        "No se pudieron cargar los accesos activos desde beat_access.",
     };
   }
 
@@ -1599,15 +1466,23 @@ export async function getProfilesResult(supabaseOverride?: SupabaseClient | null
     const beat = first(row.beats);
     const currentIds = accessByUser.get(row.user_id) ?? [];
     const nextIds = [row.beat_id, beat?.slug].filter(Boolean) as string[];
-    accessByUser.set(row.user_id, Array.from(new Set([...currentIds, ...nextIds])));
+    accessByUser.set(
+      row.user_id,
+      Array.from(new Set([...currentIds, ...nextIds])),
+    );
   }
 
-  const users = profiles.map((profile) => mapProfileToUser(profile, accessByUser.get(profile.id) ?? []));
+  const users = profiles.map((profile) =>
+    mapProfileToUser(profile, accessByUser.get(profile.id) ?? []),
+  );
 
   return { users, error: "", emptyReason: "" };
 }
 
-export async function updateProfile(userId: string, input: { username: string; displayName: string; phone?: string }) {
+export async function updateProfile(
+  userId: string,
+  input: { username: string; displayName: string; phone?: string },
+) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const username = input.username.trim().replace(/^@+/, "").toLowerCase();
@@ -1616,7 +1491,12 @@ export async function updateProfile(userId: string, input: { username: string; d
     profileId: userId,
     authUserId: undefined as string | undefined,
     payload: null as Record<string, unknown> | null,
-    error: null as { message?: string; code?: string; details?: string; hint?: string } | null,
+    error: null as {
+      message?: string;
+      code?: string;
+      details?: string;
+      hint?: string;
+    } | null,
   };
 
   if (!supabase) {
@@ -1624,17 +1504,29 @@ export async function updateProfile(userId: string, input: { username: string; d
   }
 
   if (username.length < 3 || username.includes(" ")) {
-    return { ok: false, message: "Username inválido: mínimo 3 caracteres y sin espacios.", diagnostics };
+    return {
+      ok: false,
+      message: "Username inválido: mínimo 3 caracteres y sin espacios.",
+      diagnostics,
+    };
   }
 
   if (phone && !isValidPhone(phone)) {
-    return { ok: false, message: "Teléfono inválido. Usa mínimo 8 dígitos.", diagnostics };
+    return {
+      ok: false,
+      message: "Teléfono inválido. Usa mínimo 8 dígitos.",
+      diagnostics,
+    };
   }
 
   diagnostics.authUserId = authClient.sessionInfo.userId ?? undefined;
 
   if (authClient.sessionInfo.userId !== userId) {
-    return { ok: false, message: "No hay profile real autenticado para esta acción.", diagnostics };
+    return {
+      ok: false,
+      message: "No hay profile real autenticado para esta acción.",
+      diagnostics,
+    };
   }
 
   const payload = {
@@ -1659,7 +1551,11 @@ export async function updateProfile(userId: string, input: { username: string; d
     if (process.env.NODE_ENV === "development") {
       console.error("B.R update profile error", diagnostics);
     }
-    return { ok: false, message: "No se pudieron guardar los cambios", diagnostics };
+    return {
+      ok: false,
+      message: "No se pudieron guardar los cambios",
+      diagnostics,
+    };
   }
 
   return { ok: true, message: "Cambios guardados", diagnostics };
@@ -1679,10 +1575,16 @@ export async function updateProfilePhone(userId: string, phoneInput: string) {
   }
 
   if (authClient.sessionInfo.userId !== userId) {
-    return { ok: false, message: "No hay profile real autenticado para esta acción." };
+    return {
+      ok: false,
+      message: "No hay profile real autenticado para esta acción.",
+    };
   }
 
-  const { error } = await supabase.from("profiles").update({ phone }).eq("id", userId);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ phone })
+    .eq("id", userId);
 
   if (error) {
     if (process.env.NODE_ENV === "development") {
@@ -1714,10 +1616,15 @@ export async function deleteOwnAccount() {
       Authorization: `Bearer ${token}`,
     },
   });
-  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo eliminar la cuenta." }));
+  const result = await response
+    .json()
+    .catch(() => ({ ok: false, message: "No se pudo eliminar la cuenta." }));
 
   if (!response.ok || !result.ok) {
-    return { ok: false, message: result.message ?? "No se pudo eliminar la cuenta." };
+    return {
+      ok: false,
+      message: result.message ?? "No se pudo eliminar la cuenta.",
+    };
   }
 
   await authClient.supabase.auth.signOut();
@@ -1744,13 +1651,23 @@ export async function recoverDeletedAccountAccess() {
       Authorization: `Bearer ${token}`,
     },
   });
-  const result = await response.json().catch(() => ({ ok: false, restored: 0, message: "No se pudo recuperar el acceso." }));
+  const result = await response.json().catch(() => ({
+    ok: false,
+    restored: 0,
+    message: "No se pudo recuperar el acceso.",
+  }));
 
-  return {
+  const output = {
     ok: Boolean(response.ok && result.ok),
     restored: typeof result.restored === "number" ? result.restored : 0,
     message: typeof result.message === "string" ? result.message : "",
   };
+
+  if (output.ok && output.restored > 0) {
+    notifyDomainChange("access");
+  }
+
+  return output;
 }
 
 export async function deleteUserAsAdmin(userId: string) {
@@ -1775,12 +1692,18 @@ export async function deleteUserAsAdmin(userId: string) {
     },
     body: JSON.stringify({ userId }),
   });
-  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo eliminar el usuario." }));
+  const result = await response
+    .json()
+    .catch(() => ({ ok: false, message: "No se pudo eliminar el usuario." }));
 
   if (!response.ok || !result.ok) {
-    return { ok: false, message: result.message ?? "No se pudo eliminar el usuario." };
+    return {
+      ok: false,
+      message: result.message ?? "No se pudo eliminar el usuario.",
+    };
   }
 
+  notifyDomainChange("all");
   return { ok: true, message: "Usuario eliminado." };
 }
 
@@ -1806,16 +1729,27 @@ export async function deleteBeatAsAdmin(beatId: string) {
     },
     body: JSON.stringify({ beatId }),
   });
-  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo eliminar el beat." }));
+  const result = await response
+    .json()
+    .catch(() => ({ ok: false, message: "No se pudo eliminar el beat." }));
 
   if (!response.ok || !result.ok) {
-    return { ok: false, message: result.message ?? "No se pudo eliminar el beat." };
+    return {
+      ok: false,
+      message: result.message ?? "No se pudo eliminar el beat.",
+    };
   }
 
-  return { ok: true, message: result.message ?? "Beat eliminado del catálogo." };
+  return {
+    ok: true,
+    message: result.message ?? "Beat eliminado del catálogo.",
+  };
 }
 
-export async function updateBeatPlaybackVisibilityAsAdmin(beatId: string, playbackVisibility: PlaybackVisibilityInput) {
+export async function updateBeatPlaybackVisibilityAsAdmin(
+  beatId: string,
+  playbackVisibility: PlaybackVisibilityInput,
+) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
 
@@ -1823,8 +1757,9 @@ export async function updateBeatPlaybackVisibilityAsAdmin(beatId: string, playba
     return { ok: false, message: authClient.message };
   }
 
-  const safePlaybackVisibility: PlaybackVisibilityInput = playbackVisibility === "public" ? "public" : "private";
-  const matchColumn = uuidPattern.test(beatId) ? "id" : "slug";
+  const safePlaybackVisibility: PlaybackVisibilityInput =
+    playbackVisibility === "public" ? "public" : "private";
+  const matchColumn = isUuid(beatId) ? "id" : "slug";
   const { error } = await supabase
     .from("beats")
     .update({ playback_visibility: safePlaybackVisibility })
@@ -1841,7 +1776,10 @@ export async function updateBeatPlaybackVisibilityAsAdmin(beatId: string, playba
   return { ok: true, message: "Visibilidad de reproducción actualizada." };
 }
 
-export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetadataInput) {
+export async function updateBeatMetadataAsAdmin(
+  beatId: string,
+  input: BeatMetadataInput,
+) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
 
@@ -1856,7 +1794,10 @@ export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetad
   const resolvedBeatId = await resolveBeatId(beatId, supabase);
 
   if (!resolvedBeatId) {
-    return { ok: false, message: "No se encontró el UUID real del beat en Supabase." };
+    return {
+      ok: false,
+      message: "No se encontró el UUID real del beat en Supabase.",
+    };
   }
 
   const payload: {
@@ -1885,7 +1826,10 @@ export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetad
       const bpm = Number(input.bpm);
 
       if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240) {
-        return { ok: false, message: "BPM inválido. Usa un número entre 40 y 240." };
+        return {
+          ok: false,
+          message: "BPM inválido. Usa un número entre 40 y 240.",
+        };
       }
 
       payload.bpm = Math.round(bpm);
@@ -1901,7 +1845,12 @@ export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetad
     .update(payload)
     .eq("id", resolvedBeatId)
     .select("id,slug,genre,bpm,musical_key,is_active")
-    .maybeSingle<Pick<BeatRowDb, "id" | "slug" | "genre" | "bpm" | "musical_key" | "is_active">>();
+    .maybeSingle<
+      Pick<
+        BeatRowDb,
+        "id" | "slug" | "genre" | "bpm" | "musical_key" | "is_active"
+      >
+    >();
 
   if (error) {
     if (process.env.NODE_ENV === "development") {
@@ -1912,7 +1861,11 @@ export async function updateBeatMetadataAsAdmin(beatId: string, input: BeatMetad
   }
 
   if (!updatedBeat) {
-    return { ok: false, message: "Supabase no confirmó la actualización del beat. Revisa RLS/permisos o el ID del beat." };
+    return {
+      ok: false,
+      message:
+        "Supabase no confirmó la actualización del beat. Revisa RLS/permisos o el ID del beat.",
+    };
   }
 
   return { ok: true, message: "Metadata actualizada.", beat: updatedBeat };
@@ -1926,14 +1879,27 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export async function createBeatWithUpload(input: { file: File; title: string; slug: string; genre: string; bpm: string; musicalKey: string; playbackVisibility?: PlaybackVisibilityInput }) {
+export async function createBeatWithUpload(input: {
+  file: File;
+  title: string;
+  slug: string;
+  genre: string;
+  bpm: string;
+  musicalKey: string;
+  playbackVisibility?: PlaybackVisibilityInput;
+}) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
   const slug = slugify(input.title);
   const diagnostics = {
     authUser: null as { id?: string; email?: string } | null,
     payload: null as Record<string, unknown> | null,
-    error: null as { message?: string; code?: string; details?: string; hint?: string } | null,
+    error: null as {
+      message?: string;
+      code?: string;
+      details?: string;
+      hint?: string;
+    } | null,
   };
 
   if (!supabase) {
@@ -1941,7 +1907,11 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
   }
 
   if (!input.file || !input.title.trim() || !slug) {
-    return { ok: false, message: "MP3, título y slug son obligatorios.", diagnostics };
+    return {
+      ok: false,
+      message: "MP3, título y slug son obligatorios.",
+      diagnostics,
+    };
   }
 
   diagnostics.authUser = {
@@ -1950,16 +1920,22 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
   };
 
   if (await beatSlugExists(slug, supabase)) {
-    return { ok: false, message: "Ese nombre ya está en uso. Usa otro nombre para el beat.", diagnostics };
+    return {
+      ok: false,
+      message: "Ese nombre ya está en uso. Usa otro nombre para el beat.",
+      diagnostics,
+    };
   }
 
   const safeFilename = input.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const path = `full/${slug}/${Date.now()}-${safeFilename}`;
-  const { error: uploadError } = await supabase.storage.from("beats").upload(path, input.file, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: input.file.type || "audio/mpeg",
-  });
+  const { error: uploadError } = await supabase.storage
+    .from(FULL_AUDIO_BUCKET)
+    .upload(path, input.file, {
+      cacheControl: "60",
+      upsert: false,
+      contentType: input.file.type || "audio/mpeg",
+    });
 
   if (uploadError) {
     diagnostics.error = {
@@ -1969,29 +1945,34 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
     if (process.env.NODE_ENV === "development") {
       console.error("B.R upload beat storage error", diagnostics);
     }
-    return { ok: false, message: uploadError.message.includes("Bucket") ? "Bucket beats no existe o no está accesible." : "No se pudo subir el MP3.", diagnostics };
+    return {
+      ok: false,
+      message: uploadError.message.includes("Bucket")
+        ? "Bucket beats no existe o no está accesible."
+        : "No se pudo subir el MP3.",
+      diagnostics,
+    };
   }
 
-  const { data: publicData } = supabase.storage.from("beats").getPublicUrl(path);
-  const publicUrl = publicData.publicUrl;
   const payload = {
     slug,
     title: input.title.trim(),
     genre: input.genre.trim() || null,
     bpm: input.bpm ? Number(input.bpm) : null,
     musical_key: input.musicalKey.trim() || null,
-    full_audio_url: publicUrl,
-    preview_url: publicUrl,
+    full_audio_url: toStorageObjectReference(FULL_AUDIO_BUCKET, path),
+    preview_url: "",
     preview_duration_seconds: 15,
     preview_updated_at: null,
-    playback_visibility: input.playbackVisibility === "public" ? "public" : "private",
+    playback_visibility:
+      input.playbackVisibility === "public" ? "public" : "private",
     is_active: true,
   };
   diagnostics.payload = payload;
   const { error: insertError } = await supabase.from("beats").insert(payload);
 
   if (insertError) {
-    await supabase.storage.from("beats").remove([path]);
+    await supabase.storage.from(FULL_AUDIO_BUCKET).remove([path]);
     diagnostics.error = {
       message: insertError.message,
       code: insertError.code,
@@ -2002,24 +1983,51 @@ export async function createBeatWithUpload(input: { file: File; title: string; s
       console.error("B.R create beat insert error", diagnostics);
     }
 
-    if (insertError.code === "23505" || (insertError as { status?: number }).status === 409 || insertError.message.includes("409") || insertError.message.toLowerCase().includes("duplicate")) {
-      return { ok: false, message: "Ese nombre ya está en uso. Usa otro nombre para el beat.", diagnostics };
+    if (
+      insertError.code === "23505" ||
+      (insertError as { status?: number }).status === 409 ||
+      insertError.message.includes("409") ||
+      insertError.message.toLowerCase().includes("duplicate")
+    ) {
+      return {
+        ok: false,
+        message: "Ese nombre ya está en uso. Usa otro nombre para el beat.",
+        diagnostics,
+      };
     }
 
     return { ok: false, message: "No se pudo crear el beat.", diagnostics };
   }
 
-  return { ok: true, message: "Beat guardado correctamente", slug, diagnostics };
+  return {
+    ok: true,
+    message: "Beat guardado correctamente",
+    slug,
+    diagnostics,
+  };
 }
 
-export async function updateBeatPreviewWithUpload(input: { beatId: string; slug: string; file: File; durationSeconds: number }) {
+export async function updateBeatPreviewWithUpload(input: {
+  beatId: string;
+  slug: string;
+  file: File;
+  durationSeconds: number;
+}) {
   const authClient = await getAuthenticatedBrowserClient();
   const supabase = authClient.supabase;
-  const durationSeconds = Math.min(30, Math.max(15, Math.round(input.durationSeconds || 15)));
+  const durationSeconds = Math.min(
+    30,
+    Math.max(15, Math.round(input.durationSeconds || 15)),
+  );
   const diagnostics = {
     authUser: null as { id?: string; email?: string } | null,
     payload: null as Record<string, unknown> | null,
-    error: null as { message?: string; code?: string; details?: string; hint?: string } | null,
+    error: null as {
+      message?: string;
+      code?: string;
+      details?: string;
+      hint?: string;
+    } | null,
   };
 
   if (!supabase) {
@@ -2032,21 +2040,34 @@ export async function updateBeatPreviewWithUpload(input: { beatId: string; slug:
   };
 
   if (!input.beatId || !input.slug || !input.file) {
-    return { ok: false, message: "Beat y archivo preview son obligatorios.", diagnostics };
+    return {
+      ok: false,
+      message: "Beat y archivo preview son obligatorios.",
+      diagnostics,
+    };
   }
 
-  if (!input.file.name.toLowerCase().endsWith(".mp3") && input.file.type !== "audio/mpeg") {
-    return { ok: false, message: "El preview debe ser un archivo MP3.", diagnostics };
+  if (
+    !input.file.name.toLowerCase().endsWith(".mp3") &&
+    input.file.type !== "audio/mpeg"
+  ) {
+    return {
+      ok: false,
+      message: "El preview debe ser un archivo MP3.",
+      diagnostics,
+    };
   }
 
   const safeFilename = input.file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const path = `previews/${input.slug}/${Date.now()}-${safeFilename}`;
 
-  const { error: uploadError } = await supabase.storage.from("beats").upload(path, input.file, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: input.file.type || "audio/mpeg",
-  });
+  const { error: uploadError } = await supabase.storage
+    .from("beats")
+    .upload(path, input.file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: input.file.type || "audio/mpeg",
+    });
 
   if (uploadError) {
     diagnostics.error = {
@@ -2061,7 +2082,9 @@ export async function updateBeatPreviewWithUpload(input: { beatId: string; slug:
     return { ok: false, message: "No se pudo subir el preview.", diagnostics };
   }
 
-  const { data: publicData } = supabase.storage.from("beats").getPublicUrl(path);
+  const { data: publicData } = supabase.storage
+    .from("beats")
+    .getPublicUrl(path);
   const publicUrl = publicData.publicUrl;
 
   const payload = {
@@ -2072,21 +2095,38 @@ export async function updateBeatPreviewWithUpload(input: { beatId: string; slug:
 
   diagnostics.payload = payload;
 
-  const matchColumn = uuidPattern.test(input.beatId) ? "id" : "slug";
+  const matchColumn = isUuid(input.beatId) ? "id" : "slug";
   let { data: updatedBeat, error: updateError } = await supabase
     .from("beats")
     .update(payload)
     .eq(matchColumn, input.beatId)
     .select("id,slug,preview_url,preview_duration_seconds,preview_updated_at")
-    .maybeSingle<{ id: string; slug: string; preview_url: string; preview_duration_seconds: number | null; preview_updated_at: string | null }>();
+    .maybeSingle<{
+      id: string;
+      slug: string;
+      preview_url: string;
+      preview_duration_seconds: number | null;
+      preview_updated_at: string | null;
+    }>();
 
-  if (!updateError && !updatedBeat && input.slug && input.slug !== input.beatId) {
+  if (
+    !updateError &&
+    !updatedBeat &&
+    input.slug &&
+    input.slug !== input.beatId
+  ) {
     const fallbackResult = await supabase
       .from("beats")
       .update(payload)
       .eq("slug", input.slug)
       .select("id,slug,preview_url,preview_duration_seconds,preview_updated_at")
-      .maybeSingle<{ id: string; slug: string; preview_url: string; preview_duration_seconds: number | null; preview_updated_at: string | null }>();
+      .maybeSingle<{
+        id: string;
+        slug: string;
+        preview_url: string;
+        preview_duration_seconds: number | null;
+        preview_updated_at: string | null;
+      }>();
 
     updatedBeat = fallbackResult.data;
     updateError = fallbackResult.error;
@@ -2106,10 +2146,21 @@ export async function updateBeatPreviewWithUpload(input: { beatId: string; slug:
       console.error("B.R update beat preview error", diagnostics);
     }
 
-    return { ok: false, message: "No se pudo actualizar el preview del beat.", diagnostics };
+    return {
+      ok: false,
+      message: "No se pudo actualizar el preview del beat.",
+      diagnostics,
+    };
   }
 
-  return { ok: true, message: "Preview actualizado correctamente.", previewUrl: updatedBeat.preview_url, durationSeconds: updatedBeat.preview_duration_seconds ?? durationSeconds, previewUpdatedAt: updatedBeat.preview_updated_at, diagnostics };
+  return {
+    ok: true,
+    message: "Preview actualizado correctamente.",
+    previewUrl: updatedBeat.preview_url,
+    durationSeconds: updatedBeat.preview_duration_seconds ?? durationSeconds,
+    previewUpdatedAt: updatedBeat.preview_updated_at,
+    diagnostics,
+  };
 }
 
 async function getAdminApiToken() {
@@ -2130,11 +2181,18 @@ async function getAdminApiToken() {
   return { ok: true as const, message: "", token };
 }
 
-export async function getAdminChangeLogs(input: { year?: number; temporary?: boolean } = {}) {
+export async function getAdminChangeLogs(
+  input: { year?: number; temporary?: boolean } = {},
+) {
   const tokenResult = await getAdminApiToken();
 
   if (!tokenResult.ok) {
-    return { ok: false, message: tokenResult.message, logs: [] as AdminChangeLog[], years: [] as number[] };
+    return {
+      ok: false,
+      message: tokenResult.message,
+      logs: [] as AdminChangeLog[],
+      years: [] as number[],
+    };
   }
 
   const params = new URLSearchParams();
@@ -2147,13 +2205,23 @@ export async function getAdminChangeLogs(input: { year?: number; temporary?: boo
     params.set("temporary", "true");
   }
 
-  const response = await fetch(`/api/admin/change-logs${params.size ? `?${params.toString()}` : ""}`, {
-    headers: { Authorization: `Bearer ${tokenResult.token}` },
-  });
-  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo cargar el historial." }));
+  const response = await fetch(
+    `/api/admin/change-logs${params.size ? `?${params.toString()}` : ""}`,
+    {
+      headers: { Authorization: `Bearer ${tokenResult.token}` },
+    },
+  );
+  const result = await response
+    .json()
+    .catch(() => ({ ok: false, message: "No se pudo cargar el historial." }));
 
   if (!response.ok || !result.ok) {
-    return { ok: false, message: result.message ?? "No se pudo cargar el historial.", logs: [] as AdminChangeLog[], years: [] as number[] };
+    return {
+      ok: false,
+      message: result.message ?? "No se pudo cargar el historial.",
+      logs: [] as AdminChangeLog[],
+      years: [] as number[],
+    };
   }
 
   return {
@@ -2168,7 +2236,11 @@ export async function createAdminChangeLog(input: AdminChangeLogInput) {
   const tokenResult = await getAdminApiToken();
 
   if (!tokenResult.ok) {
-    return { ok: false, message: tokenResult.message, log: null as AdminChangeLog | null };
+    return {
+      ok: false,
+      message: tokenResult.message,
+      log: null as AdminChangeLog | null,
+    };
   }
 
   const response = await fetch("/api/admin/change-logs", {
@@ -2179,10 +2251,16 @@ export async function createAdminChangeLog(input: AdminChangeLogInput) {
     },
     body: JSON.stringify(input),
   });
-  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo guardar el historial." }));
+  const result = await response
+    .json()
+    .catch(() => ({ ok: false, message: "No se pudo guardar el historial." }));
 
   if (!response.ok || !result.ok) {
-    return { ok: false, message: result.message ?? "No se pudo guardar el historial.", log: null as AdminChangeLog | null };
+    return {
+      ok: false,
+      message: result.message ?? "No se pudo guardar el historial.",
+      log: null as AdminChangeLog | null,
+    };
   }
 
   return { ok: true, message: "", log: result.log as AdminChangeLog };
@@ -2203,10 +2281,15 @@ export async function deleteAdminChangeLog(logId: string) {
     },
     body: JSON.stringify({ isDeleted: true }),
   });
-  const result = await response.json().catch(() => ({ ok: false, message: "No se pudo borrar el bloque." }));
+  const result = await response
+    .json()
+    .catch(() => ({ ok: false, message: "No se pudo borrar el bloque." }));
 
   if (!response.ok || !result.ok) {
-    return { ok: false, message: result.message ?? "No se pudo borrar el bloque." };
+    return {
+      ok: false,
+      message: result.message ?? "No se pudo borrar el bloque.",
+    };
   }
 
   return { ok: true, message: "Bloque borrado." };

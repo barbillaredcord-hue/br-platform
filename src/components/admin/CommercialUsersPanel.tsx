@@ -13,7 +13,10 @@ import {
   X,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { notifyDomainChange } from "@/lib/domain-events";
+import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
 import { grantBeatAccess, revokeBeatAccess } from "@/lib/supabase/queries";
+import { CrmContact360Panel } from "@/components/admin/CrmContact360Panel";
 
 type CommercialPayment = {
   id: string;
@@ -34,6 +37,9 @@ type CommercialAccessBeat = {
   genre: string | null;
   bpm: number | null;
   granted_at: string | null;
+  payment_state: "paid" | "pending" | "not_confirmed";
+  commercial_state: "access_active" | "restored";
+  access_origin: "commercial" | "administrative";
 };
 
 type CommercialRevocation = {
@@ -78,6 +84,10 @@ type BeatActivityUser = {
   display_name: string | null;
   last_activity_at: string | null;
   count: number;
+  has_active_access: boolean;
+  access_state: "none" | "active" | "revoked" | "restored";
+  can_revoke: boolean;
+  revocation_count: number;
 };
 
 type EarningsSummary = {
@@ -119,6 +129,18 @@ type CommercialSummary = {
 
 type TopActiveUser = CommercialSummary["top_active_users"][number];
 type TopDownloadedBeat = CommercialSummary["top_downloaded_beats"][number];
+
+type CommercialRevocationTarget =
+  | {
+      type: "user-access";
+      userId: string;
+      access: CommercialAccessBeat;
+    }
+  | {
+      type: "top-beat-user";
+      user: BeatActivityUser;
+      beat: TopDownloadedBeat;
+    };
 
 type DetailDock =
   | { type: "user"; user: CommercialUser }
@@ -169,22 +191,29 @@ function beatActivityUserLabel(user: BeatActivityUser) {
   return user.display_name || user.username || user.email || user.user_id;
 }
 
-function formatActivityDate(value?: string | null) {
-  if (!value) {
-    return "Sin fecha";
+function beatActivityAccessLabel(user: BeatActivityUser) {
+  switch (user.access_state) {
+    case "active":
+      return "Acceso activo";
+    case "restored":
+      return "Acceso restaurado";
+    case "revoked":
+      return "Acceso revocado";
+    default:
+      return "Sin acceso";
+  }
+}
+
+function commercialAccessLabel(access: CommercialAccessBeat) {
+  if (access.commercial_state === "restored") {
+    return access.access_origin === "commercial"
+      ? "Restaurado · pago confirmado"
+      : "Restaurado · concesión administrativa";
   }
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Sin fecha";
-  }
-
-  return date.toLocaleDateString("es-MX", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return access.access_origin === "commercial"
+    ? "Acceso comercial · pago confirmado"
+    : "Concesión administrativa · sin pago";
 }
 
 function money(value: number) {
@@ -245,6 +274,10 @@ export function CommercialUsersPanel() {
   const [paymentFilterReferenceTime] = useState(() => Date.now());
   const [isAccessMutationPending, setIsAccessMutationPending] =
     useState<string | null>(null);
+  const [revocationTarget, setRevocationTarget] =
+    useState<CommercialRevocationTarget | null>(null);
+  const [revocationReason, setRevocationReason] = useState("");
+  const [revocationError, setRevocationError] = useState("");
 
   const [beatOptions, setBeatOptions] = useState<PaymentBeatOption[]>([]);
   const [form, setForm] = useState(initialForm);
@@ -499,6 +532,9 @@ export function CommercialUsersPanel() {
     setPaymentSearch("");
     setPaymentDateFilter("all");
     setIsAccessMutationPending(null);
+    setRevocationTarget(null);
+    setRevocationReason("");
+    setRevocationError("");
   }
 
   function selectUser(user: CommercialUser) {
@@ -587,7 +623,7 @@ export function CommercialUsersPanel() {
         loadUsers(),
         loadBeatOptions(selectedUser.id),
       ]);
-      window.dispatchEvent(new Event("br-commercial-activity-refresh"));
+      notifyDomainChange("manual-payment");
     } catch {
       setMessage("No se pudo registrar el pago.");
     } finally {
@@ -598,54 +634,54 @@ export function CommercialUsersPanel() {
   async function revokeTopBeatUserAccess(
     user: BeatActivityUser,
     beat: TopDownloadedBeat,
+    reason: string,
   ) {
+    if (!user.can_revoke || !user.has_active_access) {
+      setMessage("El usuario ya no tiene acceso vigente a este beat.");
+      return false;
+    }
+
+    setIsAccessMutationPending(
+      `revoke-${beat.beat_id}-${user.user_id}`,
+    );
     setMessage(`Revocando acceso de ${beatActivityUserLabel(user)}...`);
 
     try {
       const result = await revokeBeatAccess(
         user.user_id,
         beat.beat_id,
-        `Revocado desde Detalle comercial por actividad en ${topBeatLabel(beat)}.`,
+        reason,
       );
 
       if (!result.ok) {
-        setMessage(result.message ?? "No se pudo revocar el acceso.");
-        return;
+        const error = result.message ?? "No se pudo revocar el acceso.";
+        setMessage(error);
+        setRevocationError(error);
+        return false;
       }
 
       setMessage(`Acceso revocado para ${beatActivityUserLabel(user)}.`);
       await loadUsers();
 
-      setDetailDock((current) => {
-        if (current?.type !== "beat") {
-          return current;
-        }
-
-        return {
-          type: "beat",
-          beat: {
-            ...current.beat,
-            mp3_users: current.beat.mp3_users.filter(
-              (item) => item.user_id !== user.user_id,
-            ),
-            license_users: current.beat.license_users.filter(
-              (item) => item.user_id !== user.user_id,
-            ),
-          },
-        };
-      });
-
-      window.dispatchEvent(new Event("br-commercial-activity-refresh"));
-      window.dispatchEvent(new Event("br-access-requests-refresh"));
       window.dispatchEvent(new Event("br:revocation-dismissed"));
+      return true;
     } catch {
-      setMessage("No se pudo revocar el acceso.");
+      const error = "No se pudo revocar el acceso.";
+      setMessage(error);
+      setRevocationError(error);
+      return false;
+    } finally {
+      setIsAccessMutationPending(null);
     }
   }
 
-  async function revokeUserBeatAccess(access: CommercialAccessBeat) {
-    if (!selectedUser || isAccessMutationPending) {
-      return;
+  async function revokeUserBeatAccess(
+    userId: string,
+    access: CommercialAccessBeat,
+    reason: string,
+  ) {
+    if (isAccessMutationPending) {
+      return false;
     }
 
     const pendingKey = `revoke-${access.beat_id}`;
@@ -658,25 +694,90 @@ export function CommercialUsersPanel() {
 
     try {
       const result = await revokeBeatAccess(
-        selectedUser.id,
+        userId,
         access.beat_id,
-        `Revocado desde el panel comercial de ${userLabel(selectedUser)}.`,
+        reason,
       );
 
       if (!result.ok) {
-        setMessage(result.message ?? "No se pudo revocar el acceso.");
-        return;
+        const error = result.message ?? "No se pudo revocar el acceso.";
+        setMessage(error);
+        setRevocationError(error);
+        return false;
       }
 
       await loadUsers();
       setMessage("Acceso revocado correctamente.");
-      window.dispatchEvent(new Event("br-access-state-changed"));
-      window.dispatchEvent(new Event("br-access-requests-refresh"));
-      window.dispatchEvent(new Event("br-commercial-activity-refresh"));
+      return true;
     } catch {
-      setMessage("No se pudo revocar el acceso.");
+      const error = "No se pudo revocar el acceso.";
+      setMessage(error);
+      setRevocationError(error);
+      return false;
     } finally {
       setIsAccessMutationPending(null);
+    }
+  }
+
+  function openCommercialRevocation(target: CommercialRevocationTarget) {
+    if (
+      target.type === "top-beat-user" &&
+      (!target.user.can_revoke || !target.user.has_active_access)
+    ) {
+      setMessage("El usuario no tiene acceso vigente para revocar.");
+      return;
+    }
+
+    setRevocationTarget(target);
+    setRevocationReason("");
+    setRevocationError("");
+  }
+
+  function closeCommercialRevocation() {
+    if (isAccessMutationPending) {
+      return;
+    }
+
+    setRevocationTarget(null);
+    setRevocationReason("");
+    setRevocationError("");
+  }
+
+  async function confirmCommercialRevocation() {
+    if (!revocationTarget || isAccessMutationPending) {
+      return;
+    }
+
+    const reason = revocationReason.trim();
+
+    if (reason.length < 5) {
+      setRevocationError("El motivo debe tener al menos 5 caracteres.");
+      return;
+    }
+
+    if (reason.length > 500) {
+      setRevocationError("El motivo no puede superar 500 caracteres.");
+      return;
+    }
+
+    setRevocationError("");
+    const succeeded =
+      revocationTarget.type === "user-access"
+        ? await revokeUserBeatAccess(
+            revocationTarget.userId,
+            revocationTarget.access,
+            reason,
+          )
+        : await revokeTopBeatUserAccess(
+            revocationTarget.user,
+            revocationTarget.beat,
+            reason,
+          );
+
+    if (succeeded) {
+      setRevocationTarget(null);
+      setRevocationReason("");
+      setRevocationError("");
     }
   }
 
@@ -712,9 +813,6 @@ export function CommercialUsersPanel() {
 
       await loadUsers();
       setMessage("Acceso restaurado correctamente.");
-      window.dispatchEvent(new Event("br-access-state-changed"));
-      window.dispatchEvent(new Event("br-access-requests-refresh"));
-      window.dispatchEvent(new Event("br-commercial-activity-refresh"));
     } catch {
       setMessage("No se pudo restaurar el acceso.");
     } finally {
@@ -1175,6 +1273,14 @@ export function CommercialUsersPanel() {
                 </button>
               </div>
 
+              <div className="mt-5">
+                <CrmContact360Panel
+                  profileId={detailDock.user.id}
+                  getToken={getToken}
+                  onChanged={loadUsers}
+                />
+              </div>
+
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
                   <p className="text-[10px] font-bold uppercase text-emerald-200">
@@ -1331,10 +1437,20 @@ export function CommercialUsersPanel() {
                               <p className="mt-1 text-xs text-zinc-500">
                                 {access.genre || "Sin género"} · {access.bpm ? `${access.bpm} BPM` : "BPM sin definir"}
                               </p>
+                              <p className="mt-1 text-xs text-zinc-500">Concedido: {formatLocalDateTime(access.granted_at)}</p>
+                              <span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${access.payment_state === "paid" ? "border-emerald-300/30 text-emerald-100" : "border-amber-300/30 text-amber-100"}`}>
+                                {commercialAccessLabel(access)}
+                              </span>
                             </div>
                             <button
                               type="button"
-                              onClick={() => void revokeUserBeatAccess(access)}
+                              onClick={() =>
+                                openCommercialRevocation({
+                                  type: "user-access",
+                                  userId: detailDock.user.id,
+                                  access,
+                                })
+                              }
                               disabled={Boolean(isAccessMutationPending)}
                               className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -1362,7 +1478,8 @@ export function CommercialUsersPanel() {
                               <p className="truncate text-sm font-bold text-white">
                                 {revocation.beat_title || revocation.beat_slug || revocation.beat_id}
                               </p>
-                              <p className="mt-1 text-xs text-zinc-500">Fecha: {formatActivityDate(revocation.revoked_at)}</p>
+                              <p className="mt-1 text-xs text-zinc-500">Revocado: {formatLocalDateTime(revocation.revoked_at)}</p>
+                              {revocation.status === "restored" ? <p className="mt-1 text-xs text-zinc-500">Restaurado: {formatLocalDateTime(revocation.restored_at)}</p> : null}
                               <p className="mt-1 text-xs text-zinc-400">Motivo: {revocation.reason || "Sin motivo registrado"}</p>
                               <span className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${revocation.status === "restored" ? "border-emerald-300/30 text-emerald-100" : "border-amber-300/30 text-amber-100"}`}>
                                 {revocation.status === "restored" ? "Acceso restaurado" : "Revocado"}
@@ -1417,7 +1534,7 @@ export function CommercialUsersPanel() {
                             <div className="min-w-0">
                               <p className="truncate text-sm font-bold text-white">{payment.beat_title || payment.beat_slug || payment.beat_id}</p>
                               <p className="mt-1 text-xs font-bold text-emerald-100">{money(payment.amount)}</p>
-                              <p className="mt-1 text-xs text-zinc-500">{formatActivityDate(payment.created_at)} · {payment.payment_method || "Método sin registrar"}</p>
+                              <p className="mt-1 text-xs text-zinc-500">{formatLocalDateTime(payment.created_at)} · {payment.payment_method || "Método sin registrar"}</p>
                               <p className="mt-1 truncate text-xs text-zinc-400">{payment.note || "Sin nota"}</p>
                             </div>
                             <button
@@ -1495,7 +1612,7 @@ export function CommercialUsersPanel() {
                     </p>
                     <p>
                       <span className="text-zinc-500">Fecha:</span>{" "}
-                      {formatActivityDate(selectedPayment.created_at)}
+                      {formatLocalDateTime(selectedPayment.created_at)}
                     </p>
                     <p>
                       <span className="text-zinc-500">Método:</span>{" "}
@@ -1863,22 +1980,28 @@ export function CommercialUsersPanel() {
                           </p>
                           <p className="mt-1 text-[11px] text-zinc-400">
                             {user.count} evento(s) · Último:{" "}
-                            {formatActivityDate(user.last_activity_at)}
+                            {formatLocalDateTime(user.last_activity_at)}
                           </p>
+                          <span className={`mt-2 inline-flex rounded-md border px-2 py-1 text-[10px] font-bold ${user.has_active_access ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-100" : user.access_state === "revoked" ? "border-amber-300/30 bg-amber-300/10 text-amber-100" : "border-white/10 bg-white/5 text-zinc-300"}`}>
+                            {beatActivityAccessLabel(user)}
+                          </span>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void revokeTopBeatUserAccess(
-                              user,
-                              detailDock.beat,
-                            )
-                          }
-                          className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10"
-                        >
-                          Revocar acceso
-                        </button>
+                        {user.can_revoke ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openCommercialRevocation({
+                                type: "top-beat-user",
+                                user,
+                                beat: detailDock.beat,
+                              })
+                            }
+                            className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-300/10"
+                          >
+                            Revocar acceso
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   ))}
@@ -1911,6 +2034,68 @@ export function CommercialUsersPanel() {
           ) : null}
         </aside>
       </div>
+
+      {revocationTarget ? (
+        <div className="fixed inset-0 z-60 grid place-items-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-md rounded-xl border border-amber-300/20 bg-[#101317] p-5 shadow-2xl">
+            <p className="text-xs font-bold uppercase text-amber-200">
+              Revocar acceso
+            </p>
+            <h3 className="mt-2 text-lg font-black text-white">
+              {revocationTarget.type === "user-access"
+                ? revocationTarget.access.beat_title ||
+                  revocationTarget.access.beat_slug ||
+                  revocationTarget.access.beat_id
+                : topBeatLabel(revocationTarget.beat)}
+            </h3>
+
+            <label className="mt-4 grid gap-2">
+              <span className="text-xs font-bold uppercase text-zinc-400">
+                Motivo de revocación
+              </span>
+              <textarea
+                value={revocationReason}
+                onChange={(event) => setRevocationReason(event.target.value)}
+                minLength={5}
+                maxLength={500}
+                rows={4}
+                className="resize-none rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-amber-300"
+                placeholder="Describe el motivo de la revocación."
+              />
+              <span className="text-right text-[11px] text-zinc-500">
+                {revocationReason.length}/500
+              </span>
+            </label>
+
+            {revocationError ? (
+              <p className="mt-3 text-sm font-semibold text-red-200">
+                {revocationError}
+              </p>
+            ) : null}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeCommercialRevocation}
+                disabled={Boolean(isAccessMutationPending)}
+                className="rounded-md border border-white/10 px-4 py-2 text-xs font-bold text-zinc-200 hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmCommercialRevocation()}
+                disabled={Boolean(isAccessMutationPending)}
+                className="rounded-md bg-amber-300 px-4 py-2 text-xs font-bold text-black hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isAccessMutationPending
+                  ? "Revocando..."
+                  : "Confirmar revocación"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isEarningsHistoryOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 py-6">
