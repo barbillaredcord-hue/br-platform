@@ -31,8 +31,8 @@ Plataforma musical privada y escalable con acceso controlado, playback publico/p
 - Fase: Fase 15 - Motor Comercial Inteligente / CRM
 - Estado: in_progress
 - Avance: 12%
-- Health: 0 healthy / 0 risk / 0 blocked
-- Siguiente accion: Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.
+- Health: 3 healthy / 0 risk / 0 blocked
+- Siguiente accion: Definir el contrato minimo y los casos reales de 15.2 Opportunities antes de implementar persistencia, UI o migraciones.
 
 ## Reglas de continuidad
 
@@ -44,7 +44,7 @@ Plataforma musical privada y escalable con acceso controlado, playback publico/p
 
 ## Contexto de continuidad
 
-La regla actual es beat_access para Full y manual_payments para compra confirmada: Full sin pago bloquea MP3/licencia; pago historico sin beat_access no restaura derechos. review_approved no concede acceso ni pago; Dar acceso de nuevo solo restaura beat_access. Los cuatro SQL de revision existen como archivos locales y no se documentan como aplicados remotamente. Para desarrollo local puede usarse npm run dev -- -p 3100; PM2 con npm start en 3100 es operacion local de br-platform, no regla global de BR STUDIOS Central. 15.1 mantiene su gate fisico Admin.
+15.1 Contact Intelligence y Relaciones esta completed tras validacion fisica Admin. profiles.id sigue siendo la identidad; crm_relationships complementa sin reemplazar roles ni autoridades. beat_access gobierna Full activo, manual_payments confirma pagos, access_requests conserva workflow, access_revocations historial y commercial_activity actividad historica. La siguiente subfase es 15.2 Opportunities, aun sin implementar.
 
 ## Pendiente principal
 
@@ -52,7 +52,6 @@ La regla actual es beat_access para Full y manual_payments para compra confirmad
 - Terminos y condiciones
 - Licencias legales avanzadas
 - Pagos automaticos completos
-- Cerrar validacion fisica Admin de 15.1 Contact Intelligence y relaciones explicitas
 - 15.2 Opportunities separadas de access_requests
 - Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout
 - Mejoras futuras de precision y UI del analisis musical
@@ -60,4 +59,4 @@ La regla actual es beat_access para Full y manual_payments para compra confirmad
 - B.R Radio
 - Portadas reales
 
-Ultima generacion: 2026-08-20T08:21:28
+Ultima generacion: 2026-08-21T07:57:48

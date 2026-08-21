@@ -85,3 +85,9 @@ Generado automaticamente desde APP_STATE.json history[].
 - Evento: Consolidacion de acceso Full, pago confirmado y revisiones
 - Razon: La documentacion y una etiqueta administrativa podian asociar solicitud completada o beat_access con pago confirmado.
 - Impacto: beat_access queda documentado como autoridad exclusiva de Full activo; manual_payments como pago confirmado por usuario + beat; MP3/licencia exigen ambas pruebas server-side. La UI usa entitlements autenticados, review_approved permanece sin acceso/pago y las migraciones de revision locales se distinguen de una aplicacion remota no confirmada.
+
+## 2026-08-21 - phase_15_1_contact_intelligence_completed
+
+- Evento: Cierre de 15.1 - Contact Intelligence y Relaciones
+- Razon: La validacion fisica Admin confirmo Contact 360 y el ciclo de relaciones explicitas persistentes sobre profiles.id sin regresiones ni cambios de autoridad.
+- Impacto: 15.1 queda completed. Crear, consultar, reabrir y desactivar crm_relationships funciona en Commercial Users; profiles.role y las autoridades existentes permanecen intactas. 15.2 Opportunities pasa a ser la siguiente subfase planned. Fase 15 conserva 12% porque APP_STATE y br-sync-docs no tienen formula automatica de avance.

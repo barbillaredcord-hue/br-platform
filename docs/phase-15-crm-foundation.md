@@ -1,4 +1,4 @@
-# Fase 15.0 — CRM Foundation
+# Fase 15 — CRM Foundation y Contact Intelligence
 
 ## Decisión arquitectónica
 
@@ -17,13 +17,15 @@ La auditoría remota del 2026-08-18 encontró cinco usuarios Auth, cinco `profil
 
 La identidad CRM estable inicial es `profiles.id`, que coincide con `auth.users.id`. `role` sigue limitado a autorización (`admin` o `user`) y no representa la relación comercial.
 
-Las relaciones `contact`, `lead`, `client`, `artist`, `producer` y `collaborator` son etiquetas simultáneas, no roles excluyentes. `contact`, `lead` y `client` pueden derivarse de hechos existentes; `artist`, `producer` y `collaborator` requieren declaración explícita futura.
+Las relaciones `contact`, `lead`, `client`, `artist`, `producer` y `collaborator` son etiquetas simultáneas, no roles excluyentes. `contact`, `lead` y `client` pueden derivarse de hechos existentes; las relaciones declaradas explícitamente se persisten en `crm_relationships` sin modificar `profiles.role`.
 
 Si aparece el primer contacto comercial sin cuenta, se reevaluará una identidad CRM propia con vínculo opcional y único a `profiles`. No se crea antes de ese caso real.
 
 ## Estado de continuidad
 
-La Fase 15 continúa `in_progress` al 12%: 15.0 está completada y 15.1 está implementada con validación técnica, pero sigue `pending_validation` hasta comprobar Contact 360 y las relaciones explícitas con una sesión Admin real. No se adelanta el porcentaje ni 15.2.
+La Fase 15 continúa `in_progress` al 12%: 15.0 CRM Foundation y 15.1 Contact Intelligence / Relaciones están `completed`. La validación física Admin confirmó Contact 360 y el ciclo persistente de relaciones explícitas. La siguiente subfase es 15.2 Opportunities, que permanece `planned` y todavía no está implementada.
+
+El porcentaje se conserva en 12% porque `APP_STATE.json` y `br-sync-docs` no contienen una fórmula automática para recalcularlo. No se inventa un avance adicional por el cierre documental.
 
 BR Platform / Beat Room y BR STUDIOS Central son superficies distintas del ecosistema `brstudios.org`. Este documento gobierna solo Beat Room; no fusiona roadmaps ni trata BR STUDIOS Central como un módulo interno.
 
@@ -42,7 +44,16 @@ La regla validada es deliberadamente separada: acceso Full activo sin pago permi
 
 Problema: los dominios actuales no pueden declarar que una persona es artista, productor o colaborador, ni conservar varias relaciones simultáneas.
 
-Decisión: entidad implementada para 15.1. `crm_relationships` referencia `profiles.id`, usa valores controlados, RLS administrativa y comando idempotente. No altera acceso, pagos ni Auth. Falta únicamente la validación física Admin antes de cerrar la subfase.
+Decisión validada: `crm_relationships` referencia `profiles.id`, usa valores controlados, RLS administrativa y comando idempotente. La validación física Admin confirmó creación, consulta, reapertura y desactivación de relaciones persistentes desde Contact 360, sin alterar acceso, pagos, Auth ni `profiles.role`.
+
+### Evidencia de cierre de 15.1
+
+- Commercial Users abre Contact 360 correctamente.
+- Contact 360 conserva `profiles.id` como identidad.
+- Las relaciones explícitas pueden crearse, consultarse, reabrirse y desactivarse.
+- `profiles.role` permanece aislado de las relaciones CRM.
+- No se duplican `beat_access`, `manual_payments`, `access_requests`, `access_revocations` ni `commercial_activity`.
+- Commercial original permanece funcional y no se detectaron regresiones.
 
 ### Oportunidades
 
@@ -83,15 +94,15 @@ Los siguientes archivos existen localmente en `docs/supabase/`; su presencia no 
 
 La máquina de estados permite `pending`, `contacted`, `payment_pending`, `paid`, `fulfilled`, `approved`, `rejected`, `review_pending`, `review_approved`, `review_rejected` y `cancelled`. El flujo de revisión es `review_pending → review_approved → fulfilled`: aceptar revisión no crea `beat_access` ni `manual_payments`; “Dar acceso de nuevo” restaura solo `beat_access` y deja MP3/licencia sujetos a un pago confirmado independiente.
 
-## Schema propuesto, no migrado
+## Persistencia CRM por subfase
 
-Cuando cada flujo quede validado, el mínimo candidato es:
+El modelo mínimo queda separado por estado real:
 
-1. `crm_relationships(profile_id, relationship_type, created_at, created_by)` en 15.1.
-2. `crm_opportunities(id, profile_id, title, stage, amount, currency, created_at, updated_at, closed_at)` en 15.2.
+1. `crm_relationships(profile_id, relationship_type, created_at, created_by)` implementada y validada en 15.1.
+2. `crm_opportunities(id, profile_id, title, stage, amount, currency, created_at, updated_at, closed_at)` es solo el candidato lógico para 15.2; no está implementada.
 3. Notas y seguimiento solo después de validar su operación en 15.3.
 
-Cada tabla deberá tener UUID, constraints explícitas, índices de claves foráneas, RLS administrativa y privilegios mínimos. No se reutilizará `marketplace_orders`: pertenece a otra superficie del proyecto Supabase compartido y no modela operaciones de Beat Room.
+Cada entidad futura deberá tener UUID, constraints explícitas, índices de claves foráneas, RLS administrativa y privilegios mínimos. No se reutilizará `marketplace_orders`: pertenece a otra superficie del proyecto Supabase compartido y no modela operaciones de Beat Room.
 
 ## Compatibilidad futura
 
@@ -100,8 +111,8 @@ Artist Foundation podrá extender `profiles.id` con identidad artística propia 
 ## Subfases
 
 1. 15.0 — CRM Foundation: auditoría, contrato y selector determinista.
-2. 15.1 — Contact Intelligence / Contact 360 / relaciones explícitas: cerrar validación física Admin.
-3. 15.2 — Opportunities: entidad comercial separada de `access_requests`.
+2. 15.1 — Contact Intelligence / Contact 360 / relaciones explícitas: completada y validada físicamente en Admin.
+3. 15.2 — Opportunities: siguiente subfase `planned`; entidad comercial separada de `access_requests`, todavía sin implementación.
 4. 15.3 — Seguimiento comercial: notas, tareas, siguiente acción e historial con autoría y visibilidad.
 5. 15.4 — Inteligencia comercial: timeline derivado, señales, prioridades, scoring explicable y recomendaciones deterministas antes de IA avanzada.
 6. Fase 16 — Automatización Comercial.

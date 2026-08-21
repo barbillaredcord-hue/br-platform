@@ -39,9 +39,9 @@ npm run build
 
 ## Continuidad
 
-La regla actual es beat_access para Full y manual_payments para compra confirmada: Full sin pago bloquea MP3/licencia; pago historico sin beat_access no restaura derechos. review_approved no concede acceso ni pago; Dar acceso de nuevo solo restaura beat_access. Los cuatro SQL de revision existen como archivos locales y no se documentan como aplicados remotamente. Para desarrollo local puede usarse npm run dev -- -p 3100; PM2 con npm start en 3100 es operacion local de br-platform, no regla global de BR STUDIOS Central. 15.1 mantiene su gate fisico Admin.
+15.1 Contact Intelligence y Relaciones esta completed tras validacion fisica Admin. profiles.id sigue siendo la identidad; crm_relationships complementa sin reemplazar roles ni autoridades. beat_access gobierna Full activo, manual_payments confirma pagos, access_requests conserva workflow, access_revocations historial y commercial_activity actividad historica. La siguiente subfase es 15.2 Opportunities, aun sin implementar.
 
 ## Proxima accion
 
-Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.
+Definir el contrato minimo y los casos reales de 15.2 Opportunities antes de implementar persistencia, UI o migraciones.
 <!-- END:br-autocar-generated-agent-rules -->

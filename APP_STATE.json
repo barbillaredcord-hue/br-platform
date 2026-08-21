@@ -123,16 +123,16 @@
     "current_phase_label": "Fase 15 - Motor Comercial Inteligente / CRM",
     "current_phase_status": "in_progress",
     "progress_percent": 12,
-    "progress_scope": "Avance de Fase 15: 15.0 completa la foundation; 15.1 esta implementada y validada tecnicamente, pendiente de validacion fisica Admin antes de contar avance adicional.",
-    "progress_basis": "15.0 fijo identidad y autoridades. 15.1 agrega Contact 360 derivado y crm_relationships con RLS administrativa, comando idempotente y pruebas; falta validar la UI con sesion Admin conectada.",
-    "current_level": "15.1 Contact Intelligence implementada sobre profiles.id y las fuentes comerciales existentes; crm_relationships remota esta aplicada sin reemplazar autoridades. Estado pending_validation por falta de navegador Admin.",
+    "progress_scope": "Avance manual de Fase 15 conservado en 12%: 15.0 y 15.1 estan completed; APP_STATE y br-sync-docs no contienen una formula automatica para recalcularlo.",
+    "progress_basis": "15.0 fijo identidad y autoridades. 15.1 valido fisicamente Contact 360 y crm_relationships en Admin sin duplicar ni sustituir fuentes existentes. El porcentaje no cambia sin un mecanismo explicito de calculo.",
+    "current_level": "15.1 Contact Intelligence y Relaciones completed tras validacion fisica Admin sobre profiles.id; Contact 360 y crm_relationships operan sin reemplazar autoridades. 15.2 Opportunities permanece planned como siguiente subfase.",
     "last_stable_commit": "pending_phase_14d_commit",
     "checkpoint_doc": "docs/phase-13-preview-player-auth-checkpoint.md",
     "commercial_sql": "docs/supabase/phase-12-commercial.sql",
     "change_logs_sql": "docs/supabase/phase-14d-admin-change-logs.sql",
-    "next_phase": "fase_15_1_contact_intelligence",
-    "next_phase_label": "15.1 - Contact Intelligence y Relaciones",
-    "next_phase_goal": "Completar la validacion fisica Admin de Contact 360 y relaciones explicitas ya implementadas."
+    "next_phase": "fase_15_2_opportunities",
+    "next_phase_label": "15.2 - Opportunities",
+    "next_phase_goal": "Introducir una entidad de oportunidades comerciales separada de access_requests, capaz de representar intencion y seguimiento comercial sin convertir solicitudes de acceso en CRM."
   },
   "phases": {
     "completed": [
@@ -166,7 +166,7 @@
         "revocation_history": "access_revocations"
       },
       "accepted_entities": [
-        "crm_relationships persistida sobre profiles.id para relaciones explicitas simultaneas; RLS y comando idempotente validados, pendiente validacion fisica Admin de 15.1",
+        "crm_relationships persistida sobre profiles.id para relaciones explicitas simultaneas; RLS, comando idempotente y flujo Admin de creacion, consulta y desactivacion validados fisicamente en 15.1",
         "crm_opportunities como entidad logica separada de access_requests; persistencia pendiente de 15.2"
       ],
       "rejected_entities": [
@@ -181,13 +181,13 @@
       "artist_foundation_compatibility": "Artist Foundation podra extender profiles.id despues de Fase 18 sin convertir identidad artistica o relaciones CRM en roles de autorizacion.",
       "subphases": [
         { "phase": "fase_15_0_crm_foundation", "label": "15.0 - CRM Foundation", "status": "completed", "goal": "Auditar datos reales, fijar identidad, autoridades, entidades minimas y metricas deterministas." },
-        { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "pending_validation", "goal": "Contact 360 y relaciones explicitas implementadas; falta validacion fisica con sesion Admin conectada." },
+        { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "completed", "goal": "Contact 360 y relaciones explicitas persistentes validadas fisicamente en Admin, aisladas de profiles.role y de las autoridades comerciales existentes." },
         { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "planned", "goal": "Persistir oportunidades comerciales separadas de access_requests." },
         { "phase": "fase_15_3_commercial_follow_up", "label": "15.3 - Seguimiento comercial", "status": "planned", "goal": "Agregar notas, tareas, siguiente accion e historial CRM con autoria y visibilidad." },
         { "phase": "fase_15_4_commercial_intelligence", "label": "15.4 - Inteligencia comercial", "status": "planned", "goal": "Derivar timeline, dashboard administrativo, señales, prioridades, scoring explicable y recomendaciones deterministas sin IA avanzada ni duplicar autoridades." }
       ]
     },
-    "next": { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "pending_validation", "goal": "Validar fisicamente Contact 360 y el flujo Admin de relaciones ya implementados.", "design_principle": "Derivar primero; persistir solo la informacion humana que las autoridades actuales no pueden representar." },
+    "next": { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "planned", "goal": "Introducir una entidad de oportunidades comerciales separada de access_requests, capaz de representar intencion y seguimiento comercial sin convertir solicitudes de acceso en CRM.", "design_principle": "Una oportunidad tendra identidad y ciclo propios; access_requests, beat_access y manual_payments conservaran sus autoridades actuales." },
     "future": [
       { "phase": "fase_16_automatizacion_comercial", "label": "Fase 16 - Automatizacion Comercial" },
       { "phase": "fase_17_analytics_ia", "label": "Fase 17 - Analytics / Intelligence" },
@@ -201,7 +201,7 @@
       "label": "Motor Comercial Inteligente / CRM",
       "status": "in_progress",
       "progress_percent": 12,
-      "progress_note": "15.0 CRM Foundation completada: auditoria local/remota, identidad profiles.id, limites de dominio, decisiones de entidades y selector determinista probado.",
+      "progress_note": "15.0 CRM Foundation y 15.1 Contact Intelligence completadas. Contact 360 y relaciones explicitas fueron validados fisicamente en Admin; el avance manual permanece en 12% porque no existe formula automatica en APP_STATE o br-sync-docs.",
       "official_order": [
         "15.0 - CRM Foundation",
         "15.1 - Contact Intelligence y Relaciones",
@@ -288,14 +288,14 @@
       "State machine de access_requests con review_pending -> review_approved -> fulfilled; aceptar revision no crea acceso/pago y restaurar acceso no crea pago",
       "Entitlements autenticados para reflejar en UI la diferencia entre Full habilitado y pago confirmado",
       "Regresion visual autenticada final PASS en localhost:3100",
-      "15.0 CRM Foundation: auditoria local/remota, identidad profiles.id, contrato arquitectonico y selector de inteligencia determinista"
+      "15.0 CRM Foundation: auditoria local/remota, identidad profiles.id, contrato arquitectonico y selector de inteligencia determinista",
+      "15.1 Contact Intelligence y Relaciones: Contact 360 integrado con Commercial Users y crm_relationships validada fisicamente para crear, consultar y desactivar relaciones sin alterar profiles.role ni autoridades existentes"
     ],
     "pending": [
       "Aplicar/actualizar schema consolidado si se decide sincronizar docs/supabase/schema.sql con phase-14d",
       "Terminos y condiciones",
       "Licencias legales avanzadas",
       "Pagos automaticos completos",
-      "Cerrar validacion fisica Admin de 15.1 Contact Intelligence y relaciones explicitas",
       "15.2 Opportunities separadas de access_requests",
       "Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout",
       "Mejoras futuras de precision y UI del analisis musical",
@@ -327,13 +327,14 @@
     "Estados comerciales y pagos consolidados sin crear una entidad orders prematura",
     "Fase 14.5 - Consolidacion de BR Platform / Beat Room",
     "Regresion visual autenticada final PASS",
-    "15.0 - CRM Foundation"
+    "15.0 - CRM Foundation",
+    "15.1 - Contact Intelligence y Relaciones"
   ],
   "pending": [
     "Terminos y condiciones",
     "Licencias legales avanzadas",
     "Pagos automaticos completos",
-    "15.1 - Contact Intelligence y Relaciones",
+    "15.2 - Opportunities",
     "Orders diferida hasta evidencia comercial fuerte",
     "Mejoras futuras de precision y UI del analisis musical",
     "Reconciliacion del schema consolidado si todavia corresponde",
@@ -379,7 +380,7 @@
     "cons": [
       "Pagos automaticos, terminos, licencias legales avanzadas y una posible entidad orders pertenecen a fases posteriores.",
       "El schema consolidado debe revisarse contra los deltas antes de tratarlo como fuente completa.",
-      "Aun no existe persistencia para relaciones explicitas, oportunidades, notas o seguimiento; se agregara solo despues de validar cada flujo."
+      "Aun no existe persistencia para oportunidades, notas o seguimiento; se agregara solo despues de validar cada flujo."
     ]
   },
   "architecture": {
@@ -424,6 +425,14 @@
       "rejected_now": ["crm_contacts"],
       "deferred": ["orders", "crm_notes", "crm_followups_or_tasks", "crm_tags"],
       "remote_migrations": 0
+    },
+    "crm_contact_intelligence": {
+      "status": "completed",
+      "identity": "profiles.id",
+      "contact_360": "Validado fisicamente en Commercial Users con sesion Admin",
+      "relationships": "crm_relationships persistente; creacion, consulta, reapertura y desactivacion verificadas",
+      "role_isolation": "profiles.role permanece limitado a autorizacion y no cambia por relaciones CRM",
+      "authority_isolation": "No duplica ni sustituye beat_access, manual_payments, access_requests, access_revocations o commercial_activity"
     },
     "platform_domains": {
       "beat_room": ["beats", "playback", "solicitudes", "accesos", "pagos", "licencias", "Commercial"],
@@ -490,6 +499,15 @@
         "marketplace_orders existe vacia en el Supabase compartido pero pertenece a otra superficie y no es una orden de Beat Room.",
         "No se aplicaron migraciones ni cambios remotos."
       ]
+    },
+    "validation_2026_08_21_contact_intelligence": {
+      "reviewed": "Commercial Users y Contact 360 con sesion Admin sobre datos reales de BR Platform.",
+      "findings": [
+        "Contact 360 abre correctamente y conserva profiles.id como identidad principal.",
+        "crm_relationships permite crear, consultar, reabrir y desactivar relaciones explicitas persistentes.",
+        "Las relaciones no alteran profiles.role ni duplican beat_access, manual_payments, access_requests, access_revocations o commercial_activity.",
+        "Commercial original permanece funcional y no se detectaron regresiones durante la validacion fisica."
+      ]
     }
   },
   "br_autocar": {
@@ -500,10 +518,10 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Completar la validacion fisica Admin de 15.1 Contact Intelligence; no avanzar a 15.2 hasta cerrar o registrar correctamente este gate.",
-    "next_action": "Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.",
-    "context": "Fase 14.5 permanece completed al 100%. El flujo localhost:3100 valido solicitud -> aprobacion -> Full sin pago -> pago -> MP3/licencia -> revocacion -> revision -> aceptacion -> restauracion, confirmando Acceso != Pago. Fase 15 sigue in_progress al 12%; 15.1 queda pending_validation hasta validar Contact 360 y relaciones con sesion Admin.",
-    "session_context": "La regla actual es beat_access para Full y manual_payments para compra confirmada: Full sin pago bloquea MP3/licencia; pago historico sin beat_access no restaura derechos. review_approved no concede acceso ni pago; Dar acceso de nuevo solo restaura beat_access. Los cuatro SQL de revision existen como archivos locales y no se documentan como aplicados remotamente. Para desarrollo local puede usarse npm run dev -- -p 3100; PM2 con npm start en 3100 es operacion local de br-platform, no regla global de BR STUDIOS Central. 15.1 mantiene su gate fisico Admin.",
+    "priority": "Preparar 15.2 Opportunities como entidad comercial independiente sin convertir access_requests en CRM ni alterar autoridades existentes.",
+    "next_action": "Definir el contrato minimo y los casos reales de 15.2 Opportunities antes de implementar persistencia, UI o migraciones.",
+    "context": "Fase 14.5 permanece completed al 100%. Fase 15 sigue in_progress al 12% manual: 15.0 y 15.1 estan completed. La validacion fisica Admin confirmo Contact 360, creacion, consulta, reapertura y desactivacion de crm_relationships sin alterar profiles.role, Commercial ni las autoridades existentes. 15.2 Opportunities es la siguiente subfase planned.",
+    "session_context": "15.1 Contact Intelligence y Relaciones esta completed tras validacion fisica Admin. profiles.id sigue siendo la identidad; crm_relationships complementa sin reemplazar roles ni autoridades. beat_access gobierna Full activo, manual_payments confirma pagos, access_requests conserva workflow, access_revocations historial y commercial_activity actividad historica. La siguiente subfase es 15.2 Opportunities, aun sin implementar.",
     "musical_classification_sample": {
       "evaluated_beats": 3,
       "exact_matches": 1,
@@ -521,7 +539,8 @@
       "commercial": "PASS",
       "musical_preview_editor": "ACCEPTED_FUNCTIONALLY_BY_USER",
       "commercial_state_consolidation": "PASS_TECHNICAL_AND_REMOTE_SQL",
-      "final_visual_regression": "PASS_USER_VALIDATED_LOCALHOST_3100"
+      "final_visual_regression": "PASS_USER_VALIDATED_LOCALHOST_3100",
+      "crm_contact_intelligence_15_1": "PASS_USER_VALIDATED_ADMIN_2026_08_21"
     },
     "catalog_rule": "is_active filtra publico; admin ve activos e inactivos. beat_access no filtra catalogo.",
     "playback_rule": "playback_visibility=public autoriza full mediante endpoint server-side y signed URL temporal incluso sin sesion; beat_access controla Full privado. MP3 y licencia exigen server-side beat_access activo + manual_payments confirmado; el endpoint autenticado de entitlements solo refleja esos permisos para UI."
@@ -624,6 +643,13 @@
       "event": "Consolidacion de acceso Full, pago confirmado y revisiones",
       "reason": "La documentacion y una etiqueta administrativa podian asociar solicitud completada o beat_access con pago confirmado.",
       "impact": "beat_access queda documentado como autoridad exclusiva de Full activo; manual_payments como pago confirmado por usuario + beat; MP3/licencia exigen ambas pruebas server-side. La UI usa entitlements autenticados, review_approved permanece sin acceso/pago y las migraciones de revision locales se distinguen de una aplicacion remota no confirmada."
+    },
+    {
+      "date": "2026-08-21",
+      "version": "phase_15_1_contact_intelligence_completed",
+      "event": "Cierre de 15.1 - Contact Intelligence y Relaciones",
+      "reason": "La validacion fisica Admin confirmo Contact 360 y el ciclo de relaciones explicitas persistentes sobre profiles.id sin regresiones ni cambios de autoridad.",
+      "impact": "15.1 queda completed. Crear, consultar, reabrir y desactivar crm_relationships funciona en Commercial Users; profiles.role y las autoridades existentes permanecen intactas. 15.2 Opportunities pasa a ser la siguiente subfase planned. Fase 15 conserva 12% porque APP_STATE y br-sync-docs no tienen formula automatica de avance."
     }
   ]
 }

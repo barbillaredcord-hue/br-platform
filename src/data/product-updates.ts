@@ -18,11 +18,11 @@ export const currentProductPhase = {
 
 export const latestProductUpdates: ProductUpdate[] = [
   {
-    title: "Contact Intelligence 15.1 incorpora Contact 360 y relaciones explícitas; la validación física Admin continúa pendiente.",
-    status: "in_progress",
+    title: "Contact Intelligence 15.1 completada: Contact 360 y relaciones explícitas fueron validados físicamente en Admin sin duplicar autoridades.",
+    status: "released",
     audience: "admin",
     version: "15.1",
-    date: "2026-08-20",
+    date: "2026-08-21",
   },
   {
     title: "El flujo seguro de revisiones usa review_pending → review_approved → fulfilled: aceptar una revisión no restaura acceso; «Dar acceso de nuevo» sí crea beat_access.",
@@ -62,12 +62,6 @@ export const latestProductUpdates: ProductUpdate[] = [
 ];
 
 export const futureProductUpdates: ProductUpdate[] = [
-  {
-    title: "Cerrar la validación física Admin de Contact 360 y relaciones explícitas.",
-    status: "in_progress",
-    audience: "admin",
-    version: "15.1",
-  },
   {
     title: "Persistir oportunidades comerciales separadas de access_requests.",
     status: "planned",

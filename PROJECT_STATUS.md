@@ -18,12 +18,12 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 - Fase: Fase 15 - Motor Comercial Inteligente / CRM
 - Estado: in_progress
 - Avance: 12%
-- Nivel: 15.1 Contact Intelligence implementada sobre profiles.id y las fuentes comerciales existentes; crm_relationships remota esta aplicada sin reemplazar autoridades. Estado pending_validation por falta de navegador Admin.
+- Nivel: 15.1 Contact Intelligence y Relaciones completed tras validacion fisica Admin sobre profiles.id; Contact 360 y crm_relationships operan sin reemplazar autoridades. 15.2 Opportunities permanece planned como siguiente subfase.
 
 ## Siguiente fase
 
-- Fase: 15.1 - Contact Intelligence y Relaciones
-- Objetivo: Completar la validacion fisica Admin de Contact 360 y relaciones explicitas ya implementadas.
+- Fase: 15.2 - Opportunities
+- Objetivo: Introducir una entidad de oportunidades comerciales separada de access_requests, capaz de representar intencion y seguimiento comercial sin convertir solicitudes de acceso en CRM.
 
 ## Objetivo principal
 
@@ -34,41 +34,7 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 - Catalogo activo publico: 100% (completed) - Publico ve solo is_active=true; admin ve activos e inactivos.
 - Player por acceso: 100% (completed) - Resolver preview/full por playback_visibility, beat_access y rol admin.
 - Descargas protegidas: 100% (completed) - Descargar MP3 solo con sesion, beat_access activo y manual_payments confirmado para el mismo usuario y beat.
-- Licencias protegidas: 100% (completed) - Generar licencia solo con sesion, beat_access activo, manual_payments confirm/Users/fabianhonoriogonzalezandrade/.pm2/logs/br-platform-out.log last 15 lines:
-6|br-platf | > br-platform@0.1.0 start
-6|br-platf | > next start -p 3100
-6|br-platf | 
-6|br-platf | ▲ Next.js 16.2.9
-6|br-platf | - Local:         http://localhost:3100
-6|br-platf | - Network:       http://192.168.1.15:3100
-6|br-platf | ✓ Ready in 174ms
-6|br-platf | 
-6|br-platf | > br-platform@0.1.0 start
-6|br-platf | > next start -p 3100
-6|br-platf | 
-6|br-platf | ▲ Next.js 16.2.9
-6|br-platf | - Local:         http://localhost:3100
-6|br-platf | - Network:       http://192.168.1.15:3100
-6|br-platf | ✓ Ready in 127ms
-
-/Users/fabianhonoriogonzalezandrade/.pm2/logs/br-platform-error.log last 15 lines:
-6|br-platf | 
-6|br-platf | ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
-6|br-platf |  We detected multiple lockfiles and selected the directory of /Users/fabianhonoriogonzalezandrade/package-lock.json as the root directory.
-6|br-platf |  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
-6|br-platf |    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
-6|br-platf |  Detected additional lockfiles: 
-6|br-platf |    * /Users/fabianhonoriogonzalezandrade/br-platform/package-lock.json
-6|br-platf | 
-6|br-platf | ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
-6|br-platf |  We detected multiple lockfiles and selected the directory of /Users/fabianhonoriogonzalezandrade/package-lock.json as the root directory.
-6|br-platf |  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
-6|br-platf |    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
-6|br-platf |  Detected additional lockfiles: 
-6|br-platf |    * /Users/fabianhonoriogonzalezandrade/br-platform/package-lock.json
-6|br-platf | 
-
-ado y tipo de licencia.
+- Licencias protegidas: 100% (completed) - Generar licencia solo con sesion, beat_access activo, manual_payments confirmado y tipo de licencia.
 - Actividad comercial: 100% (completed) - Registrar descargas, licencias y pagos en commercial_activity.
 - Pagos manuales: 100% (completed) - Registrar pago confirmado por usuario + beat; puede conceder acceso desde su flujo propio, pero un grant/restauracion no crea ni confirma pago.
 - Preview real: 100% (completed) - Generar previews reales de 15, 20, 25 o 30 segundos.
@@ -142,6 +108,7 @@ ado y tipo de licencia.
 - Entitlements autenticados para reflejar en UI la diferencia entre Full habilitado y pago confirmado
 - Regresion visual autenticada final PASS en localhost:3100
 - 15.0 CRM Foundation: auditoria local/remota, identidad profiles.id, contrato arquitectonico y selector de inteligencia determinista
+- 15.1 Contact Intelligence y Relaciones: Contact 360 integrado con Commercial Users y crm_relationships validada fisicamente para crear, consultar y desactivar relaciones sin alterar profiles.role ni autoridades existentes
 
 ## Pendiente
 
@@ -149,7 +116,6 @@ ado y tipo de licencia.
 - Terminos y condiciones
 - Licencias legales avanzadas
 - Pagos automaticos completos
-- Cerrar validacion fisica Admin de 15.1 Contact Intelligence y relaciones explicitas
 - 15.2 Opportunities separadas de access_requests
 - Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout
 - Mejoras futuras de precision y UI del analisis musical
@@ -196,13 +162,13 @@ ado y tipo de licencia.
 
 - Pagos automaticos, terminos, licencias legales avanzadas y una posible entidad orders pertenecen a fases posteriores.
 - El schema consolidado debe revisarse contra los deltas antes de tratarlo como fuente completa.
-- Aun no existe persistencia para relaciones explicitas, oportunidades, notas o seguimiento; se agregara solo despues de validar cada flujo.
+- Aun no existe persistencia para oportunidades, notas o seguimiento; se agregara solo despues de validar cada flujo.
 
 ## Continuidad
 
-- Prioridad: Completar la validacion fisica Admin de 15.1 Contact Intelligence; no avanzar a 15.2 hasta cerrar o registrar correctamente este gate.
-- Proxima accion: Con navegador y sesion Admin, abrir Commercial Users, validar Contact 360 real, crear/reabrir/desactivar relaciones y confirmar que Commercial original y profiles.role permanecen intactos.
-- Contexto: La regla actual es beat_access para Full y manual_payments para compra confirmada: Full sin pago bloquea MP3/licencia; pago historico sin beat_access no restaura derechos. review_approved no concede acceso ni pago; Dar acceso de nuevo solo restaura beat_access. Los cuatro SQL de revision existen como archivos locales y no se documentan como aplicados remotamente. Para desarrollo local puede usarse npm run dev -- -p 3100; PM2 con npm start en 3100 es operacion local de br-platform, no regla global de BR STUDIOS Central. 15.1 mantiene su gate fisico Admin.
+- Prioridad: Preparar 15.2 Opportunities como entidad comercial independiente sin convertir access_requests en CRM ni alterar autoridades existentes.
+- Proxima accion: Definir el contrato minimo y los casos reales de 15.2 Opportunities antes de implementar persistencia, UI o migraciones.
+- Contexto: 15.1 Contact Intelligence y Relaciones esta completed tras validacion fisica Admin. profiles.id sigue siendo la identidad; crm_relationships complementa sin reemplazar roles ni autoridades. beat_access gobierna Full activo, manual_payments confirma pagos, access_requests conserva workflow, access_revocations historial y commercial_activity actividad historica. La siguiente subfase es 15.2 Opportunities, aun sin implementar.
 
 ## BR.autocar como soporte interno
 
@@ -221,12 +187,12 @@ ado y tipo de licencia.
 
 ## Registry Intelligence
 
-- Apps registradas: 0
-- Healthy: 0
+- Apps registradas: 3
+- Healthy: 3
 - Attention: 0
 - Risk: 0
 - Blocked: 0
-- Validated pilot: 0
-- Recomendacion: No definida
+- Validated pilot: 1
+- Recomendacion: Separar trabajo futuro del ecosistema BR.autocar de riesgos operativos de cada app antes de avanzar al Admin Web.
 
-Ultima generacion: 2026-08-20T08:21:28
+Ultima generacion: 2026-08-21T07:57:48

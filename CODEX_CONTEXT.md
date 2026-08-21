@@ -41,7 +41,6 @@ Foco: Construir Fase 15 - Motor Comercial Inteligente / CRM como conocimiento or
 - Terminos y condiciones
 - Licencias legales avanzadas
 - Pagos automaticos completos
-- Cerrar validacion fisica Admin de 15.1 Contact Intelligence y relaciones explicitas
 - 15.2 Opportunities separadas de access_requests
 - Orders diferida hasta existir multiples items/pagos, facturacion, impuestos o checkout
 - Mejoras futuras de precision y UI del analisis musical
@@ -72,4 +71,4 @@ npm run lint
 npm run build
 ```
 
-Ultima generacion: 2026-08-20T08:21:28
+Ultima generacion: 2026-08-21T07:57:48
