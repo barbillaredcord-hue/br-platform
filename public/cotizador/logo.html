@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Logo de cotización · ALUXOR</title>
+<style>
+:root{--bg:#f4f1eb;--card:#fff;--ink:#171717;--muted:#77736d;--line:#ddd7ce;--dark:#161616;--danger:#8b3d3d}*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:linear-gradient(180deg,#f2efe9,#e9e4dc);color:var(--ink)}.wrap{max-width:680px;margin:auto;padding:20px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.head h1{font-size:22px;margin:0}.head a{text-decoration:none;color:var(--ink);border:1px solid var(--line);background:#fff;padding:10px 13px;border-radius:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 18px 45px rgba(50,42,30,.08)}.drop{border:1px dashed #aaa39a;border-radius:16px;padding:20px;text-align:center;background:#fbfaf8}input{width:100%}.preview-box{margin-top:18px;padding:20px;border:1px solid var(--line);border-radius:14px;text-align:center;background:#fff}.preview{max-width:260px;max-height:180px;object-fit:contain}.small{font-size:12px;color:var(--muted);line-height:1.5}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:11px 15px;border-radius:10px;font-weight:600}.btn.primary{background:var(--dark);color:#fff;border-color:var(--dark)}.btn.danger{color:var(--danger)}.status{margin-top:14px;font-size:13px;color:var(--muted)}.ok{color:#325a45;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><div><h1>Logo de cotización</h1><div class="small">ALUXOR · Configuración del PDF</div></div><a href="/cotizador/">← Volver</a></div>
+  <div class="card">
+    <p>Selecciona el logo que quieres que aparezca en el encabezado de la app y en el PDF.</p>
+    <div class="drop"><input id="logoFile" type="file" accept="image/png,image/jpeg,image/webp,image/*"></div>
+    <div class="preview-box"><img id="preview" class="preview" src="/cotizador/aluxor-logo.svg" alt="Logo actual"><div class="small" style="margin-top:10px">Vista previa del logo</div></div>
+    <div class="actions"><button id="save" class="btn primary" disabled>Usar este logo</button><button id="restore" class="btn danger">Restaurar logo original</button></div>
+    <div id="status" class="status">El logo se guarda solo en este dispositivo y navegador.</div>
+  </div>
+</div>
+<script>
+const CACHE='aluxor-user-logo-v1', LOGO='/cotizador/aluxor-logo.svg';
+const file=document.querySelector('#logoFile'),preview=document.querySelector('#preview'),save=document.querySelector('#save'),restore=document.querySelector('#restore'),status=document.querySelector('#status');
+let selected=null;
+async function register(){if(!('serviceWorker' in navigator)){status.textContent='Este navegador no permite guardar el logo de esta forma.';return false}try{await navigator.serviceWorker.register('/cotizador/sw-logo.js',{scope:'/cotizador/'});await navigator.serviceWorker.ready;return true}catch(e){status.textContent='No se pudo activar la configuración del logo.';return false}}
+file.onchange=e=>{const f=e.target.files?.[0];if(!f)return;selected=f;preview.src=URL.createObjectURL(f);save.disabled=false;status.textContent='Logo listo. Presiona “Usar este logo”.'};
+save.onclick=async()=>{if(!selected)return;save.disabled=true;status.textContent='Guardando logo…';const ok=await register();if(!ok){save.disabled=false;return}try{const cache=await caches.open(CACHE);const headers=new Headers({'Content-Type':selected.type||'image/png','Cache-Control':'no-store'});await cache.put(LOGO,new Response(selected,{headers}));if(navigator.serviceWorker.controller){navigator.serviceWorker.controller.postMessage({type:'ALUXOR_LOGO_UPDATED'})}status.innerHTML='<span class="ok">Logo guardado. Ya se usará en la app y en los próximos PDF.</span>';setTimeout(()=>location.href='/cotizador/',700)}catch(e){status.textContent='No se pudo guardar el logo. Intenta con otra imagen.';save.disabled=false}};
+restore.onclick=async()=>{await register();try{const cache=await caches.open(CACHE);await cache.delete(LOGO);if(navigator.serviceWorker.controller){navigator.serviceWorker.controller.postMessage({type:'ALUXOR_LOGO_UPDATED'})}preview.src='/cotizador/aluxor-logo.svg?restore='+Date.now();status.innerHTML='<span class="ok">Logo original restaurado.</span>'}catch(e){status.textContent='No se pudo restaurar el logo.'}};
+register();
+</script>
+</body>
+</html>
