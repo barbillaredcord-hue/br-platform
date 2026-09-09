@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AppWindow, Fingerprint, LockKeyhole, ShieldCheck, X } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 
@@ -140,21 +141,10 @@ export function PrivateAppsMenu() {
     setUnlocked(false);
   }
 
-  return (
+  const overlay = (
     <>
-      <button
-        type="button"
-        onClick={unlockWithBiometrics}
-        disabled={busy || isLoadingSession}
-        className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/[0.06] px-4 py-2 text-sm font-black text-blue-100 transition hover:border-blue-200/35 hover:bg-blue-400/[0.10] disabled:cursor-wait disabled:opacity-60"
-        title="Apps privadas"
-      >
-        <Fingerprint className="h-4 w-4" />
-        <span className="hidden sm:inline">Mis Apps</span>
-      </button>
-
       {message ? (
-        <div className="fixed right-4 top-24 z-50 max-w-sm rounded-2xl border border-amber-300/20 bg-[#111216]/95 px-4 py-3 text-sm text-amber-100 shadow-2xl backdrop-blur-xl">
+        <div className="fixed right-4 top-24 z-[9998] max-w-sm rounded-2xl border border-amber-300/20 bg-[#111216]/95 px-4 py-3 text-sm text-amber-100 shadow-2xl backdrop-blur-xl">
           <div className="flex items-start gap-3">
             <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
             <p>{message}</p>
@@ -166,8 +156,8 @@ export function PrivateAppsMenu() {
       ) : null}
 
       {open && unlocked ? (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/75 px-4 py-8 backdrop-blur-md">
-          <section className="relative my-auto w-full max-w-4xl overflow-hidden rounded-[30px] border border-blue-300/20 bg-[#0b0c10] p-6 shadow-[0_35px_120px_rgba(0,0,0,.7)] sm:p-8">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/80 px-4 py-8 backdrop-blur-md">
+          <section className="relative my-auto w-full max-w-4xl overflow-hidden rounded-[30px] border border-blue-300/20 bg-[#0b0c10] p-6 shadow-[0_35px_120px_rgba(0,0,0,.8)] sm:p-8">
             <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-500/10 blur-3xl" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
@@ -205,6 +195,23 @@ export function PrivateAppsMenu() {
           </section>
         </div>
       ) : null}
+    </>
+  );
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={unlockWithBiometrics}
+        disabled={busy || isLoadingSession}
+        className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/[0.06] px-4 py-2 text-sm font-black text-blue-100 transition hover:border-blue-200/35 hover:bg-blue-400/[0.10] disabled:cursor-wait disabled:opacity-60"
+        title="Apps privadas"
+      >
+        <Fingerprint className="h-4 w-4" />
+        <span className="hidden sm:inline">Mis Apps</span>
+      </button>
+
+      {typeof document !== "undefined" ? createPortal(overlay, document.body) : null}
     </>
   );
 }
