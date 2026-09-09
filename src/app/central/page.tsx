@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Layers3, Orbit, Sparkles } from "lucide-react";
+import { PrivateAppsMenu } from "@/components/central/PrivateAppsMenu";
 import { brStudioServices, getWhatsAppUrl } from "@/lib/br-studios/catalog";
 import { BR_ROUTES } from "@/lib/routes";
 
@@ -50,6 +51,7 @@ export default function CentralPage() {
             </span>
           </Link>
           <div className="flex items-center gap-2">
+            <PrivateAppsMenu />
             <Link href="/catalogo" className="hidden rounded-full border border-white/10 px-4 py-2 text-sm font-bold text-zinc-300 transition hover:border-white/20 hover:text-white sm:inline-flex">
               Servicios
             </Link>
