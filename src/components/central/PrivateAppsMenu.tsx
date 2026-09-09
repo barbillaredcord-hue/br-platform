@@ -7,26 +7,15 @@ import { useUser } from "@/context/UserContext";
 const STORAGE_KEY = "br-central-owner-passkey-v1";
 
 const PRIVATE_APPS = [
-  {
-    name: "BR Platform",
-    description: "Plataforma musical y núcleo actual de BR STUDIOS.",
-    url: "https://brstudios.org",
-  },
-  {
-    name: "AnunciaPro",
-    description: "Proyecto publicado desde ALUXOR.",
-    url: "https://anunciapro.vercel.app",
-  },
-  {
-    name: "Legal Contable",
-    description: "Aplicación legal y contable.",
-    url: "https://legal-contable-app.vercel.app",
-  },
-  {
-    name: "Wallet Glow Link",
-    description: "Wallet publicada en Vercel.",
-    url: "https://wallet-glow-link-wallet.vercel.app",
-  },
+  { name: "BR Platform", description: "Plataforma musical de BR STUDIOS.", url: "https://brstudios.org" },
+  { name: "BR Central", description: "Centro principal de BR STUDIOS.", url: "https://brstudios.org/central" },
+  { name: "Catálogo BR", description: "Catálogo comercial y de servicios.", url: "https://brstudios.org/catalogo" },
+  { name: "BR Card", description: "Consulta y gestión inicial de BR Card.", url: "https://brstudios.org/card" },
+  { name: "Cotizador", description: "Cotizador integrado de BR / ALUXOR.", url: "https://brstudios.org/cotizador/index.html" },
+  { name: "AnunciaPro", description: "Proyecto publicado desde ALUXOR.", url: "https://anunciapro.vercel.app" },
+  { name: "Legal Contable", description: "Aplicación legal y contable.", url: "https://legal-contable-app.vercel.app" },
+  { name: "Wallet Glow Link", description: "Wallet publicada en Vercel.", url: "https://wallet-glow-link-wallet.vercel.app" },
+  { name: "BR Digital Number", description: "App de número digital en desarrollo funcional.", url: "https://nextjs-inky-zeta-45.vercel.app" },
 ] as const;
 
 function randomBytes(length = 32) {
@@ -177,8 +166,8 @@ export function PrivateAppsMenu() {
       ) : null}
 
       {open && unlocked ? (
-        <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/75 px-4 py-20 backdrop-blur-md sm:items-center sm:py-8">
-          <section className="relative w-full max-w-3xl overflow-hidden rounded-[30px] border border-blue-300/20 bg-[#0b0c10] p-6 shadow-[0_35px_120px_rgba(0,0,0,.7)] sm:p-8">
+        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/75 px-4 py-8 backdrop-blur-md">
+          <section className="relative my-auto w-full max-w-4xl overflow-hidden rounded-[30px] border border-blue-300/20 bg-[#0b0c10] p-6 shadow-[0_35px_120px_rgba(0,0,0,.7)] sm:p-8">
             <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-500/10 blur-3xl" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
@@ -186,14 +175,14 @@ export function PrivateAppsMenu() {
                   <ShieldCheck className="h-3.5 w-3.5" /> Identidad verificada
                 </div>
                 <h2 className="mt-4 text-3xl font-black tracking-[-0.045em] text-white">Mis Apps</h2>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">Acceso privado de BR Central. Esta sesión se vuelve a bloquear al cerrar el menú.</p>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">{PRIVATE_APPS.length} accesos funcionales reunidos en BR Central. El menú se bloquea al cerrarlo.</p>
               </div>
               <button type="button" onClick={closeMenu} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-400 transition hover:bg-white/[0.05] hover:text-white" aria-label="Cerrar apps privadas">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="relative mt-7 grid gap-3 sm:grid-cols-2">
+            <div className="relative mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {PRIVATE_APPS.map((app) => (
                 <a
                   key={app.name}
