@@ -71,4 +71,4 @@ npm run lint
 npm run build
 ```
 
-Ultima generacion: 2026-08-21T07:57:48
+Ultima generacion: 2026-08-21T11:58:18

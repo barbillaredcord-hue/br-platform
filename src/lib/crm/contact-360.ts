@@ -1,3 +1,6 @@
+// @ts-expect-error Node strip-types necesita la extensión explícita.
+import { isCommerciallyOpenAccessRequestStatus } from "./access-request-status.ts";
+
 export type CrmRelationshipType =
   | "lead"
   | "client"
@@ -60,12 +63,6 @@ export interface CrmContact360Input {
   beats?: readonly CrmContactBeat[];
 }
 
-const OPEN_REQUEST_STATUSES = new Set([
-  "pending",
-  "contacted",
-  "review_pending",
-  "payment_pending",
-]);
 const REJECTED_REQUEST_STATUSES = new Set([
   "rejected",
   "review_rejected",
@@ -142,7 +139,7 @@ export function buildCrmContact360(input: CrmContact360Input) {
     activeAccesses.map((access) => access.beatId),
   );
   const openRequestCount = requests.filter((request) =>
-    OPEN_REQUEST_STATUSES.has(request.status ?? ""),
+    isCommerciallyOpenAccessRequestStatus(request.status),
   ).length;
   const pendingPaymentCount = requests.filter(
     (request) => request.status === "payment_pending",

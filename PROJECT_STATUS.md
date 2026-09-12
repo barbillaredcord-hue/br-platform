@@ -18,7 +18,7 @@ Generado automaticamente por BR.autocar Documentation Engine. No editar manualme
 - Fase: Fase 15 - Motor Comercial Inteligente / CRM
 - Estado: in_progress
 - Avance: 12%
-- Nivel: 15.1 Contact Intelligence y Relaciones completed tras validacion fisica Admin sobre profiles.id; Contact 360 y crm_relationships operan sin reemplazar autoridades. 15.2 Opportunities permanece planned como siguiente subfase.
+- Nivel: 15.2 Opportunities in_progress con contrato, persistencia real, dominio, comandos Admin, APIs, RLS, state machine y UI minima de Contact 360 validados tecnicamente. Falta validacion fisica Admin autenticada.
 
 ## Siguiente fase
 
@@ -166,9 +166,9 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 
 ## Continuidad
 
-- Prioridad: Preparar 15.2 Opportunities como entidad comercial independiente sin convertir access_requests en CRM ni alterar autoridades existentes.
-- Proxima accion: Definir el contrato minimo y los casos reales de 15.2 Opportunities antes de implementar persistencia, UI o migraciones.
-- Contexto: 15.1 Contact Intelligence y Relaciones esta completed tras validacion fisica Admin. profiles.id sigue siendo la identidad; crm_relationships complementa sin reemplazar roles ni autoridades. beat_access gobierna Full activo, manual_payments confirma pagos, access_requests conserva workflow, access_revocations historial y commercial_activity actividad historica. La siguiente subfase es 15.2 Opportunities, aun sin implementar.
+- Prioridad: Validar fisicamente en Admin la UI minima de 15.2 Opportunities integrada en Contact 360, sin convertir access_requests en CRM ni alterar autoridades existentes.
+- Proxima accion: Ejecutar con sesion Admin el flujo fisico de crear, editar, transicionar, cerrar, reabrir y archivar Opportunities en Contact 360; comprobar tambien el rechazo de closed_won sin pago y el cierre con manual_payments real. No avanzar a 15.3.
+- Contexto: 15.2 Opportunities tiene persistencia real y UI minima integrada en Contact 360. La UI separa activas, cerradas y archivadas, muestra pipeline estimado por moneda y reutiliza comandos server-side para crear, editar, transicionar y archivar. closed_won sigue sujeto a manual_payments real. Falta la validacion fisica Admin autenticada antes de cerrar 15.2.
 
 ## BR.autocar como soporte interno
 
@@ -187,12 +187,12 @@ Convertir la informacion comercial existente en contexto CRM organizado y accion
 
 ## Registry Intelligence
 
-- Apps registradas: 3
-- Healthy: 3
+- Apps registradas: 0
+- Healthy: 0
 - Attention: 0
 - Risk: 0
 - Blocked: 0
-- Validated pilot: 1
-- Recomendacion: Separar trabajo futuro del ecosistema BR.autocar de riesgos operativos de cada app antes de avanzar al Admin Web.
+- Validated pilot: 0
+- Recomendacion: No definida
 
-Ultima generacion: 2026-08-21T07:57:48
+Ultima generacion: 2026-08-21T11:58:18

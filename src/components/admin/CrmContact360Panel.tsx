@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatLocalDateTime } from "@/lib/formatLocalDateTime";
+import { CrmOpportunitiesPanel } from "@/components/admin/CrmOpportunitiesPanel";
 
 type RelationshipType = "lead" | "client" | "artist" | "producer" | "collaborator";
 
@@ -227,6 +228,7 @@ export function CrmContact360Panel({
           <button key={relationship.id} type="button" disabled={isSaving} onClick={() => void setRelationship(false, relationship.relationshipType)} className="rounded border border-white/10 px-2 py-1 text-xs text-zinc-300 disabled:opacity-50">Desactivar {relationshipLabels[relationship.relationshipType]}</button>
         ))}
       </div>
+      <CrmOpportunitiesPanel profileId={profileId} getToken={getToken} />
       {message ? <p className="text-xs text-cyan-100">{message}</p> : null}
     </section>
   );

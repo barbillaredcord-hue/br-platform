@@ -39,9 +39,9 @@ npm run build
 
 ## Continuidad
 
-15.1 Contact Intelligence y Relaciones esta completed tras validacion fisica Admin. profiles.id sigue siendo la identidad; crm_relationships complementa sin reemplazar roles ni autoridades. beat_access gobierna Full activo, manual_payments confirma pagos, access_requests conserva workflow, access_revocations historial y commercial_activity actividad historica. La siguiente subfase es 15.2 Opportunities, aun sin implementar.
+15.2 Opportunities tiene persistencia real y UI minima integrada en Contact 360. La UI separa activas, cerradas y archivadas, muestra pipeline estimado por moneda y reutiliza comandos server-side para crear, editar, transicionar y archivar. closed_won sigue sujeto a manual_payments real. Falta la validacion fisica Admin autenticada antes de cerrar 15.2.
 
 ## Proxima accion
 
-Definir el contrato minimo y los casos reales de 15.2 Opportunities antes de implementar persistencia, UI o migraciones.
+Ejecutar con sesion Admin el flujo fisico de crear, editar, transicionar, cerrar, reabrir y archivar Opportunities en Contact 360; comprobar tambien el rechazo de closed_won sin pago y el cierre con manual_payments real. No avanzar a 15.3.
 <!-- END:br-autocar-generated-agent-rules -->

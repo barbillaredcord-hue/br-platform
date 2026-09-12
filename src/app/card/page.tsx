@@ -1,122 +1,217 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-
-const demoCards = [
-  {
-    number: "1111222233334444",
-    owner: "Titular de prueba",
-    status: "Activa",
-    contactHint: "*** *** 4821",
-  },
-];
-
-function normalizeCardNumber(value: string) {
-  return value.replace(/\D/g, "").slice(0, 16);
-}
-
-function formatCardNumber(value: string) {
-  return value.replace(/(.{4})/g, "$1 ").trim();
-}
+import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
+import { useState } from "react";
 
 export default function BRCardPage() {
-  const [cardNumber, setCardNumber] = useState("");
-  const [searchedNumber, setSearchedNumber] = useState("");
+  const [status, setStatus] = useState("Mac registrada");
+  const [busy, setBusy] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
 
-  const result = useMemo(
-    () => demoCards.find((card) => card.number === searchedNumber) ?? null,
-    [searchedNumber],
-  );
+  async function registerThisMac() {
+    setBusy(true);
+    setStatus("Preparando Touch ID...");
 
-  const hasSearched = searchedNumber.length > 0;
+    try {
+      const optionsRes = await fetch(
+        "/api/card/webauthn/register/options",
+        { cache: "no-store" }
+      );
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSearchedNumber(normalizeCardNumber(cardNumber));
+      const optionsJSON = await optionsRes.json();
+
+      if (!optionsRes.ok) {
+        throw new Error(optionsJSON.error || "No se pudo iniciar el registro");
+      }
+
+      const registrationResponse = await startRegistration({
+        optionsJSON,
+      });
+
+      const verifyRes = await fetch(
+        "/api/card/webauthn/register/verify",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(registrationResponse),
+        }
+      );
+
+      const result = await verifyRes.json();
+
+      if (!verifyRes.ok || !result.verified) {
+        throw new Error(result.error || "No se pudo registrar esta Mac");
+      }
+
+      setStatus("Esta Mac quedó registrada correctamente");
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Error durante el registro"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlockBRCard() {
+    setBusy(true);
+    setStatus("Preparando Touch ID...");
+
+    try {
+      const optionsRes = await fetch(
+        "/api/card/webauthn/auth/options",
+        { cache: "no-store" }
+      );
+
+      const optionsJSON = await optionsRes.json();
+
+      if (!optionsRes.ok) {
+        if (optionsRes.status === 409) {
+          setStatus("Esta Mac necesita registrarse primero");
+          return;
+        }
+
+        throw new Error(optionsJSON.error || "No se pudo iniciar Touch ID");
+      }
+
+      setStatus("Confirma con Touch ID...");
+
+      const authenticationResponse = await startAuthentication({
+        optionsJSON,
+      });
+
+      const verifyRes = await fetch(
+        "/api/card/webauthn/auth/verify",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(authenticationResponse),
+        }
+      );
+
+      const result = await verifyRes.json();
+
+      if (!verifyRes.ok || !result.verified) {
+        throw new Error(result.error || "Touch ID no fue válido");
+      }
+
+      setUnlocked(true);
+      setStatus("BR Card desbloqueado");
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "No se pudo desbloquear BR Card"
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (unlocked) {
+    return (
+      <main className="min-h-screen bg-[#09090b] px-6 py-10 text-white">
+        <section className="mx-auto max-w-xl">
+          <p className="text-xs font-black uppercase tracking-[0.32em] text-blue-300">
+            BR STUDIOS
+          </p>
+
+          <h1 className="mt-4 text-5xl font-black tracking-[-0.06em]">
+            BR Card
+          </h1>
+
+          <p className="mt-4 text-emerald-300">
+            Acceso autorizado con Touch ID
+          </p>
+
+          <div className="mt-10 rounded-[28px] border border-white/[0.08] bg-white/[0.035] p-7">
+            <label
+              htmlFor="card-number"
+              className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400"
+            >
+              Número de tarjeta
+            </label>
+
+            <input
+              id="card-number"
+              inputMode="numeric"
+              placeholder="0000 0000 0000 0000"
+              className="mt-3 w-full rounded-2xl border border-white/[0.08] bg-black/20 px-5 py-4 text-lg tracking-[0.12em] text-white outline-none"
+            />
+
+            <button
+              type="button"
+              onClick={() => {
+                const input = document.getElementById("card-number") as HTMLInputElement | null;
+                const number = input?.value.replace(/\s/g, "") || "";
+
+                if (number === "5101257820841826") {
+                  alert("Tarjeta encontrada\\nTitular: Titular de prueba\\nEstado: Activa\\nSaldo: $1,250.00");
+                } else {
+                  alert("Tarjeta no encontrada");
+                }
+              }}
+              className="mt-4 w-full rounded-2xl bg-blue-500 px-5 py-4 text-sm font-black text-white"
+            >
+              Consultar tarjeta
+            </button>
+
+            <p className="mt-5 text-xs text-zinc-500">
+              La consulta real de titular, saldo y estado se conectará en la siguiente etapa.
+            </p>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-[#09090b] px-5 py-6 text-[#f3eee6] sm:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-white/[0.06] pb-5">
-          <Link href="/" className="text-sm font-bold text-zinc-400 transition hover:text-white">
-            BR STUDIOS
-          </Link>
-          <span className="text-[10px] font-black uppercase tracking-[0.32em] text-blue-300">
-            BR Card
-          </span>
-        </header>
+    <main className="flex min-h-screen items-center justify-center bg-[#09090b] px-6 text-white">
+      <section className="w-full max-w-md text-center">
+        <p className="text-xs font-black uppercase tracking-[0.32em] text-blue-300">
+          BR STUDIOS
+        </p>
 
-        <section className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center py-12">
-          <div className="text-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.32em] text-blue-300">
-              Consulta de tarjeta encontrada
-            </p>
-            <h1 className="mt-3 text-5xl font-black tracking-[-0.06em] sm:text-6xl">
-              BR Card
-            </h1>
-            <p className="mt-4 leading-7 text-zinc-400">
-              Escribe el numero de tarjeta para identificar al titular y poder devolversela.
-            </p>
-          </div>
+        <h1 className="mt-4 text-5xl font-black tracking-[-0.06em]">
+          BR Card
+        </h1>
 
-          <form
-            onSubmit={handleSubmit}
-            className="mt-9 rounded-[28px] border border-white/[0.08] bg-white/[0.035] p-6 shadow-[0_30px_100px_rgba(0,0,0,.35)] sm:p-8"
+        <p className="mt-4 text-zinc-400">
+          Acceso privado
+        </p>
+
+        <div className="mt-10 rounded-[28px] border border-white/[0.08] bg-white/[0.035] p-7">
+          <button
+            type="button"
+            onClick={unlockBRCard}
+            disabled={busy}
+            className="w-full rounded-2xl bg-blue-500 px-5 py-4 text-sm font-black text-white transition hover:bg-blue-400 disabled:opacity-40"
           >
-            <label htmlFor="card-number" className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">
-              Numero de tarjeta
-            </label>
-            <input
-              id="card-number"
-              value={formatCardNumber(cardNumber)}
-              onChange={(event) => setCardNumber(normalizeCardNumber(event.target.value))}
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="0000 0000 0000 0000"
-              className="mt-3 w-full rounded-2xl border border-white/[0.08] bg-black/20 px-5 py-4 text-lg tracking-[0.12em] text-white outline-none placeholder:text-zinc-700 focus:border-blue-300/30"
-            />
-            <button
-              type="submit"
-              disabled={normalizeCardNumber(cardNumber).length !== 16}
-              className="mt-4 w-full rounded-2xl bg-blue-500 px-5 py-4 text-sm font-black text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Consultar
-            </button>
-          </form>
+            {busy
+              ? "Esperando Touch ID..."
+              : "Desbloquear BR Card con Touch ID"}
+          </button>
 
-          {result ? (
-            <section className="mt-6 overflow-hidden rounded-[28px] border border-blue-300/15 bg-gradient-to-br from-blue-500/[0.09] via-white/[0.025] to-violet-500/[0.08] p-6 sm:p-8">
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-blue-300">
-                Esta tarjeta pertenece a
-              </p>
-              <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-white">
-                {result.owner}
-              </h2>
+          <button
+            type="button"
+            onClick={registerThisMac}
+            disabled={busy}
+            className="mt-3 w-full rounded-2xl border border-white/[0.08] px-5 py-4 text-sm font-bold text-zinc-400"
+          >
+            Registrar esta Mac otra vez
+          </button>
 
-              <div className="mt-7 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/[0.07] bg-black/15 p-5">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">Estado</p>
-                  <p className="mt-2 text-lg font-black text-emerald-300">{result.status}</p>
-                </div>
-                <div className="rounded-2xl border border-white/[0.07] bg-black/15 p-5">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">Contacto de referencia</p>
-                  <p className="mt-2 text-lg font-black text-white">{result.contactHint}</p>
-                </div>
-              </div>
-
-              <p className="mt-5 text-xs leading-5 text-zinc-500">
-                Datos de prueba. El saldo y otros datos sensibles se mostraran solo en una vista autenticada.
-              </p>
-            </section>
-          ) : hasSearched ? (
-            <div className="mt-6 rounded-[24px] border border-red-300/10 bg-red-500/[0.05] p-5 text-sm text-red-200">
-              No encontramos una tarjeta registrada con ese numero.
-            </div>
-          ) : null}
-        </section>
-      </div>
+          <p className="mt-5 text-sm text-zinc-500">
+            {status}
+          </p>
+        </div>
+      </section>
     </main>
   );
 }
