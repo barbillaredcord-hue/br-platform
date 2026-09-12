@@ -14,6 +14,7 @@ export type CommercialWorkflowState =
   | "none"
   | "requested"
   | "under_review"
+  | "review_approved"
   | "rejected"
   | "payment_pending"
   | "fulfilled";
@@ -22,6 +23,7 @@ export type CommercialOperationStatus =
   | "none"
   | "requested"
   | "under_review"
+  | "review_approved"
   | "rejected"
   | "payment_pending"
   | "paid"
@@ -61,6 +63,8 @@ function resolveCommercialWorkflowState(
     case "contacted":
     case "review_pending":
       return "under_review";
+    case "review_approved":
+      return "review_approved";
     case "rejected":
     case "review_rejected":
     case "cancelled":
@@ -112,6 +116,7 @@ export function resolveCommercialOperationState(input: {
   } else if (
     workflowState === "requested" ||
     workflowState === "under_review" ||
+    workflowState === "review_approved" ||
     workflowState === "payment_pending"
   ) {
     status = workflowState;

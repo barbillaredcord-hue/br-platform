@@ -139,3 +139,16 @@ test("L: access_revocations no niega beat_access vigente", () => {
   });
   assert.equal(result.state.hasActiveAccess, true);
 });
+
+test("M: payment_pending y review_approved cuentan como proceso comercial abierto", () => {
+  const result = contact({
+    profile: contact().identity,
+    requests: [
+      { status: "payment_pending" },
+      { status: "review_approved" },
+    ],
+  });
+
+  assert.equal(result.metrics.openRequestCount, 2);
+  assert.equal(result.state.hasPendingPayment, true);
+});

@@ -1,3 +1,6 @@
+// @ts-expect-error Node strip-types necesita la extensión explícita.
+import { isCommerciallyOpenAccessRequestStatus } from "./access-request-status.ts";
+
 export type CrmRelationshipKind =
   | "contact"
   | "lead"
@@ -86,12 +89,6 @@ export interface CrmPersonFoundation {
   };
 }
 
-const OPEN_REQUEST_STATUSES = new Set([
-  "pending",
-  "contacted",
-  "review_pending",
-]);
-
 function uniqueValues(values: Array<string | null | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
@@ -151,7 +148,7 @@ export function deriveCrmPersonFoundation(
 
   const followUpSignals = new Set<CrmFollowUpSignal>();
 
-  if (requests.some((request) => OPEN_REQUEST_STATUSES.has(request.status ?? ""))) {
+  if (requests.some((request) => isCommerciallyOpenAccessRequestStatus(request.status))) {
     followUpSignals.add("open_access_request");
   }
 

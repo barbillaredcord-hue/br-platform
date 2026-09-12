@@ -79,6 +79,19 @@ test("el seguimiento se expresa como señales deterministas", () => {
   ]);
 });
 
+test("payment_pending y review_approved permanecen abiertos comercialmente", () => {
+  const result = deriveCrmPersonFoundation({
+    profileId: "profile-1",
+    requests: [
+      { status: "payment_pending" },
+      { status: "review_approved" },
+    ],
+  });
+
+  assert.ok(result.followUpSignals.includes("open_access_request"));
+  assert.ok(result.followUpSignals.includes("payment_pending"));
+});
+
 test("última actividad usa el evento válido más reciente", () => {
   const result = deriveCrmPersonFoundation({
     profileId: "profile-1",

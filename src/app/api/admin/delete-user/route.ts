@@ -1,4 +1,6 @@
 import { createSupabaseServiceClient, getBearerToken } from "@/lib/supabase/admin";
+import { archiveOpportunitiesForProfileDeletion } from "@/lib/crm/opportunities";
+import { createSupabaseOpportunityRepository } from "@/lib/crm/opportunities-supabase";
 
 const recoveryWindowMs = 183 * 24 * 60 * 60 * 1000;
 
@@ -65,6 +67,20 @@ export async function POST(request: Request) {
     if (recoveryError) {
       console.error("B.R account access recovery archive error", recoveryError);
     }
+  }
+
+  try {
+    await archiveOpportunitiesForProfileDeletion(
+      createSupabaseOpportunityRepository(supabase),
+      userId,
+      requester.id,
+    );
+  } catch (error) {
+    console.error("B.R opportunity retention before admin user deletion error", error);
+    return Response.json(
+      { ok: false, message: "No se pudieron archivar las Opportunities del usuario." },
+      { status: 500 },
+    );
   }
 
   await supabase.from("beat_access").delete().eq("user_id", userId);

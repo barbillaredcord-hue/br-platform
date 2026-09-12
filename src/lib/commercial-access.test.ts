@@ -132,6 +132,7 @@ test("K: selector comercial cubre solicitud, revisión, rechazo y pago pendiente
 
   assert.equal(resolveCommercialOperationState({ ...base, requestStatus: "pending" }).status, "requested");
   assert.equal(resolveCommercialOperationState({ ...base, requestStatus: "review_pending" }).status, "under_review");
+  assert.equal(resolveCommercialOperationState({ ...base, requestStatus: "review_approved" }).status, "review_approved");
   assert.equal(resolveCommercialOperationState({ ...base, requestStatus: "rejected" }).status, "rejected");
   assert.equal(resolveCommercialOperationState({ ...base, requestStatus: "payment_pending" }).status, "payment_pending");
 });

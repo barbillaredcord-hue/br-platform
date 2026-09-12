@@ -91,3 +91,21 @@ Generado automaticamente desde APP_STATE.json history[].
 - Evento: Cierre de 15.1 - Contact Intelligence y Relaciones
 - Razon: La validacion fisica Admin confirmo Contact 360 y el ciclo de relaciones explicitas persistentes sobre profiles.id sin regresiones ni cambios de autoridad.
 - Impacto: 15.1 queda completed. Crear, consultar, reabrir y desactivar crm_relationships funciona en Commercial Users; profiles.role y las autoridades existentes permanecen intactas. 15.2 Opportunities pasa a ser la siguiente subfase planned. Fase 15 conserva 12% porque APP_STATE y br-sync-docs no tienen formula automatica de avance.
+
+## 2026-08-21 - phase_15_2_opportunities_implementation_started
+
+- Evento: Inicio de 15.2 - Opportunities
+- Razon: El contrato aprobado habilito una entidad comercial propia sin duplicar solicitudes, pagos, acceso, revocaciones o actividad.
+- Impacto: 15.2 queda in_progress con migracion local no aplicada, RLS Admin, comandos server-side, state machine y pruebas de aislamiento. profile_id se exige al crear y se anonimiza con ON DELETE SET NULL despues de archivar Opportunities al eliminar un usuario. Fase 15 conserva 12% por ausencia de formula automatica.
+
+## 2026-08-21 - phase_15_2_opportunities_remote_persistence_validated
+
+- Evento: Persistencia remota validada de 15.2 - Opportunities
+- Razon: La auditoria previa confirmo compatibilidad UUID de las FKs y permitio aplicar de forma aislada la migracion canonica en Supabase real.
+- Impacto: crm_opportunities queda disponible con RLS Admin, grants minimos para authenticated, state machine y closed_won protegido por manual_payments. Las pruebas con rollback confirmaron archive, historial anonimizado, aislamiento de autoridades y rechazo a no Admin/anon sin dejar datos de prueba. 15.2 permanece in_progress y la UI sigue pendiente.
+
+## 2026-08-21 - phase_15_2b_contact_360_opportunities_ui
+
+- Evento: UI minima de Opportunities integrada en Contact 360
+- Razon: 15.2 necesitaba una superficie administrativa operable sin duplicar access_requests ni construir un pipeline visual complejo.
+- Impacto: Contact 360 incorpora resumen, pipeline estimado por moneda, listas activas/cerradas/archivadas y comandos controlados para crear, editar, transicionar, reabrir y archivar Opportunities. La UI reutiliza las APIs y validaciones server-side existentes; no modifica pagos, acceso, solicitudes ni revocaciones. 15.2 permanece in_progress hasta completar validacion fisica Admin autenticada.

@@ -123,9 +123,9 @@
     "current_phase_label": "Fase 15 - Motor Comercial Inteligente / CRM",
     "current_phase_status": "in_progress",
     "progress_percent": 12,
-    "progress_scope": "Avance manual de Fase 15 conservado en 12%: 15.0 y 15.1 estan completed; APP_STATE y br-sync-docs no contienen una formula automatica para recalcularlo.",
-    "progress_basis": "15.0 fijo identidad y autoridades. 15.1 valido fisicamente Contact 360 y crm_relationships en Admin sin duplicar ni sustituir fuentes existentes. El porcentaje no cambia sin un mecanismo explicito de calculo.",
-    "current_level": "15.1 Contact Intelligence y Relaciones completed tras validacion fisica Admin sobre profiles.id; Contact 360 y crm_relationships operan sin reemplazar autoridades. 15.2 Opportunities permanece planned como siguiente subfase.",
+    "progress_scope": "Avance manual de Fase 15 conservado en 12%: 15.0 y 15.1 estan completed; 15.2 continua in_progress con UI administrativa minima implementada. APP_STATE y br-sync-docs no contienen una formula automatica para recalcularlo.",
+    "progress_basis": "15.0 fijo identidad y autoridades. 15.1 valido Contact 360 y crm_relationships. 15.2 tiene dominio, persistencia aplicada en Supabase real, seguridad, comandos, aislamiento y UI minima integrada en Contact 360; falta validacion fisica Admin autenticada. El porcentaje no cambia sin un mecanismo explicito de calculo.",
+    "current_level": "15.2 Opportunities in_progress con contrato, persistencia real, dominio, comandos Admin, APIs, RLS, state machine y UI minima de Contact 360 validados tecnicamente. Falta validacion fisica Admin autenticada.",
     "last_stable_commit": "pending_phase_14d_commit",
     "checkpoint_doc": "docs/phase-13-preview-player-auth-checkpoint.md",
     "commercial_sql": "docs/supabase/phase-12-commercial.sql",
@@ -167,7 +167,7 @@
       },
       "accepted_entities": [
         "crm_relationships persistida sobre profiles.id para relaciones explicitas simultaneas; RLS, comando idempotente y flujo Admin de creacion, consulta y desactivacion validados fisicamente en 15.1",
-        "crm_opportunities como entidad logica separada de access_requests; persistencia pendiente de 15.2"
+        "crm_opportunities persistida y validada en Supabase real como entidad separada de access_requests; UI minima integrada en Contact 360 y pendiente de validacion fisica Admin en 15.2"
       ],
       "rejected_entities": [
         "crm_contacts en 15.0 porque los cinco actores comerciales remotos ya tienen profile y no hay contactos externos reales"
@@ -182,12 +182,12 @@
       "subphases": [
         { "phase": "fase_15_0_crm_foundation", "label": "15.0 - CRM Foundation", "status": "completed", "goal": "Auditar datos reales, fijar identidad, autoridades, entidades minimas y metricas deterministas." },
         { "phase": "fase_15_1_contact_intelligence", "label": "15.1 - Contact Intelligence y Relaciones", "status": "completed", "goal": "Contact 360 y relaciones explicitas persistentes validadas fisicamente en Admin, aisladas de profiles.role y de las autoridades comerciales existentes." },
-        { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "planned", "goal": "Persistir oportunidades comerciales separadas de access_requests." },
+        { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "in_progress", "goal": "Persistir oportunidades comerciales separadas de access_requests con dominio, seguridad y comandos controlados." },
         { "phase": "fase_15_3_commercial_follow_up", "label": "15.3 - Seguimiento comercial", "status": "planned", "goal": "Agregar notas, tareas, siguiente accion e historial CRM con autoria y visibilidad." },
         { "phase": "fase_15_4_commercial_intelligence", "label": "15.4 - Inteligencia comercial", "status": "planned", "goal": "Derivar timeline, dashboard administrativo, señales, prioridades, scoring explicable y recomendaciones deterministas sin IA avanzada ni duplicar autoridades." }
       ]
     },
-    "next": { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "planned", "goal": "Introducir una entidad de oportunidades comerciales separada de access_requests, capaz de representar intencion y seguimiento comercial sin convertir solicitudes de acceso en CRM.", "design_principle": "Una oportunidad tendra identidad y ciclo propios; access_requests, beat_access y manual_payments conservaran sus autoridades actuales." },
+    "next": { "phase": "fase_15_2_opportunities", "label": "15.2 - Opportunities", "status": "in_progress", "goal": "Validar fisicamente la UI minima de Opportunities integrada en Contact 360 sin alterar las autoridades comerciales existentes.", "design_principle": "Una oportunidad tiene identidad y ciclo propios; access_requests, beat_access y manual_payments conservan sus autoridades actuales." },
     "future": [
       { "phase": "fase_16_automatizacion_comercial", "label": "Fase 16 - Automatizacion Comercial" },
       { "phase": "fase_17_analytics_ia", "label": "Fase 17 - Analytics / Intelligence" },
@@ -201,7 +201,7 @@
       "label": "Motor Comercial Inteligente / CRM",
       "status": "in_progress",
       "progress_percent": 12,
-      "progress_note": "15.0 CRM Foundation y 15.1 Contact Intelligence completadas. Contact 360 y relaciones explicitas fueron validados fisicamente en Admin; el avance manual permanece en 12% porque no existe formula automatica en APP_STATE o br-sync-docs.",
+      "progress_note": "15.0 y 15.1 estan completed. 15.2 tiene persistencia real y UI minima integrada en Contact 360, pendiente de validacion fisica Admin; el avance manual permanece en 12% porque no existe formula automatica en APP_STATE o br-sync-docs.",
       "official_order": [
         "15.0 - CRM Foundation",
         "15.1 - Contact Intelligence y Relaciones",
@@ -413,7 +413,7 @@
     "storage_access": "previews publicos independientes; full audio privado servido mediante signed URLs temporales server-side",
     "local_runtime": "PM2 br-platform online mediante npm start",
     "license_types": ["basic", "premium", "exclusive"],
-    "commercial_operation_identity": "user_id + beat_id dentro de Beat Room; una oportunidad CRM tendra identidad separada cuando se implemente",
+    "commercial_operation_identity": "user_id + beat_id dentro de Beat Room; crm_opportunities usa UUID propio y profile_id requerido al crear, nullable solo por eliminacion posterior del profile",
     "commercial_state_model": "Derivado de access_requests + manual_payments + beat_access + access_revocations; commercial_activity conserva historial",
     "orders_decision": "Diferida despues de la auditoria 15.0; no crear hasta demostrar multiples items/pagos, facturacion, impuestos, checkout o identidad comercial propia",
     "crm_identity": "profiles.id es la identidad estable inicial porque todos los actores comerciales actuales tienen Auth/Profile; crm_contacts se reconsidera solo al aparecer contactos sin cuenta",
@@ -433,6 +433,17 @@
       "relationships": "crm_relationships persistente; creacion, consulta, reapertura y desactivacion verificadas",
       "role_isolation": "profiles.role permanece limitado a autorizacion y no cambia por relaciones CRM",
       "authority_isolation": "No duplica ni sustituye beat_access, manual_payments, access_requests, access_revocations o commercial_activity"
+    },
+    "crm_opportunities": {
+      "status": "in_progress",
+      "persistence": "Migracion local 20260821145003_phase_15_2_crm_opportunities.sql aplicada en Supabase real y registrada remotamente como 20260821170623_phase_15_2_crm_opportunities",
+      "identity": "UUID propio; profile_id obligatorio en createOpportunity y nullable por ON DELETE SET NULL despues de archivar",
+      "state_machine": ["open", "qualified", "proposal", "closed_won", "closed_lost"],
+      "won_authority": "closed_won exige manual_payments(profile_id, beat_id) real y no crea pago",
+      "security": "RLS Admin only validado para SELECT, INSERT y UPDATE; no Admin y anon rechazados; sin politica DELETE y archive mediante archived_at",
+      "retention": "Delete-user y account/delete archivan Opportunities antes de borrar profiles; ON DELETE SET NULL y el check de retencion fueron validados por introspeccion y transaccion sin eliminar usuarios reales",
+      "authority_isolation": "Validado remotamente por transaccion rollback: no muta access_requests, beat_access, manual_payments, access_revocations, commercial_activity o crm_relationships",
+      "ui": "implemented_pending_physical_admin_validation"
     },
     "platform_domains": {
       "beat_room": ["beats", "playback", "solicitudes", "accesos", "pagos", "licencias", "Commercial"],
@@ -518,10 +529,10 @@
     "privacy_model": "B.R es producto principal privado; BR.autocarmation solo administra continuidad y estado."
   },
   "continuity": {
-    "priority": "Preparar 15.2 Opportunities como entidad comercial independiente sin convertir access_requests en CRM ni alterar autoridades existentes.",
-    "next_action": "Definir el contrato minimo y los casos reales de 15.2 Opportunities antes de implementar persistencia, UI o migraciones.",
-    "context": "Fase 14.5 permanece completed al 100%. Fase 15 sigue in_progress al 12% manual: 15.0 y 15.1 estan completed. La validacion fisica Admin confirmo Contact 360, creacion, consulta, reapertura y desactivacion de crm_relationships sin alterar profiles.role, Commercial ni las autoridades existentes. 15.2 Opportunities es la siguiente subfase planned.",
-    "session_context": "15.1 Contact Intelligence y Relaciones esta completed tras validacion fisica Admin. profiles.id sigue siendo la identidad; crm_relationships complementa sin reemplazar roles ni autoridades. beat_access gobierna Full activo, manual_payments confirma pagos, access_requests conserva workflow, access_revocations historial y commercial_activity actividad historica. La siguiente subfase es 15.2 Opportunities, aun sin implementar.",
+    "priority": "Validar fisicamente en Admin la UI minima de 15.2 Opportunities integrada en Contact 360, sin convertir access_requests en CRM ni alterar autoridades existentes.",
+    "next_action": "Ejecutar con sesion Admin el flujo fisico de crear, editar, transicionar, cerrar, reabrir y archivar Opportunities en Contact 360; comprobar tambien el rechazo de closed_won sin pago y el cierre con manual_payments real. No avanzar a 15.3.",
+    "context": "Fase 14.5 permanece completed al 100%. Fase 15 sigue in_progress al 12% manual: 15.0 y 15.1 estan completed; 15.2 esta in_progress con dominio, persistencia real, comandos Admin, APIs, RLS, state machine, aislamiento y UI minima de Contact 360 validados tecnicamente.",
+    "session_context": "15.2 Opportunities tiene persistencia real y UI minima integrada en Contact 360. La UI separa activas, cerradas y archivadas, muestra pipeline estimado por moneda y reutiliza comandos server-side para crear, editar, transicionar y archivar. closed_won sigue sujeto a manual_payments real. Falta la validacion fisica Admin autenticada antes de cerrar 15.2.",
     "musical_classification_sample": {
       "evaluated_beats": 3,
       "exact_matches": 1,
@@ -650,6 +661,27 @@
       "event": "Cierre de 15.1 - Contact Intelligence y Relaciones",
       "reason": "La validacion fisica Admin confirmo Contact 360 y el ciclo de relaciones explicitas persistentes sobre profiles.id sin regresiones ni cambios de autoridad.",
       "impact": "15.1 queda completed. Crear, consultar, reabrir y desactivar crm_relationships funciona en Commercial Users; profiles.role y las autoridades existentes permanecen intactas. 15.2 Opportunities pasa a ser la siguiente subfase planned. Fase 15 conserva 12% porque APP_STATE y br-sync-docs no tienen formula automatica de avance."
+    },
+    {
+      "date": "2026-08-21",
+      "version": "phase_15_2_opportunities_implementation_started",
+      "event": "Inicio de 15.2 - Opportunities",
+      "reason": "El contrato aprobado habilito una entidad comercial propia sin duplicar solicitudes, pagos, acceso, revocaciones o actividad.",
+      "impact": "15.2 queda in_progress con migracion local no aplicada, RLS Admin, comandos server-side, state machine y pruebas de aislamiento. profile_id se exige al crear y se anonimiza con ON DELETE SET NULL despues de archivar Opportunities al eliminar un usuario. Fase 15 conserva 12% por ausencia de formula automatica."
+    },
+    {
+      "date": "2026-08-21",
+      "version": "phase_15_2_opportunities_remote_persistence_validated",
+      "event": "Persistencia remota validada de 15.2 - Opportunities",
+      "reason": "La auditoria previa confirmo compatibilidad UUID de las FKs y permitio aplicar de forma aislada la migracion canonica en Supabase real.",
+      "impact": "crm_opportunities queda disponible con RLS Admin, grants minimos para authenticated, state machine y closed_won protegido por manual_payments. Las pruebas con rollback confirmaron archive, historial anonimizado, aislamiento de autoridades y rechazo a no Admin/anon sin dejar datos de prueba. 15.2 permanece in_progress y la UI sigue pendiente."
+    },
+    {
+      "date": "2026-08-21",
+      "version": "phase_15_2b_contact_360_opportunities_ui",
+      "event": "UI minima de Opportunities integrada en Contact 360",
+      "reason": "15.2 necesitaba una superficie administrativa operable sin duplicar access_requests ni construir un pipeline visual complejo.",
+      "impact": "Contact 360 incorpora resumen, pipeline estimado por moneda, listas activas/cerradas/archivadas y comandos controlados para crear, editar, transicionar, reabrir y archivar Opportunities. La UI reutiliza las APIs y validaciones server-side existentes; no modifica pagos, acceso, solicitudes ni revocaciones. 15.2 permanece in_progress hasta completar validacion fisica Admin autenticada."
     }
   ]
 }
