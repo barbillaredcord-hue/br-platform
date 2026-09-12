@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowUpRight, Headphones, Layers3 } from "lucide-react";
+import { ArrowUpRight, Headphones } from "lucide-react";
 import { BR_ROUTES } from "@/lib/routes";
+import { CentralEntryLink } from "@/components/central/CentralEntryLink";
 
 export default function Home() {
   return (
@@ -33,10 +34,7 @@ export default function Home() {
             <div className="relative flex h-full flex-col justify-between"><div><div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.035] text-cyan-200"><Headphones className="h-5 w-5" /></div><p className="mt-8 text-[10px] font-black uppercase tracking-[0.3em] text-cyan-200">B.R Platform</p><h2 className="mt-3 text-4xl font-black tracking-[-0.05em] sm:text-5xl">La música vive aquí.</h2><p className="mt-5 max-w-xl leading-7 text-zinc-400">Beats, artistas, accesos, licencias y herramientas construidas alrededor de la música.</p></div><span className="mt-10 inline-flex items-center gap-2 text-sm font-black text-cyan-100">Entrar a Platform <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></span></div>
           </Link>
 
-          <Link href={BR_ROUTES.centralHome} className="group relative min-h-[360px] overflow-hidden rounded-[32px] border border-violet-300/15 bg-gradient-to-br from-blue-500/[0.07] via-white/[0.025] to-violet-500/[0.10] p-7 transition hover:-translate-y-1 hover:border-violet-200/30 sm:p-9">
-            <div className="absolute -right-16 -top-12 h-52 w-52 rounded-full bg-violet-500/12 blur-3xl" />
-            <div className="relative flex h-full flex-col justify-between"><div><div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.035] text-violet-200"><Layers3 className="h-5 w-5" /></div><p className="mt-8 text-[10px] font-black uppercase tracking-[0.3em] text-violet-300">BR Central</p><h2 className="mt-3 text-4xl font-black tracking-[-0.05em] sm:text-5xl">Entra donde las ideas se conectan.</h2><p className="mt-5 max-w-xl leading-7 text-zinc-400">Proyectos, experimentos, soluciones y el contexto detrás de por qué decidimos construirlos.</p></div><span className="mt-10 inline-flex items-center gap-2 text-sm font-black text-violet-100">Entrar a Central <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></span></div>
-          </Link>
+          <CentralEntryLink />
         </div>
         <div className="mt-8 border-t border-white/[0.07] pt-6 text-[11px] font-black uppercase tracking-[0.24em] text-zinc-600">Ideas → experimentos → productos → sistemas reales</div>
       </section>
