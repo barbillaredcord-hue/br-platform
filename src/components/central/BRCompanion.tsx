@@ -52,8 +52,10 @@ const paths = [
   },
 ] as const;
 
+type CompanionPath = (typeof paths)[number];
+
 export function BRCompanion() {
-  const [selected, setSelected] = useState<(typeof paths)[number] | null>(null);
+  const [selected, setSelected] = useState<CompanionPath | null>(null);
 
   return (
     <aside className="relative overflow-hidden rounded-[30px] border border-blue-300/15 bg-[#0d0f14]/90 p-5 shadow-[0_30px_100px_rgba(0,0,0,.42)] sm:p-6">
@@ -76,19 +78,22 @@ export function BRCompanion() {
               <p className="mt-2 text-sm leading-6 text-zinc-500">No necesitas conocer BR para empezar. Elige lo que más se parezca a lo que traes en mente.</p>
             </div>
             <div className="mt-4 grid gap-2">
-              {paths.map(({ key, label, icon: Icon, ...path }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSelected({ key, label, icon: Icon, ...path })}
-                  className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5 text-left transition hover:border-blue-300/20 hover:bg-blue-400/[0.04]"
-                >
-                  <span className="flex items-center gap-3 text-sm font-bold text-zinc-300 group-hover:text-white">
-                    <Icon className="h-4 w-4 text-blue-300" /> {label}
-                  </span>
-                  <ArrowUpRight className="h-4 w-4 text-zinc-700 transition group-hover:text-blue-300" />
-                </button>
-              ))}
+              {paths.map((path) => {
+                const Icon = path.icon;
+                return (
+                  <button
+                    key={path.key}
+                    type="button"
+                    onClick={() => setSelected(path)}
+                    className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3.5 text-left transition hover:border-blue-300/20 hover:bg-blue-400/[0.04]"
+                  >
+                    <span className="flex items-center gap-3 text-sm font-bold text-zinc-300 group-hover:text-white">
+                      <Icon className="h-4 w-4 text-blue-300" /> {path.label}
+                    </span>
+                    <ArrowUpRight className="h-4 w-4 text-zinc-700 transition group-hover:text-blue-300" />
+                  </button>
+                );
+              })}
             </div>
           </>
         ) : (
