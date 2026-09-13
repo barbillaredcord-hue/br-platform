@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const items = [
+type NavItem = { label: string; href: string; exact?: boolean };
+
+const items: NavItem[] = [
   { label: "Central", href: "/central", exact: true },
   { label: "Lab", href: "/central/lab" },
   { label: "Projects", href: "/central/projects" },
   { label: "Solutions", href: "/central/solutions" },
   { label: "Ecosystem", href: "/central/ecosystem" },
-] as const;
+];
 
 export function CentralNav({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
