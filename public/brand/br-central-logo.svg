@@ -1,0 +1,14 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFF1BF"/><stop offset=".42" stop-color="#E8B95E"/><stop offset="1" stop-color="#A96B17"/></linearGradient><linearGradient id="silver" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#D7D7D7"/></linearGradient><filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<rect width="1024" height="1024" rx="64" fill="#050505"/>
+<circle cx="512" cy="480" r="405" stroke="url(#gold)" stroke-width="8" stroke-dasharray="560 34 420 34" opacity=".95"/>
+<circle cx="512" cy="480" r="366" stroke="#D6B56D" stroke-width="1.5" opacity=".38"/>
+<circle cx="512" cy="480" r="318" stroke="#C7C7C7" stroke-width="1" opacity=".18"/>
+<g stroke="url(#gold)" stroke-width="3" filter="url(#glow)"><path d="M512 75V154M512 154L468 194M512 154L556 194M512 154V207"/><path d="M107 480H175M849 480H917M512 885V817"/></g>
+<g fill="#F6C96C" stroke="#FFF1BF" stroke-width="3" filter="url(#glow)"><circle cx="512" cy="75" r="22"/><circle cx="107" cy="480" r="22"/><circle cx="917" cy="480" r="22"/><circle cx="512" cy="885" r="22"/><circle cx="468" cy="194" r="7"/><circle cx="556" cy="194" r="7"/><circle cx="512" cy="207" r="7"/></g>
+<path d="M250 310H445C521 310 566 348 566 409C566 450 545 479 507 493C552 507 578 540 578 586C578 656 528 696 444 696H250V310ZM337 384V462H432C461 462 477 448 477 423C477 398 461 384 432 384H337ZM337 536V622H440C473 622 490 607 490 579C490 551 473 536 440 536H337Z" fill="url(#silver)"/>
+<path d="M520 310H715C792 310 838 352 838 421C838 476 810 512 759 528L850 696H749L671 543H608V696H520V310ZM608 384V472H702C733 472 750 456 750 428C750 400 733 384 702 384H608Z" fill="url(#gold)"/>
+<text x="512" y="770" text-anchor="middle" fill="#F2F2F2" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="700" letter-spacing="20">CENTRAL</text>
+<line x1="360" y1="802" x2="664" y2="802" stroke="url(#gold)" stroke-width="2"/>
+<text x="512" y="840" text-anchor="middle" fill="#A7A7A7" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="600" letter-spacing="5">IDEAS · PROYECTOS · SOLUCIONES · ECOSISTEMA</text>
+</svg>
