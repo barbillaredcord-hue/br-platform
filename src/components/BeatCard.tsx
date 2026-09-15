@@ -208,17 +208,17 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
   }
 
   return (
-    <article className="relative w-40 shrink-0 snap-start rounded-lg bg-[#15181c] p-2 transition hover:bg-[#1c2127] sm:w-56 sm:p-3">
+    <article className="relative w-[78vw] max-w-[18rem] shrink-0 snap-start rounded-xl border border-white/5 bg-[#15181c] p-2.5 transition hover:bg-[#1c2127] sm:w-56 sm:p-3">
       <button
         type="button"
         aria-label={
           isSaved ? `Quitar ${beat.name} de guardados` : `Guardar ${beat.name}`
         }
         onClick={toggleSaved}
-        className={`absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition sm:right-5 sm:top-5 sm:h-9 sm:w-9 ${
+        className={`absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border text-xs font-bold shadow-lg backdrop-blur transition sm:right-5 sm:top-5 sm:h-9 sm:w-9 ${
           isSaved
             ? "border-cyan-300/60 bg-cyan-300 text-black"
-            : "border-white/15 bg-black/30 text-cyan-100 hover:border-cyan-300/60 hover:bg-cyan-300/10"
+            : "border-white/15 bg-black/45 text-cyan-100 hover:border-cyan-300/60 hover:bg-cyan-300/10"
         }`}
       >
         <Heart
@@ -228,24 +228,24 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
       </button>
       <Link href={`/beats/${beat.id}`} className="block">
         <div
-          className={`mb-2 grid aspect-square place-items-center rounded-md sm:mb-4 sm:rounded-lg ${coverGradients[gradientIndex % coverGradients.length]}`}
+          className={`mb-3 grid aspect-square place-items-center rounded-lg ${coverGradients[gradientIndex % coverGradients.length]}`}
         >
-          <span className="text-3xl font-black text-white/85 sm:text-4xl">
+          <span className="text-4xl font-black text-white/85">
             B.R
           </span>
         </div>
         <div className="flex items-start justify-between gap-2 sm:gap-3">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold sm:text-base">
+            <h3 className="truncate text-base font-semibold">
               {beat.name}
             </h3>
-            <p className="mt-0.5 truncate text-xs text-zinc-400 sm:mt-1 sm:text-sm">
-              {beat.genre} · {beat.bpm} BPM
+            <p className="mt-1 truncate text-sm text-zinc-400">
+              {beat.genre} · {beat.bpm} BPM{beat.key ? ` · ${beat.key}` : ""}
             </p>
           </div>
           {beat.locked && !hasPlaybackAccess ? <AccessBadge /> : null}
         </div>
-        <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
+        <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2">
           <AccessStatusBadge hasAccess={hasPlaybackAccess} />
           {showRevokedNotice ? (
             <span className="inline-flex w-fit rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold text-amber-100">
@@ -260,7 +260,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
             </span>
           ) : null}
         </div>
-        <p className="mt-1.5 truncate text-[11px] font-semibold text-zinc-500 sm:mt-2 sm:text-xs">
+        <p className="mt-2 truncate text-xs font-semibold text-zinc-500">
           {isPublicPlayback && hasRevocation
             ? "Full público, descarga bloqueada"
             : showRevokedNotice
@@ -292,7 +292,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
         ) : (
           <Link
             href={currentUser ? "/account/settings" : "/login"}
-            className="inline-flex h-9 items-center justify-center rounded-md bg-white text-xs font-bold text-black hover:bg-cyan-200 sm:h-10 sm:text-sm"
+            className="inline-flex h-11 items-center justify-center rounded-lg bg-white text-sm font-bold text-black hover:bg-cyan-200"
           >
             {currentUser ? "Confirmar email" : "Iniciar sesión"}
           </Link>
@@ -305,7 +305,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
               : `Guardar ${beat.name}`
           }
           onClick={toggleSaved}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-cyan-300/20 px-3 text-xs font-bold text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-300/10 sm:h-10"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-cyan-300/20 px-3 text-sm font-bold text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-300/10"
         >
           <Heart
             className={`h-4 w-4 ${isSaved ? "fill-cyan-200 text-cyan-200" : ""}`}
@@ -318,7 +318,7 @@ export function BeatCard({ beat, gradientIndex, queue }: BeatCardProps) {
             type="button"
             onClick={() => void acknowledgeRevocation()}
             disabled={isAcknowledgingRevocation}
-            className="inline-flex h-9 items-center justify-center rounded-md border border-amber-300/30 px-3 text-xs font-bold text-amber-100 transition hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-60 sm:h-10"
+            className="inline-flex h-11 items-center justify-center rounded-lg border border-amber-300/30 px-3 text-sm font-bold text-amber-100 transition hover:bg-amber-300/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isAcknowledgingRevocation ? "Guardando..." : "Ya lo vi"}
           </button>
