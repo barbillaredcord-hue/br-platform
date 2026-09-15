@@ -1,6 +1,25 @@
 export type BeatStatus = "Público Preview" | "Privado" | "Exclusivo";
 export type BeatPlaybackVisibility = "private" | "public";
 
+export type BeatCreativeContext = {
+  song?: {
+    id: string;
+    title: string;
+    slug?: string | null;
+  } | null;
+  artist?: {
+    id: string;
+    name: string;
+    slug?: string | null;
+  } | null;
+  release?: {
+    id: string;
+    title: string;
+    slug?: string | null;
+    releaseType?: "single" | "ep" | "album" | null;
+  } | null;
+};
+
 export type Beat = {
   id: string;
   dbId?: string;
@@ -14,6 +33,7 @@ export type Beat = {
   previewUrl: string;
   fullAudioUrl: string;
   isDemoAudio: false;
+  creativeContext?: BeatCreativeContext | null;
 };
 
 export type BeatRow = {
