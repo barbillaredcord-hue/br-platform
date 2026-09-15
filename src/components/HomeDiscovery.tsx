@@ -1,12 +1,14 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminPreview } from "@/components/AdminPreview";
 import { BeatRow } from "@/components/BeatRow";
 import { HeroBeat } from "@/components/HeroBeat";
 import { SupabaseFallbackNotice } from "@/components/SupabaseFallbackNotice";
+import { useUser } from "@/context/UserContext";
 import type { Beat, BeatRow as BeatRowType } from "@/data/beats";
+import { getSavedBeatIds, SAVED_BEATS_EVENT } from "@/lib/saved-beats";
 import { buildBeatRows } from "@/lib/supabase/queries";
 
 type HomeDiscoveryProps = {
@@ -29,7 +31,57 @@ function makeRow(title: string, beats: Beat[]): BeatRowType | null {
   return beats.length > 0 ? { title, beats } : null;
 }
 
-function buildDiscoveryRows(beats: Beat[], genreRows: BeatRowType[]) {
+function normalizeGenres(genre: string) {
+  return genre
+    .toLowerCase()
+    .split(/[,/;|]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function buildPersonalizedBeats(beats: Beat[], savedBeatIds: string[]) {
+  if (savedBeatIds.length === 0) {
+    return [];
+  }
+
+  const savedIds = new Set(savedBeatIds);
+  const savedBeats = beats.filter((beat) => savedIds.has(beat.dbId ?? beat.id));
+
+  if (savedBeats.length === 0) {
+    return [];
+  }
+
+  return beats
+    .filter((beat) => !savedIds.has(beat.dbId ?? beat.id))
+    .map((beat, index) => {
+      const beatGenres = normalizeGenres(beat.genre || "");
+      let score = 0;
+
+      savedBeats.forEach((savedBeat) => {
+        const savedGenres = normalizeGenres(savedBeat.genre || "");
+
+        if (beatGenres.some((genre) => savedGenres.includes(genre))) {
+          score += 3;
+        }
+
+        if (Math.abs(beat.bpm - savedBeat.bpm) <= 10) {
+          score += 2;
+        }
+
+        if (beat.key && savedBeat.key && beat.key.toLowerCase() === savedBeat.key.toLowerCase()) {
+          score += 1;
+        }
+      });
+
+      return { beat, score, index };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 8)
+    .map((item) => item.beat);
+}
+
+function buildDiscoveryRows(beats: Beat[], genreRows: BeatRowType[], personalizedBeats: Beat[]) {
   const rows: BeatRowType[] = [];
   const pushRow = (row: BeatRowType | null) => {
     if (row && !rows.some((item) => item.title === row.title)) {
@@ -37,6 +89,7 @@ function buildDiscoveryRows(beats: Beat[], genreRows: BeatRowType[]) {
     }
   };
 
+  pushRow(makeRow("Para ti", personalizedBeats));
   pushRow(makeRow("Nuevos", beats.slice(0, 8)));
 
   const fullBeats = genreRows.find((row) => row.title === "Full Beats");
@@ -54,6 +107,10 @@ function buildDiscoveryRows(beats: Beat[], genreRows: BeatRowType[]) {
 }
 
 function getRowSubtitle(title: string) {
+  if (title === "Para ti") {
+    return "Basado en tus beats guardados";
+  }
+
   if (title === "Nuevos") {
     return "Lo más reciente en Beat Room";
   }
@@ -70,18 +127,41 @@ function getRowSubtitle(title: string) {
 }
 
 export function HomeDiscovery({ beats, beatRows, usingFallback }: HomeDiscoveryProps) {
+  const { currentUser } = useUser();
   const [searchQuery, setSearchQuery] = useState("");
+  const [savedBeatIds, setSavedBeatIds] = useState<string[]>([]);
   const newestBeat = beats[0];
   const hasSearch = Boolean(searchQuery.trim());
+
+  useEffect(() => {
+    const syncSavedBeats = () => {
+      setSavedBeatIds(getSavedBeatIds(currentUser?.id));
+    };
+
+    syncSavedBeats();
+    window.addEventListener(SAVED_BEATS_EVENT, syncSavedBeats);
+    window.addEventListener("storage", syncSavedBeats);
+
+    return () => {
+      window.removeEventListener(SAVED_BEATS_EVENT, syncSavedBeats);
+      window.removeEventListener("storage", syncSavedBeats);
+    };
+  }, [currentUser?.id]);
+
+  const personalizedBeats = useMemo(
+    () => buildPersonalizedBeats(beats, savedBeatIds),
+    [beats, savedBeatIds],
+  );
+
   const visibleRows = useMemo(() => {
     const query = searchQuery.trim();
 
     if (!query) {
-      return buildDiscoveryRows(beats, beatRows);
+      return buildDiscoveryRows(beats, beatRows, personalizedBeats);
     }
 
     return buildBeatRows(beats.filter((beat) => beatMatchesSearch(beat, query)));
-  }, [beatRows, beats, searchQuery]);
+  }, [beatRows, beats, personalizedBeats, searchQuery]);
 
   return (
     <div className="min-w-0 space-y-5 px-3 py-4 sm:px-4 md:space-y-8 md:px-8 md:py-6">
@@ -118,7 +198,11 @@ export function HomeDiscovery({ beats, beatRows, usingFallback }: HomeDiscoveryP
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">Descubrir</p>
               <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Explora Beat Room</h2>
-              <p className="mt-1 text-sm text-zinc-500">Nuevos lanzamientos, full disponibles, ritmo y géneros.</p>
+              <p className="mt-1 text-sm text-zinc-500">
+                {personalizedBeats.length > 0
+                  ? "Recomendaciones según tus guardados, nuevos lanzamientos, full disponibles, ritmo y géneros."
+                  : "Nuevos lanzamientos, full disponibles, ritmo y géneros."}
+              </p>
             </div>
           ) : null}
 
