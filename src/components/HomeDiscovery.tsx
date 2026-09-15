@@ -48,16 +48,29 @@ export function HomeDiscovery({ beats, beatRows, usingFallback }: HomeDiscoveryP
       {usingFallback ? <SupabaseFallbackNotice /> : null}
       {newestBeat ? <HeroBeat beat={newestBeat} label="Beat más nuevo" /> : null}
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Buscar beats, género, BPM o tonalidad"
-          className="h-10 w-full rounded-md border border-white/10 bg-white/5 pl-9 pr-3 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-cyan-300 focus:bg-white/[0.07] sm:h-11"
-        />
-      </div>
+      <section aria-labelledby="beat-room-search-title" className="rounded-xl border border-white/10 bg-white/[0.035] p-3 sm:p-4">
+        <div className="mb-3">
+          <p id="beat-room-search-title" className="text-sm font-black text-white sm:text-base">
+            Encuentra tu próximo beat
+          </p>
+          <p className="mt-1 text-xs font-medium text-zinc-500 sm:text-sm">
+            Busca por nombre, género, BPM o tonalidad.
+          </p>
+        </div>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden="true" />
+          <input
+            id="beat-room-search"
+            aria-labelledby="beat-room-search-title"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Buscar beat, género, BPM o tonalidad..."
+            className="h-11 w-full rounded-lg border border-white/10 bg-black/20 pl-11 pr-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-cyan-300 focus:bg-white/[0.05] sm:h-12"
+          />
+        </div>
+      </section>
 
       {visibleRows.length > 0 ? (
         visibleRows.map((row, rowIndex) => (
