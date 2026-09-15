@@ -86,9 +86,8 @@ export function HeroBeat({ beat, label = "Beat destacado" }: HeroBeatProps) {
       const foundRevocation = userRevocations.find((item) => revocationMatchesBeat(item, beatId)) ?? null;
 
       if (isMounted) {
-        const status = request?.status;
         setRevocation(foundRevocation);
-        setRequestStatus(status ?? null);
+        setRequestStatus(request?.status ?? null);
       }
     }
 
@@ -105,44 +104,38 @@ export function HeroBeat({ beat, label = "Beat destacado" }: HeroBeatProps) {
     };
   }, [beat.dbId, beat.id, currentUser]);
 
+  const accessMessage = isCurrentlyRevoked && revocation
+    ? isPublicPlayback
+      ? `Tu acceso protegido fue revocado. Motivo: ${revocation.reason}. El full sigue disponible por ser público; descarga y licencia permanecen bloqueadas.`
+      : `Tu acceso a este beat fue revocado. Motivo: ${revocation.reason}. Puedes reproducir preview y pedir revisión desde la página del beat.`
+    : accessState.status === "restored"
+      ? "Tu acceso completo está activo nuevamente. La revocación anterior permanece únicamente en el historial."
+      : isPublicPlayback
+        ? "Full público disponible. Descarga y licencia continúan protegidas por acceso."
+        : canPreviewPrivate
+          ? `Preview privado de ${previewSeconds} segundos. El acceso completo requiere aprobación de B.R.`
+          : "Inicia sesión o confirma tu email para escuchar el preview de este beat.";
+
   return (
-    <section className="relative overflow-hidden rounded-lg border border-cyan-300/20 bg-[radial-gradient(circle_at_20%_20%,rgba(103,232,249,0.28),transparent_30%),linear-gradient(135deg,#111827,#050607_70%)] p-4 sm:p-5 md:p-8">
-      <div className="max-w-xl">
-        <div className="mb-2 flex flex-wrap items-center gap-2 sm:mb-3">
-          <p className="text-xs font-bold uppercase text-cyan-200 sm:text-sm">{label}</p>
-          {requestStatus ? (
-            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${requestStatusStyles[requestStatus] ?? "border-white/10 bg-white/5 text-zinc-300"}`}>
-              {requestStatusLabels[requestStatus] ?? "Solicitud en proceso"}
-            </span>
-          ) : null}
-          {accessState.status === "restored" ? (
-            <span className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-bold text-emerald-100">
-              Acceso restaurado
-            </span>
-          ) : isCurrentlyRevoked ? (
-            <span className="inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold text-amber-100">
-              Revocado actualmente
-            </span>
-          ) : null}
+    <section className="relative overflow-hidden rounded-xl border border-cyan-300/20 bg-[radial-gradient(circle_at_18%_18%,rgba(103,232,249,0.24),transparent_28%),linear-gradient(135deg,#111827,#050607_72%)] p-4 sm:p-6 md:p-8">
+      <div className="max-w-3xl">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200 sm:text-sm">{label}</p>
+
+        <h1 className="mt-2 break-words text-3xl font-black leading-tight tracking-tight sm:text-4xl md:text-5xl">{beat.name}</h1>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-zinc-200 sm:text-sm">
+          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">{beat.genre}</span>
+          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">{beat.bpm} BPM</span>
+          {beat.key ? <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">{beat.key}</span> : null}
+          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+            {playbackMode === "full" ? "Full" : `Preview ${previewSeconds}s`}
+          </span>
         </div>
-        <h1 className="break-words text-3xl font-black leading-tight sm:text-4xl md:text-5xl">{beat.name}</h1>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-300 sm:text-base">
-          {isCurrentlyRevoked && revocation
-            ? isPublicPlayback
-              ? `Tu acceso protegido fue revocado. Motivo: ${revocation.reason}. El full sigue disponible por ser público; descarga y licencia permanecen bloqueadas.`
-              : `Tu acceso a este beat fue revocado. Motivo: ${revocation.reason}. Puedes reproducir preview y pedir revisión desde la página del beat.`
-            : accessState.status === "restored"
-              ? "Tu acceso completo está activo nuevamente. La revocación anterior permanece únicamente en el historial."
-            : isPublicPlayback
-              ? "Reproducción full pública activa. Descarga y licencia siguen protegidas por acceso."
-              : canPreviewPrivate
-                ? `Preview privado de ${previewSeconds} segundos. Acceso completo bajo aprobación de B.R.`
-                : "Inicia sesión o confirma tu email para escuchar preview de beats privados."}
-        </p>
-        <div className="mt-5 flex flex-wrap gap-2 sm:gap-3">
+
+        <div className="mt-5 flex flex-wrap items-center gap-2 sm:gap-3">
           {canPlay ? (
             <PlayButton beat={beat} mode={playbackMode} queue={[beat]} showPauseState>
-              {playbackMode === "full" ? "Reproducir full" : "Reproducir preview"}
+              {playbackMode === "full" ? "Reproducir" : "Escuchar preview"}
             </PlayButton>
           ) : (
             <>
@@ -154,9 +147,26 @@ export function HeroBeat({ beat, label = "Beat destacado" }: HeroBeatProps) {
               </Link>
             </>
           )}
-          <span className="rounded-md border border-white/10 px-3 py-2 text-xs text-zinc-300 sm:px-4 sm:py-3 sm:text-sm">
-            {beat.genre} / {beat.bpm} BPM / Preview {previewSeconds}s
-          </span>
+        </div>
+
+        <div className="mt-5 border-t border-white/10 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {requestStatus ? (
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${requestStatusStyles[requestStatus] ?? "border-white/10 bg-white/5 text-zinc-300"}`}>
+                {requestStatusLabels[requestStatus] ?? "Solicitud en proceso"}
+              </span>
+            ) : null}
+            {accessState.status === "restored" ? (
+              <span className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2.5 py-1 text-[11px] font-bold text-emerald-100">
+                Acceso restaurado
+              </span>
+            ) : isCurrentlyRevoked ? (
+              <span className="inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold text-amber-100">
+                Acceso revocado
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-zinc-400 sm:text-sm">{accessMessage}</p>
         </div>
       </div>
     </section>
