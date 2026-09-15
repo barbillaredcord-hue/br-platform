@@ -52,21 +52,12 @@ export function Header() {
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-end">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-center md:justify-end">
           {isAdmin ? (
-            <div className="inline-flex h-11 shrink-0 items-center rounded-md border border-white/10 bg-white/5 px-3 text-xs font-bold text-zinc-200">
+            <div className="inline-flex h-10 shrink-0 items-center rounded-md border border-white/10 bg-white/5 px-3 text-xs font-bold text-zinc-200">
               {statusLabel}
             </div>
           ) : null}
-          <label className="sr-only" htmlFor="search">
-            Buscar beats
-          </label>
-          <input
-            id="search"
-            type="search"
-            placeholder="Buscar beats, género o BPM"
-            className="h-11 w-full rounded-md border border-white/10 bg-white/10 px-4 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-cyan-300"
-          />
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Link href={BR_ROUTES.centralHome} className="inline-flex h-10 items-center rounded-md border border-white/10 px-3 text-xs font-bold text-zinc-400 transition hover:border-cyan-300 hover:text-cyan-200">
               BR STUDIOS Central
