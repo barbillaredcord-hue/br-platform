@@ -25,23 +25,63 @@ function beatMatchesSearch(beat: Beat, query: string) {
   return [beat.name, beat.genre, String(beat.bpm), beat.key ?? ""].some((value) => value.toLowerCase().includes(normalizedQuery));
 }
 
+function makeRow(title: string, beats: Beat[]): BeatRowType | null {
+  return beats.length > 0 ? { title, beats } : null;
+}
+
+function buildDiscoveryRows(beats: Beat[], genreRows: BeatRowType[]) {
+  const rows: BeatRowType[] = [];
+  const pushRow = (row: BeatRowType | null) => {
+    if (row && !rows.some((item) => item.title === row.title)) {
+      rows.push(row);
+    }
+  };
+
+  pushRow(makeRow("Nuevos", beats.slice(0, 8)));
+
+  const fullBeats = genreRows.find((row) => row.title === "Full Beats");
+  pushRow(fullBeats ?? null);
+
+  pushRow(makeRow("90–110 BPM", beats.filter((beat) => beat.bpm >= 90 && beat.bpm <= 110)));
+  pushRow(makeRow("111–130 BPM", beats.filter((beat) => beat.bpm >= 111 && beat.bpm <= 130)));
+  pushRow(makeRow("131+ BPM", beats.filter((beat) => beat.bpm >= 131)));
+
+  genreRows
+    .filter((row) => row.title !== "Full Beats")
+    .forEach((row) => pushRow(row));
+
+  return rows;
+}
+
 function getRowSubtitle(title: string) {
-  return title === "Full Beats" ? "Reproducción completa pública" : undefined;
+  if (title === "Nuevos") {
+    return "Lo más reciente en Beat Room";
+  }
+
+  if (title === "Full Beats") {
+    return "Reproducción completa pública";
+  }
+
+  if (title.includes("BPM")) {
+    return "Explora por ritmo";
+  }
+
+  return undefined;
 }
 
 export function HomeDiscovery({ beats, beatRows, usingFallback }: HomeDiscoveryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const newestBeat = beats[0];
+  const hasSearch = Boolean(searchQuery.trim());
   const visibleRows = useMemo(() => {
     const query = searchQuery.trim();
 
     if (!query) {
-      return beatRows;
+      return buildDiscoveryRows(beats, beatRows);
     }
 
     return buildBeatRows(beats.filter((beat) => beatMatchesSearch(beat, query)));
   }, [beatRows, beats, searchQuery]);
-  const hasSearch = Boolean(searchQuery.trim());
 
   return (
     <div className="min-w-0 space-y-5 px-3 py-4 sm:px-4 md:space-y-8 md:px-8 md:py-6">
@@ -73,9 +113,19 @@ export function HomeDiscovery({ beats, beatRows, usingFallback }: HomeDiscoveryP
       </section>
 
       {visibleRows.length > 0 ? (
-        visibleRows.map((row, rowIndex) => (
-          <BeatRow key={row.title} title={row.title} subtitle={getRowSubtitle(row.title)} beats={row.beats} rowIndex={rowIndex} />
-        ))
+        <section aria-label={hasSearch ? "Resultados de búsqueda" : "Descubrir beats"} className="space-y-6 md:space-y-8">
+          {!hasSearch ? (
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">Descubrir</p>
+              <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Explora Beat Room</h2>
+              <p className="mt-1 text-sm text-zinc-500">Nuevos lanzamientos, full disponibles, ritmo y géneros.</p>
+            </div>
+          ) : null}
+
+          {visibleRows.map((row, rowIndex) => (
+            <BeatRow key={row.title} title={row.title} subtitle={getRowSubtitle(row.title)} beats={row.beats} rowIndex={rowIndex} />
+          ))}
+        </section>
       ) : (
         <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm font-semibold text-zinc-300">
           No encontramos beats con esa búsqueda.
