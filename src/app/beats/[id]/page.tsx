@@ -45,6 +45,8 @@ export default async function BeatPage({ params }: BeatPageProps) {
   const usersWithAccess = await getUsersWithAccessToBeat(beat.dbId ?? beat.id);
   const accessRevocations = await getAccessRevocationsForBeat(beat.dbId ?? beat.id);
   const previewSeconds = getPreviewSeconds(beat);
+  const creativeContext = beat.creativeContext;
+  const hasCreativeContext = Boolean(creativeContext?.song || creativeContext?.artist || creativeContext?.release);
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#050607] px-3 py-4 pb-24 text-white sm:px-4 md:px-8 md:py-6 md:pb-32">
@@ -113,6 +115,44 @@ export default async function BeatPage({ params }: BeatPageProps) {
             ) : null}
           </div>
         </section>
+
+        {hasCreativeContext ? (
+          <section className="rounded-lg border border-cyan-300/20 bg-[#101317] p-4 md:p-5">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">Proyecto artístico</p>
+            <h2 className="mt-1 text-lg font-bold md:text-xl">Contexto creativo</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-5 text-zinc-400">
+              Este beat ya forma parte de una relación creativa preparada para Song → Artist → Release.
+            </p>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {creativeContext?.song ? (
+                <article className="rounded-lg border border-white/10 bg-[#15181c] p-3">
+                  <p className="text-xs font-bold uppercase text-zinc-500">Song</p>
+                  <p className="mt-1 text-base font-bold text-white">{creativeContext.song.title}</p>
+                  <p className="mt-1 text-xs text-zinc-500">Canción vinculada al beat</p>
+                </article>
+              ) : null}
+
+              {creativeContext?.artist ? (
+                <article className="rounded-lg border border-white/10 bg-[#15181c] p-3">
+                  <p className="text-xs font-bold uppercase text-zinc-500">Artist</p>
+                  <p className="mt-1 text-base font-bold text-white">{creativeContext.artist.name}</p>
+                  <p className="mt-1 text-xs text-zinc-500">Proyecto artístico relacionado</p>
+                </article>
+              ) : null}
+
+              {creativeContext?.release ? (
+                <article className="rounded-lg border border-white/10 bg-[#15181c] p-3">
+                  <p className="text-xs font-bold uppercase text-zinc-500">Release</p>
+                  <p className="mt-1 text-base font-bold text-white">{creativeContext.release.title}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {creativeContext.release.releaseType ? creativeContext.release.releaseType.toUpperCase() : "Lanzamiento vinculado"}
+                  </p>
+                </article>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
         <BeatAccessSummary beat={beat} />
 
