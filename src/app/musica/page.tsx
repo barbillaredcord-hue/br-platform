@@ -3,8 +3,7 @@ import { HomeDiscovery } from "@/components/HomeDiscovery";
 import { Sidebar } from "@/components/Sidebar";
 import { getBeats } from "@/lib/supabase/queries";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 30;
 
 export default async function MusicHome() {
   const { beats, rows: beatRows, usingFallback } = await getBeats();
