@@ -12,13 +12,17 @@ const sidebarItems = [
 export function Sidebar() {
   return (
     <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-[#090b0d] px-5 py-6 lg:block">
-      <div className="mb-10 flex items-center gap-3">
+      <Link
+        href={BR_ROUTES.musicHome}
+        aria-label="Ir al inicio de Beat Room"
+        className="mb-10 flex items-center gap-3 rounded-md transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+      >
         <LogoMark decorative />
         <div>
           <p className="text-sm font-semibold text-white">Beat Room</p>
           <p className="text-xs text-zinc-500">Acceso privado</p>
         </div>
-      </div>
+      </Link>
 
       <nav className="space-y-2">
         {sidebarItems.map((item) => (
