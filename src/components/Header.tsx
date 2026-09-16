@@ -41,7 +41,11 @@ export function Header() {
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-[#050607]/90 px-3 py-3 backdrop-blur sm:px-4 md:px-8 md:py-4">
       <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
-        <div className="flex items-center justify-between gap-3">
+        <Link
+          href={BR_ROUTES.musicHome}
+          aria-label="Ir al inicio de Beat Room"
+          className="flex items-center justify-between gap-3 rounded-md transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+        >
           <div className="flex items-center gap-3 lg:hidden">
             <LogoMark compact decorative />
             <span className="font-semibold">Beat Room</span>
@@ -50,7 +54,7 @@ export function Header() {
             <LogoMark compact decorative />
             <span className="text-xl font-black">B.R</span>
           </div>
-        </div>
+        </Link>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3 md:max-w-4xl md:flex-row md:items-center md:justify-end">
           {isAdmin ? (
